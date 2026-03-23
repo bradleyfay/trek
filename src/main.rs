@@ -1,4 +1,5 @@
 mod app;
+mod icons;
 mod ui;
 
 use anyhow::Result;

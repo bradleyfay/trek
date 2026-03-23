@@ -1,4 +1,5 @@
 use crate::app::App;
+use crate::icons::icon_for_entry;
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
@@ -80,11 +81,8 @@ fn draw_parent_pane(f: &mut Frame, app: &App, area: Rect) {
             } else {
                 Style::default()
             };
-            let name = if entry.is_dir {
-                format!("{}/", entry.name)
-            } else {
-                entry.name.clone()
-            };
+            let icon = icon_for_entry(&entry.name, entry.is_dir);
+            let name = format!("{} {}", icon, entry.name);
             ListItem::new(Span::styled(name, style))
         })
         .collect();
@@ -120,11 +118,8 @@ fn draw_current_pane(f: &mut Frame, app: &App, area: Rect) {
             } else {
                 Style::default()
             };
-            let name = if entry.is_dir {
-                format!("{}/", entry.name)
-            } else {
-                entry.name.clone()
-            };
+            let icon = icon_for_entry(&entry.name, entry.is_dir);
+            let name = format!("{} {}", icon, entry.name);
             ListItem::new(Span::styled(name, style))
         })
         .collect();

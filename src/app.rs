@@ -1,3 +1,4 @@
+use crate::icons::icon_for_entry;
 use anyhow::Result;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -132,11 +133,8 @@ impl App {
                 // Show directory contents as preview.
                 let children = Self::read_entries(&entry.path);
                 self.preview_lines = children.iter().map(|c| {
-                    if c.is_dir {
-                        format!("{}/", c.name)
-                    } else {
-                        c.name.clone()
-                    }
+                    let icon = icon_for_entry(&c.name, c.is_dir);
+                    format!("{} {}", icon, c.name)
                 }).collect();
             } else {
                 // Try to read as text.
