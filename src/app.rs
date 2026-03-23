@@ -207,10 +207,7 @@ impl App {
             return vec!["[binary file]".to_string()];
         }
         let text = String::from_utf8_lossy(&data);
-        text.lines()
-            .take(2000)
-            .map(|l| l.to_string())
-            .collect()
+        text.lines().take(2000).map(|l| l.to_string()).collect()
     }
 
     /// Ensure the selected item is visible, adjusting scroll offset.
@@ -268,7 +265,10 @@ impl App {
 
     pub fn go_parent(&mut self) {
         if let Some(parent) = self.cwd.parent().map(|p| p.to_path_buf()) {
-            let old_name = self.cwd.file_name().map(|n| n.to_string_lossy().into_owned());
+            let old_name = self
+                .cwd
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned());
             self.cwd = parent;
             let _ = self.load_dir();
             // Try to select the directory we came from.
@@ -480,7 +480,11 @@ impl App {
 
     pub fn search_move_down(&mut self) {
         // Move to the next filtered match after current selection.
-        if let Some(pos) = self.filtered_indices.iter().position(|&i| i > self.selected) {
+        if let Some(pos) = self
+            .filtered_indices
+            .iter()
+            .position(|&i| i > self.selected)
+        {
             self.selected = self.filtered_indices[pos];
             self.load_preview();
         }
@@ -488,7 +492,11 @@ impl App {
 
     pub fn search_move_up(&mut self) {
         // Move to the previous filtered match before current selection.
-        if let Some(pos) = self.filtered_indices.iter().rposition(|&i| i < self.selected) {
+        if let Some(pos) = self
+            .filtered_indices
+            .iter()
+            .rposition(|&i| i < self.selected)
+        {
             self.selected = self.filtered_indices[pos];
             self.load_preview();
         }
@@ -519,10 +527,7 @@ impl App {
 
     pub fn yank_relative_path(&mut self) {
         if let Some(entry) = self.entries.get(self.selected) {
-            let rel = entry
-                .path
-                .strip_prefix(&self.cwd)
-                .unwrap_or(&entry.path);
+            let rel = entry.path.strip_prefix(&self.cwd).unwrap_or(&entry.path);
             let path_str = format!("./{}", rel.display());
             self.osc52_copy(&path_str);
             self.status_message = Some(format!("Yanked: {}", path_str));

@@ -20,7 +20,7 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(1), // path bar
-            Constraint::Min(3),   // main panes
+            Constraint::Min(3),    // main panes
             Constraint::Length(1), // status / search bar
         ])
         .split(size);
@@ -51,9 +51,24 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         .split(main_area);
 
     // Store pane areas for mouse hit-testing.
-    app.parent_area = (pane_chunks[0].x, pane_chunks[0].y, pane_chunks[0].width, pane_chunks[0].height);
-    app.current_area = (pane_chunks[1].x, pane_chunks[1].y, pane_chunks[1].width, pane_chunks[1].height);
-    app.preview_area = (pane_chunks[2].x, pane_chunks[2].y, pane_chunks[2].width, pane_chunks[2].height);
+    app.parent_area = (
+        pane_chunks[0].x,
+        pane_chunks[0].y,
+        pane_chunks[0].width,
+        pane_chunks[0].height,
+    );
+    app.current_area = (
+        pane_chunks[1].x,
+        pane_chunks[1].y,
+        pane_chunks[1].width,
+        pane_chunks[1].height,
+    );
+    app.preview_area = (
+        pane_chunks[2].x,
+        pane_chunks[2].y,
+        pane_chunks[2].width,
+        pane_chunks[2].height,
+    );
 
     // Ensure selection is visible before drawing.
     app.ensure_visible(pane_chunks[1].height);
@@ -69,7 +84,9 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     } else if let Some(ref msg) = app.status_message {
         let para = Paragraph::new(Line::from(Span::styled(
             msg.as_str(),
-            Style::default().fg(Color::Green).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::Green)
+                .add_modifier(Modifier::BOLD),
         )));
         f.render_widget(para, bottom_area);
     } else {
@@ -394,7 +411,11 @@ fn draw_help_overlay(f: &mut Frame, size: Rect) {
         .borders(Borders::ALL)
         .border_style(Style::default().fg(Color::Yellow))
         .title(" Help ")
-        .title_style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD));
+        .title_style(
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        );
     let para = Paragraph::new(help_lines).block(block);
     f.render_widget(para, area);
 }

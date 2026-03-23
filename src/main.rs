@@ -5,7 +5,9 @@ mod ui;
 use anyhow::Result;
 use app::App;
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, MouseButton, MouseEventKind},
+    event::{
+        self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, MouseButton, MouseEventKind,
+    },
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -65,7 +67,9 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()> {
                         KeyCode::Up | KeyCode::Char('k') => app.move_up(),
                         KeyCode::Down | KeyCode::Char('j') => app.move_down(),
                         KeyCode::Left | KeyCode::Char('h') => app.go_parent(),
-                        KeyCode::Right | KeyCode::Char('l') | KeyCode::Enter => app.enter_selected(),
+                        KeyCode::Right | KeyCode::Char('l') | KeyCode::Enter => {
+                            app.enter_selected()
+                        }
                         KeyCode::Char('g') => app.go_top(),
                         KeyCode::Char('G') => app.go_bottom(),
                         KeyCode::Char('~') => app.go_home(),
