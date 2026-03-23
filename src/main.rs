@@ -42,17 +42,37 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()> {
         terminal.draw(|f| ui::draw(f, &mut app))?;
 
         match event::read()? {
-            Event::Key(key) => match key.code {
-                KeyCode::Char('q') => break,
-                KeyCode::Up | KeyCode::Char('k') => app.move_up(),
-                KeyCode::Down | KeyCode::Char('j') => app.move_down(),
-                KeyCode::Left | KeyCode::Char('h') => app.go_parent(),
-                KeyCode::Right | KeyCode::Char('l') | KeyCode::Enter => app.enter_selected(),
-                KeyCode::Char('g') => app.go_top(),
-                KeyCode::Char('G') => app.go_bottom(),
-                KeyCode::Char('~') => app.go_home(),
-                _ => {}
-            },
+            Event::Key(key) => {
+                // Clear status message on any keypress.
+                app.status_message = None;
+
+                if app.search_mode {
+                    match key.code {
+                        KeyCode::Esc => app.cancel_search(),
+                        KeyCode::Enter => app.confirm_search(),
+                        KeyCode::Backspace => app.search_pop_char(),
+                        KeyCode::Up | KeyCode::BackTab => app.search_move_up(),
+                        KeyCode::Down | KeyCode::Tab => app.search_move_down(),
+                        KeyCode::Char(c) => app.search_push_char(c),
+                        _ => {}
+                    }
+                } else {
+                    match key.code {
+                        KeyCode::Char('q') => break,
+                        KeyCode::Up | KeyCode::Char('k') => app.move_up(),
+                        KeyCode::Down | KeyCode::Char('j') => app.move_down(),
+                        KeyCode::Left | KeyCode::Char('h') => app.go_parent(),
+                        KeyCode::Right | KeyCode::Char('l') | KeyCode::Enter => app.enter_selected(),
+                        KeyCode::Char('g') => app.go_top(),
+                        KeyCode::Char('G') => app.go_bottom(),
+                        KeyCode::Char('~') => app.go_home(),
+                        KeyCode::Char('/') => app.start_search(),
+                        KeyCode::Char('y') => app.yank_relative_path(),
+                        KeyCode::Char('Y') => app.yank_absolute_path(),
+                        _ => {}
+                    }
+                }
+            }
             Event::Mouse(mouse) => match mouse.kind {
                 MouseEventKind::Down(MouseButton::Left) => {
                     app.on_mouse_down(mouse.column, mouse.row);

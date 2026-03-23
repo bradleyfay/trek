@@ -15,11 +15,26 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     app.term_width = size.width;
     app.term_height = size.height;
 
+    // Reserve bottom row for search bar or status message.
+    let has_bottom_bar = app.search_mode || app.status_message.is_some();
+    let (main_area, bottom_area) = if has_bottom_bar && size.height > 3 {
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Min(3),
+                Constraint::Length(1),
+            ])
+            .split(size);
+        (chunks[0], Some(chunks[1]))
+    } else {
+        (size, None)
+    };
+
     // Compute column positions of the two dividers.
-    let left_cols = ((app.left_div * size.width as f64).round() as u16).max(3);
-    let right_cols = ((app.right_div * size.width as f64).round() as u16).max(left_cols + 4);
+    let left_cols = ((app.left_div * main_area.width as f64).round() as u16).max(3);
+    let right_cols = ((app.right_div * main_area.width as f64).round() as u16).max(left_cols + 4);
     let mid_cols = right_cols.saturating_sub(left_cols);
-    let preview_cols = size.width.saturating_sub(right_cols);
+    let preview_cols = main_area.width.saturating_sub(right_cols);
 
     app.left_div_col = left_cols;
     app.right_div_col = right_cols;
@@ -31,7 +46,7 @@ pub fn draw(f: &mut Frame, app: &mut App) {
             Constraint::Length(mid_cols),
             Constraint::Length(preview_cols),
         ])
-        .split(size);
+        .split(main_area);
 
     // Store preview area for mouse hit-testing.
     app.preview_area = (chunks[2].x, chunks[2].y, chunks[2].width, chunks[2].height);
@@ -40,9 +55,39 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     draw_current_pane(f, app, chunks[1]);
     draw_preview_pane(f, app, chunks[2]);
 
-    // Draw divider grab handles: thin vertical highlight on the border columns.
-    draw_divider(f, app.left_div_col.saturating_sub(1), size.height, app.drag == Some(crate::app::DragTarget::LeftDivider));
-    draw_divider(f, app.right_div_col.saturating_sub(1), size.height, app.drag == Some(crate::app::DragTarget::RightDivider));
+    // Draw divider grab handles.
+    draw_divider(f, app.left_div_col.saturating_sub(1), main_area.height, app.drag == Some(crate::app::DragTarget::LeftDivider));
+    draw_divider(f, app.right_div_col.saturating_sub(1), main_area.height, app.drag == Some(crate::app::DragTarget::RightDivider));
+
+    // Draw bottom bar.
+    if let Some(bar) = bottom_area {
+        if app.search_mode {
+            draw_search_bar(f, app, bar);
+        } else if let Some(ref msg) = app.status_message {
+            let para = Paragraph::new(Line::from(Span::styled(
+                msg.as_str(),
+                Style::default().fg(Color::Green).add_modifier(Modifier::BOLD),
+            )));
+            f.render_widget(para, bar);
+        }
+    }
+}
+
+fn draw_search_bar(f: &mut Frame, app: &App, area: Rect) {
+    let match_count = app.filtered_indices.len();
+    let total = app.entries.len();
+    let para = Paragraph::new(Line::from(vec![
+        Span::styled("/", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            &app.search_query,
+            Style::default().fg(Color::White).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            format!(" [{}/{}]", match_count, total),
+            Style::default().fg(Color::DarkGray),
+        ),
+    ]));
+    f.render_widget(para, area);
 }
 
 fn draw_divider(f: &mut Frame, col: u16, height: u16, active: bool) {
@@ -103,16 +148,21 @@ fn draw_current_pane(f: &mut Frame, app: &App, area: Rect) {
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_else(|| app.cwd.to_string_lossy().into_owned());
 
+    let is_searching = app.search_mode && !app.search_query.is_empty();
+
     let items: Vec<ListItem> = app
         .entries
         .iter()
         .enumerate()
         .map(|(i, entry)| {
+            let is_match = !is_searching || app.filtered_indices.contains(&i);
             let style = if i == app.selected {
                 Style::default()
                     .fg(Color::Black)
                     .bg(Color::LightYellow)
                     .add_modifier(Modifier::BOLD)
+            } else if !is_match {
+                Style::default().fg(Color::DarkGray)
             } else if entry.is_dir {
                 Style::default().fg(Color::Blue).add_modifier(Modifier::BOLD)
             } else {
@@ -142,7 +192,7 @@ fn draw_preview_pane(f: &mut Frame, app: &App, area: Rect) {
         .map(|e| e.name.clone())
         .unwrap_or_default();
 
-    let visible_height = area.height.saturating_sub(2) as usize; // account for block borders
+    let visible_height = area.height.saturating_sub(2) as usize;
     let total = app.preview_lines.len();
     let scroll_info = if total > 0 {
         let end = (app.preview_scroll + visible_height).min(total);

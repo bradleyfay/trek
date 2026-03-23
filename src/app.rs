@@ -1,6 +1,7 @@
 use crate::icons::icon_for_entry;
 use anyhow::Result;
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 /// Which divider the user is currently dragging.
@@ -45,6 +46,15 @@ pub struct App {
 
     /// Area of the preview pane (set during draw).
     pub preview_area: (u16, u16, u16, u16), // (x, y, width, height)
+
+    // --- Fuzzy search ---
+    pub search_mode: bool,
+    pub search_query: String,
+    /// Indices into `entries` that match the current query.
+    pub filtered_indices: Vec<usize>,
+
+    // --- Status message (e.g. "Yanked: ./src/main.rs") ---
+    pub status_message: Option<String>,
 }
 
 #[derive(Clone)]
@@ -73,6 +83,10 @@ impl App {
             left_div_col: 0,
             right_div_col: 0,
             preview_area: (0, 0, 0, 0),
+            search_mode: false,
+            search_query: String::new(),
+            filtered_indices: Vec::new(),
+            status_message: None,
         };
         app.load_dir()?;
         Ok(app)
@@ -281,6 +295,124 @@ impl App {
         let (x, y, w, h) = self.preview_area;
         col >= x && col < x + w && row >= y && row < y + h
     }
+
+    // --- Fuzzy search ---
+
+    pub fn start_search(&mut self) {
+        self.search_mode = true;
+        self.search_query.clear();
+        self.update_filter();
+    }
+
+    pub fn cancel_search(&mut self) {
+        self.search_mode = false;
+        self.search_query.clear();
+        self.filtered_indices.clear();
+    }
+
+    pub fn confirm_search(&mut self) {
+        // Move selection to the first filtered match, then exit search mode.
+        if let Some(&idx) = self.filtered_indices.first() {
+            self.selected = idx;
+            self.load_preview();
+        }
+        self.search_mode = false;
+        self.search_query.clear();
+        self.filtered_indices.clear();
+    }
+
+    pub fn search_push_char(&mut self, c: char) {
+        self.search_query.push(c);
+        self.update_filter();
+    }
+
+    pub fn search_pop_char(&mut self) {
+        self.search_query.pop();
+        self.update_filter();
+    }
+
+    pub fn search_move_down(&mut self) {
+        // Move to the next filtered match after current selection.
+        if let Some(pos) = self.filtered_indices.iter().position(|&i| i > self.selected) {
+            self.selected = self.filtered_indices[pos];
+            self.load_preview();
+        }
+    }
+
+    pub fn search_move_up(&mut self) {
+        // Move to the previous filtered match before current selection.
+        if let Some(pos) = self.filtered_indices.iter().rposition(|&i| i < self.selected) {
+            self.selected = self.filtered_indices[pos];
+            self.load_preview();
+        }
+    }
+
+    fn update_filter(&mut self) {
+        if self.search_query.is_empty() {
+            self.filtered_indices = (0..self.entries.len()).collect();
+        } else {
+            let query = self.search_query.to_lowercase();
+            self.filtered_indices = self
+                .entries
+                .iter()
+                .enumerate()
+                .filter(|(_, e)| fuzzy_match(&e.name.to_lowercase(), &query))
+                .map(|(i, _)| i)
+                .collect();
+        }
+        // Auto-select first match.
+        if let Some(&first) = self.filtered_indices.first() {
+            self.selected = first;
+            self.load_preview();
+        }
+    }
+
+    // --- Clipboard (OSC 52) ---
+
+    pub fn yank_relative_path(&mut self) {
+        if let Some(entry) = self.entries.get(self.selected) {
+            let rel = entry
+                .path
+                .strip_prefix(&self.cwd)
+                .unwrap_or(&entry.path);
+            let path_str = format!("./{}", rel.display());
+            self.osc52_copy(&path_str);
+            self.status_message = Some(format!("Yanked: {}", path_str));
+        }
+    }
+
+    pub fn yank_absolute_path(&mut self) {
+        if let Some(entry) = self.entries.get(self.selected) {
+            let path_str = entry.path.to_string_lossy().into_owned();
+            self.osc52_copy(&path_str);
+            self.status_message = Some(format!("Yanked: {}", path_str));
+        }
+    }
+
+    /// Write an OSC 52 sequence to set the system clipboard.
+    fn osc52_copy(&self, text: &str) {
+        use base64::Engine;
+        let encoded = base64::engine::general_purpose::STANDARD.encode(text.as_bytes());
+        // OSC 52 ; c ; <base64> ST
+        let seq = format!("\x1b]52;c;{}\x07", encoded);
+        let _ = std::io::stdout().write_all(seq.as_bytes());
+        let _ = std::io::stdout().flush();
+    }
+}
+
+/// Simple fuzzy matching: all characters of `query` appear in `name` in order.
+fn fuzzy_match(name: &str, query: &str) -> bool {
+    let mut name_chars = name.chars();
+    for qc in query.chars() {
+        loop {
+            match name_chars.next() {
+                Some(nc) if nc == qc => break,
+                Some(_) => continue,
+                None => return false,
+            }
+        }
+    }
+    true
 }
 
 /// Get the user's home directory without pulling in another crate.
