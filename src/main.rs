@@ -46,7 +46,10 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()> {
                 // Clear status message on any keypress.
                 app.status_message = None;
 
-                if app.search_mode {
+                if app.show_help {
+                    // Any key closes help overlay.
+                    app.show_help = false;
+                } else if app.search_mode {
                     match key.code {
                         KeyCode::Esc => app.cancel_search(),
                         KeyCode::Enter => app.confirm_search(),
@@ -58,7 +61,7 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()> {
                     }
                 } else {
                     match key.code {
-                        KeyCode::Char('q') => break,
+                        KeyCode::Char('Q') => break,
                         KeyCode::Up | KeyCode::Char('k') => app.move_up(),
                         KeyCode::Down | KeyCode::Char('j') => app.move_down(),
                         KeyCode::Left | KeyCode::Char('h') => app.go_parent(),
@@ -66,16 +69,22 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()> {
                         KeyCode::Char('g') => app.go_top(),
                         KeyCode::Char('G') => app.go_bottom(),
                         KeyCode::Char('~') => app.go_home(),
+                        KeyCode::Char('.') => app.toggle_hidden(),
                         KeyCode::Char('/') => app.start_search(),
                         KeyCode::Char('y') => app.yank_relative_path(),
                         KeyCode::Char('Y') => app.yank_absolute_path(),
+                        KeyCode::Char('?') => app.show_help = true,
                         _ => {}
                     }
                 }
             }
             Event::Mouse(mouse) => match mouse.kind {
                 MouseEventKind::Down(MouseButton::Left) => {
-                    app.on_mouse_down(mouse.column, mouse.row);
+                    if app.show_help {
+                        app.show_help = false;
+                    } else {
+                        app.on_mouse_down(mouse.column, mouse.row);
+                    }
                 }
                 MouseEventKind::Drag(MouseButton::Left) => {
                     app.on_mouse_drag(mouse.column, mouse.row);

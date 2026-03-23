@@ -1,5 +1,6 @@
 use crate::icons::icon_for_entry;
 use anyhow::Result;
+use std::collections::HashSet;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -18,10 +19,14 @@ pub struct App {
     pub entries: Vec<DirEntry>,
     /// Index of the selected entry.
     pub selected: usize,
+    /// Scroll offset for the current pane.
+    pub current_scroll: usize,
     /// Entries in the parent directory (for left pane).
     pub parent_entries: Vec<DirEntry>,
     /// Index of cwd within its parent listing.
     pub parent_selected: usize,
+    /// Scroll offset for the parent pane.
+    pub parent_scroll: usize,
     /// Lines of the previewed file (right pane).
     pub preview_lines: Vec<String>,
     /// Preview scroll offset (line index of top visible line).
@@ -44,17 +49,29 @@ pub struct App {
     pub left_div_col: u16,
     pub right_div_col: u16,
 
-    /// Area of the preview pane (set during draw).
-    pub preview_area: (u16, u16, u16, u16), // (x, y, width, height)
+    /// Areas of each pane (set during draw): (x, y, width, height).
+    pub parent_area: (u16, u16, u16, u16),
+    pub current_area: (u16, u16, u16, u16),
+    pub preview_area: (u16, u16, u16, u16),
 
     // --- Fuzzy search ---
     pub search_mode: bool,
     pub search_query: String,
     /// Indices into `entries` that match the current query.
     pub filtered_indices: Vec<usize>,
+    /// O(1) membership check for filtered indices.
+    pub filtered_set: HashSet<usize>,
+    /// Selection before search started (for cancel-restore).
+    pub pre_search_selected: usize,
 
     // --- Status message (e.g. "Yanked: ./src/main.rs") ---
     pub status_message: Option<String>,
+
+    // --- Hidden files toggle ---
+    pub show_hidden: bool,
+
+    // --- Help overlay ---
+    pub show_help: bool,
 }
 
 #[derive(Clone)]
@@ -62,6 +79,7 @@ pub struct DirEntry {
     pub name: String,
     pub path: PathBuf,
     pub is_dir: bool,
+    pub size: u64,
 }
 
 impl App {
@@ -71,8 +89,10 @@ impl App {
             cwd: cwd.clone(),
             entries: Vec::new(),
             selected: 0,
+            current_scroll: 0,
             parent_entries: Vec::new(),
             parent_selected: 0,
+            parent_scroll: 0,
             preview_lines: Vec::new(),
             preview_scroll: 0,
             term_height: 0,
@@ -82,11 +102,17 @@ impl App {
             drag: None,
             left_div_col: 0,
             right_div_col: 0,
+            parent_area: (0, 0, 0, 0),
+            current_area: (0, 0, 0, 0),
             preview_area: (0, 0, 0, 0),
             search_mode: false,
             search_query: String::new(),
             filtered_indices: Vec::new(),
+            filtered_set: HashSet::new(),
+            pre_search_selected: 0,
             status_message: None,
+            show_hidden: false,
+            show_help: false,
         };
         app.load_dir()?;
         Ok(app)
@@ -94,13 +120,13 @@ impl App {
 
     /// Reload the current directory listing and parent listing.
     pub fn load_dir(&mut self) -> Result<()> {
-        self.entries = Self::read_entries(&self.cwd);
+        self.entries = Self::read_entries(&self.cwd, self.show_hidden);
         if self.selected >= self.entries.len() {
             self.selected = self.entries.len().saturating_sub(1);
         }
         // Parent entries
         if let Some(parent) = self.cwd.parent() {
-            self.parent_entries = Self::read_entries(parent);
+            self.parent_entries = Self::read_entries(parent, self.show_hidden);
             self.parent_selected = self
                 .parent_entries
                 .iter()
@@ -114,17 +140,23 @@ impl App {
         Ok(())
     }
 
-    fn read_entries(dir: &Path) -> Vec<DirEntry> {
+    fn read_entries(dir: &Path, show_hidden: bool) -> Vec<DirEntry> {
         let mut entries: Vec<DirEntry> = match fs::read_dir(dir) {
             Ok(rd) => rd
                 .filter_map(|e| e.ok())
-                .map(|e| {
+                .filter_map(|e| {
+                    let name = e.file_name().to_string_lossy().into_owned();
+                    if !show_hidden && name.starts_with('.') {
+                        return None;
+                    }
                     let is_dir = e.file_type().map(|ft| ft.is_dir()).unwrap_or(false);
-                    DirEntry {
-                        name: e.file_name().to_string_lossy().into_owned(),
+                    let size = e.metadata().map(|m| m.len()).unwrap_or(0);
+                    Some(DirEntry {
+                        name,
                         path: e.path(),
                         is_dir,
-                    }
+                        size,
+                    })
                 })
                 .collect(),
             Err(_) => Vec::new(),
@@ -145,11 +177,14 @@ impl App {
         if let Some(entry) = self.entries.get(self.selected) {
             if entry.is_dir {
                 // Show directory contents as preview.
-                let children = Self::read_entries(&entry.path);
-                self.preview_lines = children.iter().map(|c| {
-                    let icon = icon_for_entry(&c.name, c.is_dir);
-                    format!("{} {}", icon, c.name)
-                }).collect();
+                let children = Self::read_entries(&entry.path, self.show_hidden);
+                self.preview_lines = children
+                    .iter()
+                    .map(|c| {
+                        let icon = icon_for_entry(&c.name, c.is_dir);
+                        format!("{} {}", icon, c.name)
+                    })
+                    .collect();
             } else {
                 // Try to read as text.
                 self.preview_lines = Self::read_file_preview(&entry.path);
@@ -176,6 +211,31 @@ impl App {
             .take(2000)
             .map(|l| l.to_string())
             .collect()
+    }
+
+    /// Ensure the selected item is visible, adjusting scroll offset.
+    pub fn ensure_visible(&mut self, pane_height: u16) {
+        let h = pane_height.saturating_sub(2) as usize; // subtract border rows
+        if h == 0 {
+            return;
+        }
+        if self.selected < self.current_scroll {
+            self.current_scroll = self.selected;
+        } else if self.selected >= self.current_scroll + h {
+            self.current_scroll = self.selected - h + 1;
+        }
+    }
+
+    pub fn ensure_parent_visible(&mut self, pane_height: u16) {
+        let h = pane_height.saturating_sub(2) as usize;
+        if h == 0 {
+            return;
+        }
+        if self.parent_selected < self.parent_scroll {
+            self.parent_scroll = self.parent_selected;
+        } else if self.parent_selected >= self.parent_scroll + h {
+            self.parent_scroll = self.parent_selected - h + 1;
+        }
     }
 
     // --- Navigation ---
@@ -226,7 +286,11 @@ impl App {
             if entry.is_dir {
                 self.cwd = entry.path;
                 self.selected = 0;
+                self.current_scroll = 0;
                 let _ = self.load_dir();
+            } else {
+                // For files, yank the relative path.
+                self.yank_relative_path();
             }
         }
     }
@@ -235,19 +299,70 @@ impl App {
         if let Some(home) = dirs_home() {
             self.cwd = home;
             self.selected = 0;
+            self.current_scroll = 0;
             let _ = self.load_dir();
         }
     }
 
+    pub fn toggle_hidden(&mut self) {
+        self.show_hidden = !self.show_hidden;
+        let _ = self.load_dir();
+        self.status_message = Some(if self.show_hidden {
+            "Showing hidden files".to_string()
+        } else {
+            "Hiding hidden files".to_string()
+        });
+    }
+
     // --- Mouse handling ---
 
-    /// Called on left-button mouse down. Check if the click is on a divider.
-    pub fn on_mouse_down(&mut self, col: u16, _row: u16) {
+    /// Called on left-button mouse down. Check if the click is on a divider,
+    /// or select a file in the current/parent pane.
+    pub fn on_mouse_down(&mut self, col: u16, row: u16) {
         const GRAB_MARGIN: u16 = 1;
         if col.abs_diff(self.left_div_col) <= GRAB_MARGIN {
             self.drag = Some(DragTarget::LeftDivider);
         } else if col.abs_diff(self.right_div_col) <= GRAB_MARGIN {
             self.drag = Some(DragTarget::RightDivider);
+        } else if self.is_in_current(col, row) {
+            self.click_select_current(col, row);
+        } else if self.is_in_parent(col, row) {
+            self.click_select_parent(col, row);
+        }
+    }
+
+    fn click_select_current(&mut self, _col: u16, row: u16) {
+        let (_, y, _, _) = self.current_area;
+        let inner_y = y + 1; // skip top border
+        if row < inner_y {
+            return;
+        }
+        let clicked_offset = (row - inner_y) as usize;
+        let idx = self.current_scroll + clicked_offset;
+        if idx < self.entries.len() {
+            self.selected = idx;
+            self.load_preview();
+        }
+    }
+
+    fn click_select_parent(&mut self, _col: u16, row: u16) {
+        let (_, y, _, _) = self.parent_area;
+        let inner_y = y + 1; // skip top border
+        if row < inner_y {
+            return;
+        }
+        let clicked_offset = (row - inner_y) as usize;
+        let idx = self.parent_scroll + clicked_offset;
+        if idx < self.parent_entries.len() {
+            // Navigate to that parent entry if it's a directory.
+            if let Some(entry) = self.parent_entries.get(idx).cloned() {
+                if entry.is_dir {
+                    self.cwd = entry.path;
+                    self.selected = 0;
+                    self.current_scroll = 0;
+                    let _ = self.load_dir();
+                }
+            }
         }
     }
 
@@ -276,24 +391,51 @@ impl App {
         self.drag = None;
     }
 
-    /// Scroll up in the preview pane (if cursor is over it).
+    /// Scroll up in whichever pane the cursor is over.
     pub fn on_scroll_up(&mut self, col: u16, row: u16) {
         if self.is_in_preview(col, row) {
             self.preview_scroll = self.preview_scroll.saturating_sub(3);
+        } else if self.is_in_current(col, row) {
+            if self.selected > 0 {
+                self.selected = self.selected.saturating_sub(3);
+                self.load_preview();
+            }
+        } else if self.is_in_parent(col, row) {
+            self.parent_scroll = self.parent_scroll.saturating_sub(3);
         }
     }
 
-    /// Scroll down in the preview pane (if cursor is over it).
+    /// Scroll down in whichever pane the cursor is over.
     pub fn on_scroll_down(&mut self, col: u16, row: u16) {
         if self.is_in_preview(col, row) {
             let max_scroll = self.preview_lines.len().saturating_sub(1);
             self.preview_scroll = (self.preview_scroll + 3).min(max_scroll);
+        } else if self.is_in_current(col, row) {
+            if !self.entries.is_empty() {
+                self.selected = (self.selected + 3).min(self.entries.len() - 1);
+                self.load_preview();
+            }
+        } else if self.is_in_parent(col, row) {
+            let max = self.parent_entries.len().saturating_sub(1);
+            self.parent_scroll = (self.parent_scroll + 3).min(max);
         }
     }
 
-    fn is_in_preview(&self, col: u16, row: u16) -> bool {
-        let (x, y, w, h) = self.preview_area;
+    fn is_in_rect(&self, col: u16, row: u16, area: (u16, u16, u16, u16)) -> bool {
+        let (x, y, w, h) = area;
         col >= x && col < x + w && row >= y && row < y + h
+    }
+
+    fn is_in_preview(&self, col: u16, row: u16) -> bool {
+        self.is_in_rect(col, row, self.preview_area)
+    }
+
+    fn is_in_current(&self, col: u16, row: u16) -> bool {
+        self.is_in_rect(col, row, self.current_area)
+    }
+
+    fn is_in_parent(&self, col: u16, row: u16) -> bool {
+        self.is_in_rect(col, row, self.parent_area)
     }
 
     // --- Fuzzy search ---
@@ -301,13 +443,17 @@ impl App {
     pub fn start_search(&mut self) {
         self.search_mode = true;
         self.search_query.clear();
+        self.pre_search_selected = self.selected;
         self.update_filter();
     }
 
     pub fn cancel_search(&mut self) {
+        self.selected = self.pre_search_selected;
         self.search_mode = false;
         self.search_query.clear();
         self.filtered_indices.clear();
+        self.filtered_set.clear();
+        self.load_preview();
     }
 
     pub fn confirm_search(&mut self) {
@@ -319,6 +465,7 @@ impl App {
         self.search_mode = false;
         self.search_query.clear();
         self.filtered_indices.clear();
+        self.filtered_set.clear();
     }
 
     pub fn search_push_char(&mut self, c: char) {
@@ -360,6 +507,7 @@ impl App {
                 .map(|(i, _)| i)
                 .collect();
         }
+        self.filtered_set = self.filtered_indices.iter().copied().collect();
         // Auto-select first match.
         if let Some(&first) = self.filtered_indices.first() {
             self.selected = first;
@@ -397,6 +545,19 @@ impl App {
         let seq = format!("\x1b]52;c;{}\x07", encoded);
         let _ = std::io::stdout().write_all(seq.as_bytes());
         let _ = std::io::stdout().flush();
+    }
+}
+
+/// Format a file size in human-readable form.
+pub fn format_size(size: u64) -> String {
+    if size < 1024 {
+        format!("{}B", size)
+    } else if size < 1024 * 1024 {
+        format!("{:.1}K", size as f64 / 1024.0)
+    } else if size < 1024 * 1024 * 1024 {
+        format!("{:.1}M", size as f64 / (1024.0 * 1024.0))
+    } else {
+        format!("{:.1}G", size as f64 / (1024.0 * 1024.0 * 1024.0))
     }
 }
 
