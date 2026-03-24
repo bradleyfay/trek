@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.38.0] - 2026-03-24
+
+### Added
+- **Symlink target and validity in meta preview (`m`)**: the meta card for a symlink now shows two additional lines immediately after `Type`:
+  - `Target` — the raw stored link path (relative targets shown as-is; `$HOME` replaced with `~`)
+  - `Valid  ✓  exists` or `Valid  ✗  dangling` depending on whether the full symlink chain resolves
+- A permission error reading the link shows `Target    (unreadable)` with no `Valid` line
+- Regular file and directory meta cards are unchanged
+
 ## [0.37.0] - 2026-03-24
 
 ### Added
