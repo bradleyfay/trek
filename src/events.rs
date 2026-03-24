@@ -30,9 +30,10 @@ pub fn run(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     start_dir: Option<PathBuf>,
 ) -> Result<PathBuf> {
-    // Restore previous session if no explicit start directory was given.
+    // Resolve the start directory: explicit arg > invocation cwd > saved session.
     let session = crate::session::load();
-    let effective_start = start_dir.or(session.cwd);
+    let invocation_cwd = std::env::current_dir().ok();
+    let effective_start = resolve_effective_start(start_dir, invocation_cwd, session.cwd);
 
     let mut app = App::new(effective_start)?;
 
@@ -628,4 +629,68 @@ fn execute_palette_action(
     // terminal is available here for any future actions needing TUI teardown.
     let _ = terminal;
     Ok(())
+}
+
+/// Resolve the effective start directory using the three-way fallback chain:
+///
+/// 1. An explicit path argument (`start_dir`) — always wins.
+/// 2. The shell's working directory at invocation time (`invocation_cwd`).
+/// 3. The saved session directory as a last resort (e.g. the shell `cwd` was deleted).
+pub(crate) fn resolve_effective_start(
+    start_dir: Option<PathBuf>,
+    invocation_cwd: Option<PathBuf>,
+    session_cwd: Option<PathBuf>,
+) -> Option<PathBuf> {
+    start_dir.or(invocation_cwd).or(session_cwd)
+}
+
+// ── Tests ─────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Given: an explicit start_dir is provided
+    /// When: resolve_effective_start is called
+    /// Then: start_dir is returned regardless of other sources
+    #[test]
+    fn explicit_start_dir_takes_priority() {
+        let explicit = PathBuf::from("/explicit");
+        let result = resolve_effective_start(
+            Some(explicit.clone()),
+            Some(PathBuf::from("/current")),
+            Some(PathBuf::from("/session")),
+        );
+        assert_eq!(result, Some(explicit));
+    }
+
+    /// Given: no start_dir and a valid invocation cwd
+    /// When: resolve_effective_start is called
+    /// Then: the invocation cwd is returned (not the session cwd)
+    #[test]
+    fn invocation_cwd_used_when_no_explicit_start() {
+        let current = PathBuf::from("/current");
+        let result =
+            resolve_effective_start(None, Some(current.clone()), Some(PathBuf::from("/session")));
+        assert_eq!(result, Some(current));
+    }
+
+    /// Given: no start_dir and current_dir() fails
+    /// When: resolve_effective_start is called with a saved session_cwd
+    /// Then: session_cwd is used as last resort
+    #[test]
+    fn session_cwd_fallback_when_current_dir_fails() {
+        let session = PathBuf::from("/session");
+        let result = resolve_effective_start(None, None, Some(session.clone()));
+        assert_eq!(result, Some(session));
+    }
+
+    /// Given: no start_dir, current_dir() fails, and no session_cwd
+    /// When: resolve_effective_start is called
+    /// Then: None is returned
+    #[test]
+    fn returns_none_when_all_sources_absent() {
+        let result = resolve_effective_start(None, None, None);
+        assert!(result.is_none());
+    }
 }

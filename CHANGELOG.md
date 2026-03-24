@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.61.1] - 2026-03-24
+
+### Fixed
+- **Trek now opens in the invocation directory** (`$PWD`) instead of restoring the last session's working directory. Previously, running `trek` without an argument would restore the `cwd` saved from the previous session, causing different workspace panes to all show the same directory. The fix adds `std::env::current_dir()` to the start-directory fallback chain so the priority is: explicit path arg → shell's `$PWD` → saved session directory (last resort, for when `$PWD` no longer exists).
+
 ## [0.61.0] - 2026-03-24
 
 ### Added
