@@ -561,3 +561,145 @@ fn selected_path_on_file_returns_some() {
     assert!(app.selected_path().is_some());
     let _ = std::fs::remove_dir_all(&tmp);
 }
+
+// ── command palette tests ────────────────────────────────────────────────────
+
+/// Given: empty query
+/// When: filter_palette("") is called
+/// Then: all actions are returned
+#[test]
+fn palette_filter_empty_query_returns_all() {
+    let results = crate::app::palette::filter_palette("");
+    assert_eq!(results.len(), crate::app::palette::PALETTE_ACTIONS.len());
+}
+
+/// Given: a query matching some action names
+/// When: filter_palette("sort") is called
+/// Then: only actions whose names contain "sort" are returned
+#[test]
+fn palette_filter_narrows_by_substring() {
+    let results = crate::app::palette::filter_palette("sort");
+    assert!(!results.is_empty(), "expected at least one sort action");
+    for &i in &results {
+        let name = crate::app::palette::PALETTE_ACTIONS[i].name.to_lowercase();
+        assert!(name.contains("sort"), "unexpected action: {}", name);
+    }
+}
+
+/// Given: a query that matches no action names
+/// When: filter_palette("zzznomatch") is called
+/// Then: empty vec returned
+#[test]
+fn palette_filter_no_match_returns_empty() {
+    let results = crate::app::palette::filter_palette("zzznomatch");
+    assert!(results.is_empty());
+}
+
+/// Given: palette is closed
+/// When: open_palette() is called
+/// Then: palette_mode is true, query is empty, filtered list is full
+#[test]
+fn open_palette_sets_mode_and_resets_query() {
+    let tmp = std::env::temp_dir().join(format!("trek_palette_open_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let mut app = make_app_at(&tmp);
+    assert!(!app.palette_mode);
+    app.open_palette();
+    assert!(app.palette_mode);
+    assert!(app.palette_query.is_empty());
+    assert_eq!(
+        app.palette_filtered.len(),
+        crate::app::palette::PALETTE_ACTIONS.len()
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: palette is open with a query
+/// When: close_palette() is called
+/// Then: palette_mode is false and query is cleared
+#[test]
+fn close_palette_clears_state() {
+    let tmp = std::env::temp_dir().join(format!("trek_palette_close_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let mut app = make_app_at(&tmp);
+    app.open_palette();
+    app.palette_push_char('s');
+    app.palette_push_char('o');
+    app.close_palette();
+    assert!(!app.palette_mode);
+    assert!(app.palette_query.is_empty());
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: palette is open with no query
+/// When: palette_push_char('q') is called
+/// Then: only actions containing "q" remain in filtered list; selected resets to 0
+#[test]
+fn palette_push_char_narrows_filtered_list() {
+    let tmp = std::env::temp_dir().join(format!("trek_palette_push_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let mut app = make_app_at(&tmp);
+    app.open_palette();
+    let full_count = app.palette_filtered.len();
+    app.palette_push_char('q');
+    assert!(app.palette_filtered.len() < full_count);
+    assert_eq!(app.palette_selected, 0);
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: palette query is "so"
+/// When: palette_pop_char() is called
+/// Then: query becomes "s" and filtered list widens
+#[test]
+fn palette_pop_char_widens_filtered_list() {
+    let tmp = std::env::temp_dir().join(format!("trek_palette_pop_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let mut app = make_app_at(&tmp);
+    app.open_palette();
+    app.palette_push_char('s');
+    app.palette_push_char('o');
+    let narrow = app.palette_filtered.len();
+    app.palette_pop_char();
+    assert!(app.palette_filtered.len() >= narrow);
+    assert_eq!(&app.palette_query, "s");
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: palette has multiple results
+/// When: palette_move_down() then palette_move_up() are called
+/// Then: selected changes appropriately and stays in bounds
+#[test]
+fn palette_navigation_stays_in_bounds() {
+    let tmp = std::env::temp_dir().join(format!("trek_palette_nav_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let mut app = make_app_at(&tmp);
+    app.open_palette();
+    assert_eq!(app.palette_selected, 0);
+    app.palette_move_down();
+    assert_eq!(app.palette_selected, 1);
+    app.palette_move_up();
+    assert_eq!(app.palette_selected, 0);
+    // Moving up at top stays at 0
+    app.palette_move_up();
+    assert_eq!(app.palette_selected, 0);
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: palette_selected_action() with a known action in the list
+/// When: called
+/// Then: returns Some(ActionId) for the selected entry
+#[test]
+fn palette_selected_action_returns_correct_id() {
+    let tmp = std::env::temp_dir().join(format!("trek_palette_sel_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let mut app = make_app_at(&tmp);
+    app.open_palette();
+    // With empty query, first filtered entry is PALETTE_ACTIONS[0]
+    let action = app.palette_selected_action();
+    assert!(action.is_some());
+    assert_eq!(
+        action.unwrap(),
+        crate::app::palette::PALETTE_ACTIONS[app.palette_filtered[0]].id
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}

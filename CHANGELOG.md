@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-03-24
+
+### Added
+- **`:` — command palette**: opens a centered searchable overlay listing all ~34 Trek actions with their keybinding hints; typing narrows the list with case-insensitive substring matching; `Enter`/`l` executes the highlighted action and closes the palette; `Esc`/`:` closes without executing; `j`/`k` and `Up`/`Down` navigate the list
+- Empty query shows all actions; no-match query shows `"No matching actions"`; `Quit` appears for discoverability but is a no-op (use `q` directly)
+- New `src/app/palette.rs` module: `ActionId` enum (34 variants), `PaletteAction` struct, `PALETTE_ACTIONS` static registry, `filter_palette()` function
+- New `src/app/palette_ops.rs`: `open_palette`, `close_palette`, `palette_push_char`, `palette_pop_char`, `palette_move_up`, `palette_move_down`, `palette_selected_action`
+- `execute_palette_action()` in `src/events.rs` dispatches all 34 action IDs; owns the terminal handle for future actions requiring TUI teardown
+- `:` documented in help overlay (`?`) and `--help` output
+- 9 new unit tests: filter empty/substring/no-match, open/close, push/pop char, navigation bounds, selected action ID
+
 ## [0.17.0] - 2026-03-24
 
 ### Added

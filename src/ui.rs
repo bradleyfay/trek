@@ -168,9 +168,14 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         draw_help_overlay(f, size);
     }
 
-    // Bookmark picker overlay (rendered on top of everything else).
+    // Bookmark picker overlay.
     if app.bookmark_mode {
         draw_bookmark_overlay(f, app, size);
+    }
+
+    // Command palette overlay (rendered on top of everything else).
+    if app.palette_mode {
+        draw_palette_overlay(f, app, size);
     }
 }
 
@@ -1246,9 +1251,147 @@ fn draw_find_bar(f: &mut Frame, app: &App, area: Rect) {
     f.render_widget(para, area);
 }
 
+/// Render the command palette as a centered overlay.
+fn draw_palette_overlay(f: &mut Frame, app: &App, size: Rect) {
+    use crate::app::palette::PALETTE_ACTIONS;
+
+    // Up to 12 rows visible; minimum 6 for empty state.
+    const MAX_VISIBLE: usize = 12;
+    let visible_rows = app.palette_filtered.len().clamp(1, MAX_VISIBLE) as u16;
+    // +4 for border (2) + search bar (1) + footer hint (1)
+    let height = (visible_rows + 4).min(size.height.saturating_sub(4)).max(6);
+    let width = 72u16.min(size.width.saturating_sub(4));
+    let x = (size.width.saturating_sub(width)) / 2;
+    let y = (size.height.saturating_sub(height)) / 2;
+    let area = Rect::new(x, y, width, height);
+
+    f.render_widget(Clear, area);
+
+    let title = if app.palette_query.is_empty() {
+        " Command Palette ".to_string()
+    } else {
+        format!(" Command Palette  {} ", app.palette_query)
+    };
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::Cyan))
+        .title(Span::styled(
+            title,
+            Style::default()
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD),
+        ));
+
+    let inner = block.inner(area);
+    f.render_widget(block, area);
+
+    if inner.height < 2 {
+        return;
+    }
+
+    // Split inner area: search bar on top, results below, hint at bottom.
+    let chunks = ratatui::layout::Layout::default()
+        .direction(ratatui::layout::Direction::Vertical)
+        .constraints([
+            ratatui::layout::Constraint::Length(1), // search bar
+            ratatui::layout::Constraint::Min(1),    // results
+            ratatui::layout::Constraint::Length(1), // hint
+        ])
+        .split(inner);
+
+    let search_area = chunks[0];
+    let results_area = chunks[1];
+    let hint_area = chunks[2];
+
+    // Search bar
+    let search_line = Line::from(vec![
+        Span::styled(
+            " > ",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            app.palette_query.as_str(),
+            Style::default()
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled("\u{2588}", Style::default().fg(Color::White)),
+    ]);
+    f.render_widget(Paragraph::new(search_line), search_area);
+
+    // Results
+    if app.palette_filtered.is_empty() {
+        let empty = Paragraph::new(Line::from(Span::styled(
+            "  No matching actions",
+            Style::default().fg(Color::DarkGray),
+        )));
+        f.render_widget(empty, results_area);
+    } else {
+        let visible_height = results_area.height as usize;
+        let scroll = if app.palette_selected >= visible_height {
+            app.palette_selected - visible_height + 1
+        } else {
+            0
+        };
+
+        // Reserve space for key hint (10 chars + 1 space) on the right.
+        let keys_width: usize = 10;
+        let name_width = (results_area.width as usize).saturating_sub(keys_width + 3);
+
+        let items: Vec<ListItem> = app
+            .palette_filtered
+            .iter()
+            .enumerate()
+            .skip(scroll)
+            .take(visible_height)
+            .map(|(display_idx, &real_idx)| {
+                let action = &PALETTE_ACTIONS[real_idx];
+                let is_selected = display_idx == app.palette_selected;
+                let name = truncate_with_ellipsis(action.name, name_width);
+                let keys = format!("{:>width$}", action.keys, width = keys_width);
+
+                if is_selected {
+                    let style = Style::default()
+                        .fg(Color::White)
+                        .bg(Color::Blue)
+                        .add_modifier(Modifier::BOLD);
+                    ListItem::new(Line::from(vec![
+                        Span::styled(
+                            format!(" \u{25cf} {:<width$} ", name, width = name_width),
+                            style,
+                        ),
+                        Span::styled(keys, style),
+                    ]))
+                } else {
+                    ListItem::new(Line::from(vec![
+                        Span::styled(
+                            format!("   {:<width$} ", name, width = name_width),
+                            Style::default().fg(Color::White),
+                        ),
+                        Span::styled(keys, Style::default().fg(Color::DarkGray)),
+                    ]))
+                }
+            })
+            .collect();
+
+        let list = List::new(items);
+        f.render_widget(list, results_area);
+    }
+
+    // Footer hint
+    let hint = Paragraph::new(Line::from(Span::styled(
+        "  Enter=run  Esc=cancel  j/k=navigate",
+        Style::default().fg(Color::DarkGray),
+    )));
+    f.render_widget(hint, hint_area);
+}
+
 fn draw_help_overlay(f: &mut Frame, size: Rect) {
     let width = 60u16.min(size.width.saturating_sub(4));
-    let height = 48u16.min(size.height.saturating_sub(4));
+    let height = 49u16.min(size.height.saturating_sub(4));
     let x = (size.width.saturating_sub(width)) / 2;
     let y = (size.height.saturating_sub(height)) / 2;
     let area = Rect::new(x, y, width, height);
@@ -1308,6 +1451,7 @@ fn draw_help_overlay(f: &mut Frame, size: Rect) {
         // ── Yank & Misc ─────────────────────────────────────────────────────
         section_header("Yank & Misc"),
         key_line("y / Y", "Yank relative / absolute path"),
+        key_line(":", "Open command palette"),
         key_line("Q", "Quit"),
         key_line("?", "Toggle this help"),
         Line::from(""),

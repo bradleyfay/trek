@@ -17,6 +17,8 @@ mod layout;
 mod metadata;
 mod mouse;
 mod navigation;
+pub mod palette;
+mod palette_ops;
 mod preview;
 mod rename;
 mod search;
@@ -252,6 +254,16 @@ pub struct App {
     /// Active filter string. Empty = no filter. Non-empty while filter_mode is false
     /// means the filter is "frozen" (bar closed, listing still narrowed).
     pub filter_input: String,
+
+    // --- Command palette (:) ---
+    /// True when the command palette overlay is open.
+    pub palette_mode: bool,
+    /// The text the user has typed into the palette search bar.
+    pub palette_query: String,
+    /// Index within `palette_filtered` of the highlighted row.
+    pub palette_selected: usize,
+    /// Indices into `palette::PALETTE_ACTIONS` matching the current query.
+    pub palette_filtered: Vec<usize>,
 }
 
 #[derive(Clone)]
@@ -343,6 +355,10 @@ impl App {
             history_pos: 0,
             filter_mode: false,
             filter_input: String::new(),
+            palette_mode: false,
+            palette_query: String::new(),
+            palette_selected: 0,
+            palette_filtered: palette::filter_palette(""),
         };
         app.load_dir();
         Ok(app)

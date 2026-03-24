@@ -83,6 +83,7 @@ pub fn print_help() {
     println!("    x           Cut current to clipboard");
     println!("    p           Paste clipboard       Delete      Delete current file/dir");
     println!("    X           Delete all selected   M           Make new directory");
+    println!("    :           Open command palette");
     println!("    ?           Show help overlay  q           Quit");
 }
 
