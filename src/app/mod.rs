@@ -20,6 +20,7 @@ mod layout;
 mod metadata;
 mod mouse;
 mod navigation;
+pub mod opener;
 pub mod palette;
 mod palette_ops;
 mod preview;

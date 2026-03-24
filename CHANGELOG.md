@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.54.0] - 2026-03-24
+
+### Added
+- **Rifle-style configurable file opener** — Trek now reads `~/.config/trek/opener.conf` (or `$XDG_CONFIG_HOME/trek/opener.conf`) and evaluates rules top-to-bottom; the first match wins. Rules use `ext <ext1|ext2>` or `glob <pattern>` matchers with a `{}` path placeholder in the command. Example: `ext md : cmux open --md {}`.
+- Built-in defaults ship as the fallback when no config file is present, preserving existing routing behaviour (system open for HTML/images/PDFs, `$EDITOR` in a new cmux surface for code/text).
+- User-configured commands are executed via `sh -c`, allowing full shell syntax and environment variable expansion.
+
 ## [0.53.0] - 2026-03-24
 
 ### Removed
