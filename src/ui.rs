@@ -1,6 +1,7 @@
 use crate::app::{format_size, App};
 use crate::git::FileStatus;
 use crate::icons::icon_for_entry;
+use crate::ops::ClipboardOp;
 use crate::rename::{RenameField, RenameResult};
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
@@ -16,6 +17,8 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     let size = f.size();
     // Rename mode needs 3 rows at the bottom (pattern, replacement, error/hint).
     let bottom_height: u16 = if app.rename_mode { 3 } else { 1 };
+    // mkdir mode also needs 1 row (reuses the 1-row bottom area).
+    // delete confirmation and mkdir both fit in 1 row.
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -90,6 +93,10 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     // Draw bottom bar.
     if app.rename_mode {
         draw_rename_bar(f, app, bottom_area);
+    } else if !app.pending_delete.is_empty() {
+        draw_delete_confirm_bar(f, app, bottom_area);
+    } else if app.mkdir_mode {
+        draw_mkdir_bar(f, app, bottom_area);
     } else if app.content_search_mode {
         draw_content_search_bar(f, app, bottom_area);
     } else if app.search_mode {
@@ -113,6 +120,28 @@ pub fn draw(f: &mut Frame, app: &mut App) {
             ),
             Span::styled(
                 "  — r: rename   v: all   Esc: clear",
+                Style::default().fg(Color::DarkGray),
+            ),
+        ]));
+        f.render_widget(para, bottom_area);
+    } else if let Some(ref clip) = app.clipboard {
+        // Show clipboard indicator.
+        let (label, color) = match clip.op {
+            ClipboardOp::Copy => ("[copy]", Color::Green),
+            ClipboardOp::Cut => ("[cut]", Color::Yellow),
+        };
+        let count = clip.paths.len();
+        let para = Paragraph::new(Line::from(vec![
+            Span::styled(
+                format!(" {} ", label),
+                Style::default().fg(color).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                format!(
+                    "{} file{}  — p: paste",
+                    count,
+                    if count == 1 { "" } else { "s" }
+                ),
                 Style::default().fg(Color::DarkGray),
             ),
         ]));
@@ -176,6 +205,53 @@ fn draw_search_bar(f: &mut Frame, app: &App, area: Rect) {
         ),
         Span::styled(
             format!(" [{}/{}]", match_count, total),
+            Style::default().fg(Color::DarkGray),
+        ),
+    ]));
+    f.render_widget(para, area);
+}
+
+fn draw_delete_confirm_bar(f: &mut Frame, app: &App, area: Rect) {
+    let count = app.pending_delete.len();
+    let subject = if count == 1 {
+        app.pending_delete
+            .first()
+            .and_then(|p| p.file_name())
+            .map(|n| format!("\"{}\"", n.to_string_lossy()))
+            .unwrap_or_else(|| "1 item".to_string())
+    } else {
+        format!("{} items", count)
+    };
+    let para = Paragraph::new(Line::from(vec![
+        Span::styled(
+            format!(" Delete {}? ", subject),
+            Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            "[y] confirm   [any other key] cancel",
+            Style::default().fg(Color::DarkGray),
+        ),
+    ]));
+    f.render_widget(para, area);
+}
+
+fn draw_mkdir_bar(f: &mut Frame, app: &App, area: Rect) {
+    let para = Paragraph::new(Line::from(vec![
+        Span::styled(
+            "New directory: ",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            &app.mkdir_input,
+            Style::default()
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled("\u{2588}", Style::default().fg(Color::White)),
+        Span::styled(
+            "  Enter: create   Esc: cancel",
             Style::default().fg(Color::DarkGray),
         ),
     ]));
@@ -742,7 +818,7 @@ fn colorize_diff_line(line: &str) -> Line<'_> {
 
 fn draw_help_overlay(f: &mut Frame, size: Rect) {
     let width = 50u16.min(size.width.saturating_sub(4));
-    let height = 32u16.min(size.height.saturating_sub(4));
+    let height = 42u16.min(size.height.saturating_sub(4));
     let x = (size.width.saturating_sub(width)) / 2;
     let y = (size.height.saturating_sub(height)) / 2;
     let area = Rect::new(x, y, width, height);
@@ -832,6 +908,35 @@ fn draw_help_overlay(f: &mut Frame, size: Rect) {
         Line::from(vec![
             Span::styled("  Esc       ", Style::default().fg(Color::Cyan)),
             Span::raw("Clear selections"),
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("  c         ", Style::default().fg(Color::Cyan)),
+            Span::raw("Copy current to clipboard"),
+        ]),
+        Line::from(vec![
+            Span::styled("  C         ", Style::default().fg(Color::Cyan)),
+            Span::raw("Copy selected to clipboard"),
+        ]),
+        Line::from(vec![
+            Span::styled("  x         ", Style::default().fg(Color::Cyan)),
+            Span::raw("Cut current to clipboard"),
+        ]),
+        Line::from(vec![
+            Span::styled("  X         ", Style::default().fg(Color::Cyan)),
+            Span::raw("Cut selected to clipboard"),
+        ]),
+        Line::from(vec![
+            Span::styled("  p         ", Style::default().fg(Color::Cyan)),
+            Span::raw("Paste clipboard into current dir"),
+        ]),
+        Line::from(vec![
+            Span::styled("  Delete    ", Style::default().fg(Color::Cyan)),
+            Span::raw("Delete current file/dir"),
+        ]),
+        Line::from(vec![
+            Span::styled("  M         ", Style::default().fg(Color::Cyan)),
+            Span::raw("Make new directory"),
         ]),
         Line::from(vec![
             Span::styled("  Q         ", Style::default().fg(Color::Cyan)),

@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-03-24
+
+### Added
+- File copy: `c` copies the current file/dir to the clipboard; `C` copies all selected files
+- File cut: `x` marks the current file/dir for move (cut)
+- Paste: `p` pastes clipboard contents into the current directory; conflicting names are skipped with a status message; cut operations use atomic `rename` (same-filesystem) with copy+delete fallback (cross-device)
+- Recursive directory copy and move supported
+- Delete: `Delete` key deletes the current file/directory with a confirmation prompt (`y` confirms, any other key cancels); `X` deletes all selected files with confirmation
+- Make directory: `M` opens an inline input bar; `Enter` creates the directory, `Esc` cancels
+- Clipboard indicator shown in status bar: `[copy] N files` or `[cut] N files` while clipboard is populated, with paste hint
+- Directory listing and git status are refreshed after every mutating operation
+- New `src/ops.rs` module: `copy_path`, `move_path`, `delete_path`, `make_dir`; eight unit tests covering same-dir copy, cross-dir copy, recursive dir copy, same-fs move, file delete, dir delete, mkdir success, mkdir-already-exists error
+
 ## [0.5.0] - 2026-03-24
 
 ### Added

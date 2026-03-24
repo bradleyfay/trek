@@ -1,6 +1,7 @@
 mod app;
 mod git;
 mod icons;
+mod ops;
 mod rename;
 mod search;
 mod ui;
@@ -100,6 +101,20 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<std::pat
                 if app.show_help {
                     // Any key closes help overlay.
                     app.show_help = false;
+                } else if !app.pending_delete.is_empty() {
+                    // Delete confirmation: y confirms, anything else cancels.
+                    match key.code {
+                        KeyCode::Char('y') | KeyCode::Char('Y') => app.confirm_delete(),
+                        _ => app.cancel_delete(),
+                    }
+                } else if app.mkdir_mode {
+                    match key.code {
+                        KeyCode::Esc => app.cancel_mkdir(),
+                        KeyCode::Enter => app.confirm_mkdir(),
+                        KeyCode::Backspace => app.mkdir_pop_char(),
+                        KeyCode::Char(c) => app.mkdir_push_char(c),
+                        _ => {}
+                    }
                 } else if app.content_search_mode {
                     match key.code {
                         KeyCode::Esc => app.cancel_content_search(),
@@ -158,6 +173,14 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<std::pat
                         KeyCode::Char('v') => app.select_all(),
                         KeyCode::Char('r') => app.start_rename(),
                         KeyCode::Esc => app.clear_selections(),
+                        // File operations
+                        KeyCode::Char('c') => app.clipboard_copy_current(),
+                        KeyCode::Char('C') => app.clipboard_copy_selected(),
+                        KeyCode::Char('x') => app.clipboard_cut_current(),
+                        KeyCode::Char('p') => app.paste_clipboard(),
+                        KeyCode::Delete => app.begin_delete_current(),
+                        KeyCode::Char('X') => app.begin_delete_selected(),
+                        KeyCode::Char('M') => app.begin_mkdir(),
                         _ => {}
                     }
                 }
@@ -212,6 +235,10 @@ fn print_help() {
     println!("    d           Toggle diff preview R           Refresh git status");
     println!("    Space       Toggle file selection v          Select all files");
     println!("    r           Rename selected files Esc        Clear selections");
+    println!("    c           Copy current to clipboard C          Copy selected to clipboard");
+    println!("    x           Cut current to clipboard X          Cut selected to clipboard");
+    println!("    p           Paste clipboard       Delete      Delete current file/dir");
+    println!("    M           Make new directory");
     println!("    ?           Show help overlay  q           Quit");
 }
 
