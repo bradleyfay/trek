@@ -19,6 +19,46 @@ impl App {
         }
     }
 
+    /// Copy just the filename (not the full path) to the clipboard.
+    pub fn yank_filename(&mut self) {
+        if let Some(entry) = self.entries.get(self.selected) {
+            let name = entry
+                .path
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_else(|| entry.name.clone());
+            self.osc52_copy(&name);
+            self.status_message = Some(format!("[yank] {}", name));
+        }
+    }
+
+    /// Copy the parent directory of the selected entry to the clipboard.
+    pub fn yank_parent_dir(&mut self) {
+        if let Some(entry) = self.entries.get(self.selected) {
+            let parent = entry
+                .path
+                .parent()
+                .map(|p| p.to_string_lossy().into_owned())
+                .unwrap_or_else(|| "/".to_string());
+            self.osc52_copy(&parent);
+            self.status_message = Some(format!("[yank] {}", parent));
+        }
+    }
+
+    /// Open the yank format picker overlay.
+    ///
+    /// Does nothing when the directory is empty (no entry to yank).
+    pub fn open_yank_picker(&mut self) {
+        if self.entries.get(self.selected).is_some() {
+            self.yank_picker_mode = true;
+        }
+    }
+
+    /// Close the yank format picker without copying anything.
+    pub fn close_yank_picker(&mut self) {
+        self.yank_picker_mode = false;
+    }
+
     /// Write an OSC 52 sequence to set the system clipboard.
     fn osc52_copy(&self, text: &str) {
         use base64::Engine;

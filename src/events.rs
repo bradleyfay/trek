@@ -179,6 +179,27 @@ pub fn run(
                         KeyCode::Char(c) => app.palette_push_char(c),
                         _ => {}
                     }
+                } else if app.yank_picker_mode {
+                    match key.code {
+                        KeyCode::Esc => app.close_yank_picker(),
+                        KeyCode::Char('r') | KeyCode::Char('1') => {
+                            app.close_yank_picker();
+                            app.yank_relative_path();
+                        }
+                        KeyCode::Char('a') | KeyCode::Char('2') => {
+                            app.close_yank_picker();
+                            app.yank_absolute_path();
+                        }
+                        KeyCode::Char('f') | KeyCode::Char('3') => {
+                            app.close_yank_picker();
+                            app.yank_filename();
+                        }
+                        KeyCode::Char('p') | KeyCode::Char('4') => {
+                            app.close_yank_picker();
+                            app.yank_parent_dir();
+                        }
+                        _ => {}
+                    }
                 } else if app.search_mode {
                     match key.code {
                         KeyCode::Esc => app.cancel_search(),
@@ -217,6 +238,7 @@ pub fn run(
                         KeyCode::Char('|') => app.start_filter(),
                         KeyCode::Char('y') => app.yank_relative_path(),
                         KeyCode::Char('Y') => app.yank_absolute_path(),
+                        KeyCode::Char('A') => app.open_yank_picker(),
                         KeyCode::Char('d') => app.toggle_diff_preview(),
                         KeyCode::Char('m') => app.toggle_meta_preview(),
                         KeyCode::Char('P') => app.begin_chmod(),
@@ -415,6 +437,7 @@ fn execute_palette_action(
         ActionId::ToggleSortOrder => app.toggle_sort_order(),
         ActionId::YankRelativePath => app.yank_relative_path(),
         ActionId::YankAbsolutePath => app.yank_absolute_path(),
+        ActionId::OpenYankPicker => app.open_yank_picker(),
         ActionId::ToggleLineNumbers => app.toggle_line_numbers(),
         ActionId::ScrollPreviewUp => app.scroll_preview_up(5),
         ActionId::ScrollPreviewDown => app.scroll_preview_down(5),

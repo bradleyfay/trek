@@ -183,6 +183,11 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         draw_bookmark_overlay(f, app, size);
     }
 
+    // Yank picker overlay.
+    if app.yank_picker_mode {
+        draw_yank_picker(f, app, size);
+    }
+
     // Command palette overlay (rendered on top of everything else).
     if app.palette_mode {
         draw_palette_overlay(f, app, size);
@@ -1553,9 +1558,81 @@ fn draw_palette_overlay(f: &mut Frame, app: &App, size: Rect) {
     f.render_widget(hint, hint_area);
 }
 
+fn draw_yank_picker(f: &mut Frame, app: &App, size: Rect) {
+    let Some(entry) = app.entries.get(app.selected) else {
+        return;
+    };
+
+    let rel = {
+        let r = entry.path.strip_prefix(&app.cwd).unwrap_or(&entry.path);
+        format!("./{}", r.display())
+    };
+    let abs = entry.path.to_string_lossy().into_owned();
+    let fname = entry
+        .path
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| entry.name.clone());
+    let parent = entry
+        .path
+        .parent()
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "/".to_string());
+
+    let truncate = |s: String| -> String {
+        if s.chars().count() > 44 {
+            format!("{}…", s.chars().take(43).collect::<String>())
+        } else {
+            s
+        }
+    };
+
+    let key_style = Style::default()
+        .fg(Color::Yellow)
+        .add_modifier(Modifier::BOLD);
+    let rows = vec![
+        Line::from(vec![
+            Span::styled(" r ", key_style),
+            Span::raw(format!(" {}", truncate(rel))),
+        ]),
+        Line::from(vec![
+            Span::styled(" a ", key_style),
+            Span::raw(format!(" {}", truncate(abs))),
+        ]),
+        Line::from(vec![
+            Span::styled(" f ", key_style),
+            Span::raw(format!(" {}", truncate(fname))),
+        ]),
+        Line::from(vec![
+            Span::styled(" p ", key_style),
+            Span::raw(format!(" {}", truncate(parent))),
+        ]),
+    ];
+
+    let width = 52u16.min(size.width);
+    let height = 6u16; // border top + 4 rows + border bottom
+    let x = 0;
+    let y = size.height.saturating_sub(height + 1); // +1 for status bar row
+
+    let area = Rect {
+        x,
+        y,
+        width,
+        height,
+    };
+    f.render_widget(Clear, area);
+    let block = Block::default()
+        .title(" Yank path ")
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::Yellow));
+    let inner = block.inner(area);
+    f.render_widget(block, area);
+    f.render_widget(Paragraph::new(rows), inner);
+}
+
 fn draw_help_overlay(f: &mut Frame, size: Rect) {
     let width = 60u16.min(size.width.saturating_sub(4));
-    let height = 66u16.min(size.height.saturating_sub(4));
+    let height = 68u16.min(size.height.saturating_sub(4));
     let x = (size.width.saturating_sub(width)) / 2;
     let y = (size.height.saturating_sub(height)) / 2;
     let area = Rect::new(x, y, width, height);
@@ -1624,6 +1701,10 @@ fn draw_help_overlay(f: &mut Frame, size: Rect) {
         // ── Yank & Misc ─────────────────────────────────────────────────────
         section_header("Yank & Misc"),
         key_line("y / Y", "Yank relative / absolute path"),
+        key_line(
+            "A",
+            "Yank path (pick format: r=relative a=absolute f=filename p=parent)",
+        ),
         key_line(":", "Open command palette"),
         key_line("Q", "Quit"),
         key_line("?", "Toggle this help"),

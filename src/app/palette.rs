@@ -43,6 +43,7 @@ pub enum ActionId {
     ToggleSortOrder,
     YankRelativePath,
     YankAbsolutePath,
+    OpenYankPicker,
     ToggleLineNumbers,
     ScrollPreviewUp,
     ScrollPreviewDown,
@@ -247,6 +248,11 @@ pub static PALETTE_ACTIONS: &[PaletteAction] = &[
         id: ActionId::YankAbsolutePath,
         name: "Yank absolute path to clipboard",
         keys: "Y",
+    },
+    PaletteAction {
+        id: ActionId::OpenYankPicker,
+        name: "Yank path (pick format: relative/absolute/filename/parent)",
+        keys: "A",
     },
     PaletteAction {
         id: ActionId::ToggleLineNumbers,

@@ -1914,3 +1914,96 @@ fn begin_dup_empty_dir_is_noop() {
     assert!(!app.dup_mode, "no entries — dup_mode should stay false");
     let _ = std::fs::remove_dir_all(&tmp);
 }
+
+// ── Yank path format picker (A) ─────────────────────────────────────────────
+
+/// Given: a directory with at least one entry
+/// When: open_yank_picker is called
+/// Then: yank_picker_mode is true
+#[test]
+fn open_yank_picker_sets_mode() {
+    let tmp = std::env::temp_dir().join(format!("trek_yp_open_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("main.rs"), b"").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.open_yank_picker();
+    assert!(app.yank_picker_mode);
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: an empty directory
+/// When: open_yank_picker is called
+/// Then: yank_picker_mode stays false (nothing to yank)
+#[test]
+fn open_yank_picker_empty_dir_is_noop() {
+    let tmp = std::env::temp_dir().join(format!("trek_yp_empty_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let mut app = make_app_at(&tmp);
+    app.open_yank_picker();
+    assert!(!app.yank_picker_mode);
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: yank_picker_mode is true
+/// When: close_yank_picker is called
+/// Then: yank_picker_mode is false
+#[test]
+fn close_yank_picker_clears_mode() {
+    let tmp = std::env::temp_dir().join(format!("trek_yp_close_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("lib.rs"), b"").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.open_yank_picker();
+    assert!(app.yank_picker_mode);
+    app.close_yank_picker();
+    assert!(!app.yank_picker_mode);
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: a file "config.toml" in a temp dir
+/// When: yank_filename is called
+/// Then: status_message contains "[yank] config.toml"
+#[test]
+fn yank_filename_sets_status_message() {
+    let tmp = std::env::temp_dir().join(format!("trek_yp_fname_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("config.toml"), b"").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.yank_filename();
+    let msg = app.status_message.unwrap_or_default();
+    assert!(
+        msg.contains("[yank]") && msg.contains("config.toml"),
+        "got: {msg}"
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: a file "src/main.rs" (relative to cwd)
+/// When: yank_parent_dir is called
+/// Then: status_message contains "[yank]" and the parent path
+#[test]
+fn yank_parent_dir_sets_status_message() {
+    let tmp = std::env::temp_dir().join(format!("trek_yp_parent_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("notes.md"), b"").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.yank_parent_dir();
+    let msg = app.status_message.unwrap_or_default();
+    assert!(msg.contains("[yank]"), "status should show [yank]: {msg}");
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: yank_filename called on an entry with no extension
+/// When: yank_filename is called
+/// Then: status_message contains the bare filename
+#[test]
+fn yank_filename_no_extension() {
+    let tmp = std::env::temp_dir().join(format!("trek_yp_noext_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("Makefile"), b"").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.yank_filename();
+    let msg = app.status_message.unwrap_or_default();
+    assert!(msg.contains("Makefile"), "got: {msg}");
+    let _ = std::fs::remove_dir_all(&tmp);
+}
