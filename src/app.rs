@@ -141,6 +141,16 @@ pub struct App {
     /// True when `preview_lines` holds diff output (used by the renderer to colorise lines).
     pub preview_is_diff: bool,
 
+    // --- Metadata preview (m) ---
+    /// When true the preview pane shows the file metadata card instead of content.
+    pub meta_preview_mode: bool,
+
+    // --- chmod editor (P) ---
+    /// True while the chmod input bar is open.
+    pub chmod_mode: bool,
+    /// Octal string currently typed in the chmod bar (max 4 chars).
+    pub chmod_input: String,
+
     // --- Syntax highlighter (initialized once at startup) ---
     pub highlighter: Highlighter,
 
@@ -272,6 +282,9 @@ impl App {
             git_status: None,
             diff_preview_mode: false,
             preview_is_diff: false,
+            meta_preview_mode: false,
+            chmod_mode: false,
+            chmod_input: String::new(),
             highlighter: Highlighter::new(),
             clipboard: None,
             pending_delete: Vec::new(),
@@ -445,6 +458,14 @@ impl App {
         self.preview_lines.clear();
         self.preview_is_diff = false;
 
+        // Metadata card takes priority over content/diff views.
+        if self.meta_preview_mode {
+            if let Some(entry) = self.entries.get(self.selected).cloned() {
+                self.preview_lines = Self::load_meta_lines(&entry.path);
+            }
+            return;
+        }
+
         if let Some(entry) = self.entries.get(self.selected).cloned() {
             if entry.is_dir {
                 // Directories never show a diff preview.
@@ -542,6 +563,9 @@ impl App {
 
         if has_git_change {
             self.diff_preview_mode = !self.diff_preview_mode;
+            if self.diff_preview_mode {
+                self.meta_preview_mode = false; // mutually exclusive
+            }
             self.load_preview();
         } else {
             self.status_message = Some("No git changes for this file".to_string());
@@ -1826,6 +1850,223 @@ impl App {
         let _ = std::io::stdout().write_all(seq.as_bytes());
         let _ = std::io::stdout().flush();
     }
+
+    // --- Metadata preview (m) ---
+
+    /// Toggle between content preview and metadata preview.
+    pub fn toggle_meta_preview(&mut self) {
+        self.meta_preview_mode = !self.meta_preview_mode;
+        if self.meta_preview_mode {
+            self.diff_preview_mode = false; // mutually exclusive
+        }
+        self.load_preview();
+    }
+
+    /// Build the metadata card lines for `path`.
+    fn load_meta_lines(path: &Path) -> Vec<String> {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::{MetadataExt, PermissionsExt};
+            let meta = match std::fs::symlink_metadata(path) {
+                Ok(m) => m,
+                Err(e) => return vec![String::new(), format!("  Error reading metadata: {}", e)],
+            };
+            let size = meta.len();
+            let file_type = if meta.is_dir() {
+                "Directory"
+            } else if meta.file_type().is_symlink() {
+                "Symbolic link"
+            } else {
+                "Regular file"
+            };
+            let mode = meta.permissions().mode();
+            let fmt_time = |st: std::io::Result<std::time::SystemTime>| -> String {
+                st.ok()
+                    .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                    .map(|d| format_unix_timestamp_utc(d.as_secs()))
+                    .unwrap_or_else(|| "unavailable".to_string())
+            };
+            vec![
+                String::new(),
+                format!("  Path      {}", path.display()),
+                format!("  Type      {}", file_type),
+                format!("  Size      {} ({} bytes)", meta_human_size(size), size),
+                format!(
+                    "  Mode      {} ({:04o})",
+                    format_permission_bits(mode),
+                    mode & 0o7777
+                ),
+                format!("  UID / GID {} / {}", meta.uid(), meta.gid()),
+                format!("  Modified  {}", fmt_time(meta.modified())),
+                format!("  Accessed  {}", fmt_time(meta.accessed())),
+            ]
+        }
+        #[cfg(not(unix))]
+        {
+            vec![
+                String::new(),
+                format!("  Path     {}", path.display()),
+                "  (Full metadata not available on this platform)".to_string(),
+            ]
+        }
+    }
+
+    // --- chmod editor (P) ---
+
+    /// Open the chmod input bar for the currently selected entry.
+    pub fn begin_chmod(&mut self) {
+        if self.entries.get(self.selected).is_none() {
+            return;
+        }
+        self.chmod_mode = true;
+        self.chmod_input.clear();
+    }
+
+    /// Cancel the chmod input bar without making changes.
+    pub fn cancel_chmod(&mut self) {
+        self.chmod_mode = false;
+        self.chmod_input.clear();
+        self.status_message = Some("chmod cancelled".to_string());
+    }
+
+    /// Append an octal digit (max 4 chars).
+    pub fn chmod_push_char(&mut self, c: char) {
+        if self.chmod_input.len() < 4 {
+            self.chmod_input.push(c);
+        }
+    }
+
+    /// Remove the last digit from the chmod input.
+    pub fn chmod_pop_char(&mut self) {
+        self.chmod_input.pop();
+    }
+
+    /// Validate and apply the typed octal mode to the selected entry.
+    pub fn confirm_chmod(&mut self) {
+        let input = std::mem::take(&mut self.chmod_input);
+        self.chmod_mode = false;
+
+        let Some(entry) = self.entries.get(self.selected) else {
+            return;
+        };
+        let path = entry.path.clone();
+
+        if input.is_empty() {
+            self.status_message = Some("chmod cancelled (empty input)".to_string());
+            return;
+        }
+
+        let mode = match u32::from_str_radix(input.trim(), 8) {
+            Ok(m) if m <= 0o7777 => m,
+            _ => {
+                self.status_message = Some(format!("Invalid octal mode: '{}'", input));
+                return;
+            }
+        };
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            match std::fs::set_permissions(&path, std::fs::Permissions::from_mode(mode)) {
+                Ok(()) => {
+                    self.status_message = Some(format!("Mode set to {:04o}", mode));
+                    if self.meta_preview_mode {
+                        self.load_preview();
+                    }
+                }
+                Err(e) => self.status_message = Some(format!("chmod failed: {}", e)),
+            }
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = (path, mode);
+            self.status_message = Some("chmod is not supported on this platform".to_string());
+        }
+    }
+}
+
+// ── Metadata helpers ──────────────────────────────────────────────────────────
+
+/// Format the 9 permission bits of a Unix mode as `rwxrwxrwx`.
+pub fn format_permission_bits(mode: u32) -> String {
+    let bit = |shift: u32, c: char| {
+        if mode & (1 << shift) != 0 {
+            c
+        } else {
+            '-'
+        }
+    };
+    format!(
+        "{}{}{}{}{}{}{}{}{}",
+        bit(8, 'r'),
+        bit(7, 'w'),
+        bit(6, 'x'),
+        bit(5, 'r'),
+        bit(4, 'w'),
+        bit(3, 'x'),
+        bit(2, 'r'),
+        bit(1, 'w'),
+        bit(0, 'x'),
+    )
+}
+
+/// Human-readable size with one decimal place (B / KB / MB / GB).
+pub fn meta_human_size(bytes: u64) -> String {
+    const KB: u64 = 1_024;
+    const MB: u64 = KB * 1_024;
+    const GB: u64 = MB * 1_024;
+    if bytes >= GB {
+        format!("{:.1} GB", bytes as f64 / GB as f64)
+    } else if bytes >= MB {
+        format!("{:.1} MB", bytes as f64 / MB as f64)
+    } else if bytes >= KB {
+        format!("{:.1} KB", bytes as f64 / KB as f64)
+    } else {
+        format!("{} B", bytes)
+    }
+}
+
+/// Format a UNIX timestamp as `YYYY-MM-DD HH:MM:SS` (UTC) without external
+/// crates or spawning a subprocess.
+pub fn format_unix_timestamp_utc(secs: u64) -> String {
+    let ss = secs % 60;
+    let mm = (secs / 60) % 60;
+    let hh = (secs / 3_600) % 24;
+    let mut days = secs / 86_400;
+
+    let mut year = 1970u32;
+    loop {
+        let dy = if is_leap_year(year) { 366u64 } else { 365 };
+        if days < dy {
+            break;
+        }
+        days -= dy;
+        year += 1;
+    }
+
+    let month_days: [u64; 12] = if is_leap_year(year) {
+        [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    } else {
+        [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    };
+    let mut month = 1u32;
+    for &md in &month_days {
+        if days < md {
+            break;
+        }
+        days -= md;
+        month += 1;
+    }
+    let day = days + 1;
+
+    format!(
+        "{:04}-{:02}-{:02} {:02}:{:02}:{:02}",
+        year, month, day, hh, mm, ss
+    )
+}
+
+fn is_leap_year(y: u32) -> bool {
+    (y % 4 == 0 && y % 100 != 0) || y % 400 == 0
 }
 
 /// Format a file size in human-readable form.
@@ -2102,5 +2343,58 @@ mod tests {
             app.push_history(std::env::temp_dir());
         }
         assert!(app.history_len() <= MAX_HISTORY);
+    }
+
+    // ── Metadata helper tests ─────────────────────────────────────────────────
+
+    /// Given: Unix mode 0o644
+    /// When: format_permission_bits is called
+    /// Then: returns "rw-r--r--"
+    #[test]
+    fn permission_bits_0644() {
+        assert_eq!(format_permission_bits(0o644), "rw-r--r--");
+    }
+
+    /// Given: Unix mode 0o755
+    /// When: format_permission_bits is called
+    /// Then: returns "rwxr-xr-x"
+    #[test]
+    fn permission_bits_0755() {
+        assert_eq!(format_permission_bits(0o755), "rwxr-xr-x");
+    }
+
+    /// Given: 0 bytes
+    /// When: meta_human_size is called
+    /// Then: returns "0 B"
+    #[test]
+    fn human_size_zero_bytes() {
+        assert_eq!(meta_human_size(0), "0 B");
+    }
+
+    /// Given: exactly 1024 bytes
+    /// When: meta_human_size is called
+    /// Then: returns "1.0 KB"
+    #[test]
+    fn human_size_one_kb() {
+        assert_eq!(meta_human_size(1024), "1.0 KB");
+    }
+
+    /// Given: Unix timestamp 0 (epoch)
+    /// When: format_unix_timestamp_utc is called
+    /// Then: returns "1970-01-01 00:00:00"
+    #[test]
+    fn timestamp_epoch() {
+        assert_eq!(format_unix_timestamp_utc(0), "1970-01-01 00:00:00");
+    }
+
+    /// Given: Unix timestamp 1705318245 (2024-01-15 11:30:45 UTC)
+    /// When: format_unix_timestamp_utc is called
+    /// Then: returns the correct date/time string
+    #[test]
+    fn timestamp_known_date() {
+        assert_eq!(
+            format_unix_timestamp_utc(1_705_318_245),
+            "2024-01-15 11:30:45"
+        );
     }
 }
