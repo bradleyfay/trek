@@ -286,6 +286,12 @@ pub struct App {
     pub path_mode: bool,
     /// The path string the user is typing in the path jump bar.
     pub path_input: String,
+
+    // --- Touch / new file (t) ---
+    /// True while the touch filename input bar is open.
+    pub touch_mode: bool,
+    /// Filename typed by the user in touch mode.
+    pub touch_input: String,
 }
 
 #[derive(Clone)]
@@ -387,6 +393,8 @@ impl App {
             gitignored_names: std::collections::HashSet::new(),
             path_mode: false,
             path_input: String::new(),
+            touch_mode: false,
+            touch_input: String::new(),
         };
         app.load_dir();
         Ok(app)

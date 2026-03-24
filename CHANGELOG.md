@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-03-24
+
+### Added
+- **`t` — touch / new file**: opens an inline `New file:` input bar at the bottom; typing a filename and pressing Enter creates a new empty file in the current directory using `create_new(true)` (atomic, no silent overwrites); the listing refreshes and the cursor selects the newly created file; status bar shows `Created "filename"`
+- Empty filename shows "File name cannot be empty" and closes the bar; attempting to create a file that already exists shows `"'name' already exists"` without overwriting; other filesystem errors are surfaced as readable status messages
+- `t` in the `pending_delete` confirmation branch still confirms trash — no conflict, as that branch runs before normal mode
+- New `pub fn touch_file(parent: &Path, name: &str) -> Result<PathBuf>` in `src/ops.rs` using `OpenOptions::create_new(true)` for atomicity
+- `t` registered in the command palette as "New file (touch — create empty file)"
+- `t` documented in help overlay (`?`) under File Operations alongside `M` and in `--help` output
+- 6 new unit tests: open bar, cancel without creating, create and select, empty name error, existing file error, push/pop char
+
 ## [0.23.0] - 2026-03-24
 
 ### Added
