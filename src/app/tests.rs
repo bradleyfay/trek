@@ -2294,3 +2294,129 @@ fn begin_symlink_on_directory_prefills_name() {
     assert_eq!(app.symlink_input, "subdir");
     let _ = std::fs::remove_dir_all(&tmp);
 }
+
+// ── Hash preview tests (issue #60) ──────────────────────────────────────────
+
+/// Given: a regular file is selected
+/// When: toggle_hash_preview is called
+/// Then: hash_preview_mode becomes true
+#[test]
+fn toggle_hash_preview_enters_mode() {
+    let tmp = std::env::temp_dir().join(format!("trek_hash_enter_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("file.txt"), b"hello").unwrap();
+    let mut app = make_app_at(&tmp);
+    assert!(!app.hash_preview_mode);
+    app.toggle_hash_preview();
+    assert!(app.hash_preview_mode);
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: hash_preview_mode is already on
+/// When: toggle_hash_preview is called again
+/// Then: hash_preview_mode becomes false (toggle off)
+#[test]
+fn toggle_hash_preview_toggles_off() {
+    let tmp = std::env::temp_dir().join(format!("trek_hash_toggle_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("file.txt"), b"hello").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.toggle_hash_preview();
+    assert!(app.hash_preview_mode);
+    app.toggle_hash_preview();
+    assert!(!app.hash_preview_mode);
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: a directory is selected
+/// When: toggle_hash_preview is called
+/// Then: hash_preview_mode remains false and status message is set
+#[test]
+fn toggle_hash_preview_on_directory_is_noop() {
+    let tmp = std::env::temp_dir().join(format!("trek_hash_dir_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(tmp.join("subdir"));
+    let mut app = make_app_at(&tmp);
+    // subdir is the only entry, should be selected
+    assert!(app.entries.first().map(|e| e.is_dir).unwrap_or(false));
+    app.toggle_hash_preview();
+    assert!(!app.hash_preview_mode);
+    let msg = app.status_message.clone().unwrap_or_default();
+    assert!(msg.contains("not available for directories"), "got: {msg}");
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: hash_preview_mode is on
+/// When: toggle_meta_preview is activated (m)
+/// Then: hash_preview_mode is cleared
+#[test]
+fn meta_preview_clears_hash_preview_mode() {
+    let tmp = std::env::temp_dir().join(format!("trek_hash_meta_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("file.txt"), b"hello").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.hash_preview_mode = true;
+    app.toggle_meta_preview();
+    assert!(!app.hash_preview_mode);
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: meta_preview_mode is on
+/// When: toggle_hash_preview is called
+/// Then: meta_preview_mode is cleared
+#[test]
+fn hash_preview_clears_meta_preview_mode() {
+    let tmp = std::env::temp_dir().join(format!("trek_hash_clears_meta_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("file.txt"), b"hello").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.meta_preview_mode = true;
+    app.toggle_hash_preview();
+    assert!(!app.meta_preview_mode);
+    assert!(app.hash_preview_mode);
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: load_hash_lines is called on a known file
+/// When: the file contains "hello"
+/// Then: the returned lines contain a 64-char hex hash and the filename
+#[test]
+fn load_hash_lines_contains_hash_and_filename() {
+    let tmp = std::env::temp_dir().join(format!("trek_hash_lines_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let file = tmp.join("data.txt");
+    std::fs::write(&file, b"hello").unwrap();
+    let lines = App::load_hash_lines(&file);
+    // Must contain a line with 64 hex chars (SHA-256)
+    let has_hash = lines.iter().any(|l| {
+        l.split_whitespace()
+            .any(|tok| tok.len() == 64 && tok.chars().all(|c| c.is_ascii_hexdigit()))
+    });
+    assert!(has_hash, "Expected 64-char hex hash in lines: {:?}", lines);
+    // Must contain the filename
+    let has_name = lines.iter().any(|l| l.contains("data.txt"));
+    assert!(has_name, "Expected filename in lines: {:?}", lines);
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: hash_preview_mode is true
+/// When: load_preview is called
+/// Then: preview_lines contains the hash card (64-char hex token)
+#[test]
+fn load_preview_in_hash_mode_shows_hash_card() {
+    let tmp = std::env::temp_dir().join(format!("trek_hash_prev_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("payload.bin"), b"test data").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.hash_preview_mode = true;
+    app.load_preview();
+    let has_hash = app.preview_lines.iter().any(|l| {
+        l.split_whitespace()
+            .any(|tok| tok.len() == 64 && tok.chars().all(|c| c.is_ascii_hexdigit()))
+    });
+    assert!(
+        has_hash,
+        "Expected hash card in preview: {:?}",
+        app.preview_lines
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}
