@@ -174,7 +174,10 @@ fn write_trashinfo(trash_dest: &Path, original: &Path) -> Result<()> {
 #[cfg(target_os = "linux")]
 fn format_iso8601_utc(secs: u64) -> String {
     let (year, month, day, hh, mm, ss) = crate::datetime::decompose_unix_secs(secs);
-    format!("{:04}-{:02}-{:02}T{:02}:{:02}:{:02}", year, month, day, hh, mm, ss)
+    format!(
+        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}",
+        year, month, day, hh, mm, ss
+    )
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────

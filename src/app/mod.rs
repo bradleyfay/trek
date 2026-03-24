@@ -752,7 +752,10 @@ pub fn meta_human_size(bytes: u64) -> String {
 /// crates or spawning a subprocess.
 pub fn format_unix_timestamp_utc(secs: u64) -> String {
     let (year, month, day, hh, mm, ss) = crate::datetime::decompose_unix_secs(secs);
-    format!("{:04}-{:02}-{:02} {:02}:{:02}:{:02}", year, month, day, hh, mm, ss)
+    format!(
+        "{:04}-{:02}-{:02} {:02}:{:02}:{:02}",
+        year, month, day, hh, mm, ss
+    )
 }
 
 const MONTH_ABBR: [&str; 12] = [

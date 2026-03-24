@@ -1,8 +1,8 @@
 mod app;
 mod archive;
 mod args;
-mod datetime;
 mod bookmarks;
+mod datetime;
 mod events;
 mod find;
 mod git;
