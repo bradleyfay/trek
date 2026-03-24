@@ -176,9 +176,7 @@ pub fn run(
                         KeyCode::Char('G') => app.go_bottom(),
                         KeyCode::Char('~') => app.go_home(),
                         KeyCode::Char('.') => app.toggle_hidden(),
-                        KeyCode::Char('i')
-                            if !key.modifiers.contains(KeyModifiers::CONTROL) =>
-                        {
+                        KeyCode::Char('i') if !key.modifiers.contains(KeyModifiers::CONTROL) => {
                             app.toggle_gitignored()
                         }
                         KeyCode::Char('/') => app.start_search(),
