@@ -394,6 +394,18 @@ impl App {
         self.status_message = Some(format!("\u{2192} {} (mark '{}')", short, c));
     }
 
+    // --- Listing timestamps (T) ---
+
+    /// Toggle between file sizes and last-modified timestamps in the listing.
+    pub fn toggle_timestamps(&mut self) {
+        self.show_timestamps = !self.show_timestamps;
+        self.status_message = Some(if self.show_timestamps {
+            "Showing modification dates".to_string()
+        } else {
+            "Showing file sizes".to_string()
+        });
+    }
+
     // --- Preview pane collapse (w) ---
 
     /// Toggle the right preview pane between hidden and its saved width.

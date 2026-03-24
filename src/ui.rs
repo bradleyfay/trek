@@ -1,4 +1,4 @@
-use crate::app::{format_size, App, SortMode, SortOrder};
+use crate::app::{format_listing_date, format_size, App, SortMode, SortOrder};
 use crate::git::FileStatus;
 use crate::icons::icon_for_entry;
 use crate::ops::ClipboardOp;
@@ -654,22 +654,25 @@ fn draw_current_pane(f: &mut Frame, app: &App, area: Rect) {
             });
 
             let icon = icon_for_entry(&entry.name, entry.is_dir);
-            let size_str = if entry.is_dir {
+            // Right column: either file size or last-modified timestamp.
+            let right_col_str: String = if entry.is_dir {
                 String::new()
+            } else if app.show_timestamps {
+                format_listing_date(entry.modified)
             } else {
                 format_size(entry.size)
             };
 
-            // Layout: "[✓ ]{icon} {name}{padding}[indicator ]{size_str}"
+            // Layout: "[✓ ]{icon} {name}{padding}[indicator ]{right_col_str}"
             let indicator_width: usize = if git_indicator.is_some() { 2 } else { 0 };
-            let size_width = size_str.len();
+            let right_col_width = right_col_str.len();
             // Available space for icon+name after fixed columns.
-            let max_name_width =
-                inner_width.saturating_sub(sel_prefix_width + size_width + indicator_width + 1);
+            let max_name_width = inner_width
+                .saturating_sub(sel_prefix_width + right_col_width + indicator_width + 1);
             let left_part_raw = format!("{} {}", icon, entry.name);
             let left_part = truncate_with_ellipsis(&left_part_raw, max_name_width);
             let total_fixed =
-                sel_prefix_width + left_part.chars().count() + size_width + indicator_width;
+                sel_prefix_width + left_part.chars().count() + right_col_width + indicator_width;
             let padding = if inner_width > total_fixed {
                 inner_width - total_fixed
             } else {
@@ -712,14 +715,14 @@ fn draw_current_pane(f: &mut Frame, app: &App, area: Rect) {
                 spans.push(Span::styled(" ", style));
             }
 
-            // Size rendered in dimmer style to visually separate it from the name.
-            if !size_str.is_empty() {
-                let size_style = if is_cursor {
+            // Right column rendered in dimmer style to visually separate it from the name.
+            if !right_col_str.is_empty() {
+                let col_style = if is_cursor {
                     Style::default().fg(Color::Gray).bg(Color::Blue)
                 } else {
                     Style::default().fg(Color::DarkGray)
                 };
-                spans.push(Span::styled(size_str, size_style));
+                spans.push(Span::styled(right_col_str, col_style));
             }
 
             ListItem::new(Line::from(spans))
@@ -1665,7 +1668,7 @@ fn draw_yank_picker(f: &mut Frame, app: &App, size: Rect) {
 
 fn draw_help_overlay(f: &mut Frame, size: Rect) {
     let width = 60u16.min(size.width.saturating_sub(4));
-    let height = 76u16.min(size.height.saturating_sub(4));
+    let height = 78u16.min(size.height.saturating_sub(4));
     let x = (size.width.saturating_sub(width)) / 2;
     let y = (size.height.saturating_sub(height)) / 2;
     let area = Rect::new(x, y, width, height);
@@ -1713,6 +1716,7 @@ fn draw_help_overlay(f: &mut Frame, size: Rect) {
         key_line("m", "Toggle file metadata view"),
         key_line("H", "Toggle hash preview (SHA-256 checksum)"),
         key_line("w", "Toggle preview pane (hide/show)"),
+        key_line("T", "Toggle timestamps / sizes in listing"),
         key_line("P", "Edit file permissions (chmod)"),
         key_line("R", "Refresh git status"),
         key_line("S", "Cycle sort: Name/Size/Modified/Ext"),

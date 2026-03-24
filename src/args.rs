@@ -87,6 +87,7 @@ pub fn print_help() {
     println!("    d           Toggle diff preview R           Refresh git status");
     println!("    H           Toggle hash preview (SHA-256 checksum)");
     println!("    w           Toggle preview pane (hide/show right pane)");
+    println!("    T           Toggle modification timestamps / file sizes in listing");
     println!("    J           Extend selection down  K           Extend selection up");
     println!("    Space       Toggle file selection v          Select all files");
     println!("    *           Select files by glob pattern (e.g. *.rs, *.log, test_?)");

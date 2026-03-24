@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.33.0] - 2026-03-24
+
+### Added
+- **`T` — listing timestamps**: press `T` to replace the file-size column with compact last-modified dates; press `T` again to return to sizes
+- Same-year files show `"Jan 15 14:32"` (12 chars); prior-year files show `"2023 Nov  8 "` (12 chars); unavailable timestamps show `"----  --:--"`
+- Fixed 12-character column width ensures layout stability across all date formats
+- Directories show no annotation in timestamp mode (consistent with size-column behaviour)
+- `show_timestamps` persists across directory navigation within the session
+- `T` registered in the command palette as "Toggle modification timestamps in listing" and in the `?` help overlay
+- Date arithmetic uses Trek's existing `is_leap_year` helper — no new crate dependencies
+
 ## [0.32.0] - 2026-03-24
 
 ### Added
