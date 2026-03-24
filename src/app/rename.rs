@@ -3,6 +3,25 @@ use crate::rename::{self, RenameField};
 use std::fs;
 use std::path::PathBuf;
 
+/// Convert a simple glob pattern (`*`, `?` metacharacters) to a full-match regex string.
+///
+/// - `*`  matches any sequence of characters (including empty).
+/// - `?`  matches exactly one character.
+/// - All other characters are regex-escaped so that `.` in `*.tar.gz` matches a
+///   literal dot and not "any character".
+fn glob_to_regex(pattern: &str) -> String {
+    let mut re = String::from("^");
+    for ch in pattern.chars() {
+        match ch {
+            '*' => re.push_str(".*"),
+            '?' => re.push('.'),
+            c => re.push_str(&regex::escape(&c.to_string())),
+        }
+    }
+    re.push('$');
+    re
+}
+
 impl App {
     /// Toggle the rename-selection mark on entry `idx`.
     ///
@@ -174,6 +193,75 @@ impl App {
         );
         self.rename_preview = preview;
         self.rename_error = error;
+    }
+
+    // --- Glob pattern selection (*) ---
+
+    /// Open the glob pattern input bar.
+    pub fn begin_glob_select(&mut self) {
+        self.glob_mode = true;
+        self.glob_input.clear();
+    }
+
+    /// Close the glob bar without modifying the selection.
+    pub fn cancel_glob_select(&mut self) {
+        self.glob_mode = false;
+        self.glob_input.clear();
+    }
+
+    /// Apply the glob pattern and add matching entries to `rename_selected`.
+    ///
+    /// - Empty pattern → silently close the bar (no-op).
+    /// - Non-matching pattern → show a status message; keep bar closed.
+    /// - Matching pattern → union-add matched indices and close the bar.
+    pub fn confirm_glob_select(&mut self) {
+        if self.glob_input.is_empty() {
+            self.glob_mode = false;
+            return;
+        }
+
+        let pattern = self.glob_input.clone();
+        let re_str = glob_to_regex(&pattern);
+        let re = match regex::Regex::new(&re_str) {
+            Ok(r) => r,
+            Err(_) => {
+                self.status_message = Some(format!("Invalid glob pattern: {pattern}"));
+                self.glob_mode = false;
+                self.glob_input.clear();
+                return;
+            }
+        };
+
+        let matched: Vec<usize> = self
+            .entries
+            .iter()
+            .enumerate()
+            .filter(|(_, e)| !e.is_dir && re.is_match(&e.name))
+            .map(|(i, _)| i)
+            .collect();
+
+        if matched.is_empty() {
+            self.status_message = Some(format!("No entries match: {pattern}"));
+        } else {
+            let count = matched.len();
+            for idx in matched {
+                self.rename_selected.insert(idx);
+            }
+            self.status_message = Some(format!("Selected {count} file(s) matching \"{pattern}\""));
+        }
+
+        self.glob_mode = false;
+        self.glob_input.clear();
+    }
+
+    /// Append a character to the glob pattern input.
+    pub fn glob_push_char(&mut self, c: char) {
+        self.glob_input.push(c);
+    }
+
+    /// Remove the last character from the glob pattern input.
+    pub fn glob_pop_char(&mut self) {
+        self.glob_input.pop();
     }
 
     pub fn read_file_preview(path: &PathBuf) -> Vec<String> {

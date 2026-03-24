@@ -82,6 +82,7 @@ pub fn print_help() {
     println!("    d           Toggle diff preview R           Refresh git status");
     println!("    J           Extend selection down  K           Extend selection up");
     println!("    Space       Toggle file selection v          Select all files");
+    println!("    *           Select files by glob pattern (e.g. *.rs, *.log, test_?)");
     println!("    n / F2      Quick rename (inline bar pre-filled with current name)");
     println!("    r           Bulk rename selected files with regex  Esc  Clear selections");
     println!("    o           Open in $EDITOR        O           Open with system default");

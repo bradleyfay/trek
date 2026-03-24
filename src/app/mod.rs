@@ -296,6 +296,12 @@ pub struct App {
     // --- Preview line numbers (#) ---
     /// When true, each preview line is prefixed with its 1-based line number.
     pub show_line_numbers: bool,
+
+    // --- Glob pattern selection (*) ---
+    /// True while the glob pattern input bar is open.
+    pub glob_mode: bool,
+    /// Glob pattern typed by the user.
+    pub glob_input: String,
 }
 
 #[derive(Clone)]
@@ -400,6 +406,8 @@ impl App {
             touch_mode: false,
             touch_input: String::new(),
             show_line_numbers: false,
+            glob_mode: false,
+            glob_input: String::new(),
         };
         app.load_dir();
         Ok(app)

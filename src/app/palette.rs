@@ -47,6 +47,7 @@ pub enum ActionId {
     ScrollPreviewUp,
     ScrollPreviewDown,
     PathJump,
+    GlobSelect,
     ShowHelp,
     Quit,
 }
@@ -265,6 +266,11 @@ pub static PALETTE_ACTIONS: &[PaletteAction] = &[
         id: ActionId::PathJump,
         name: "Jump to path (path jump bar)",
         keys: "e",
+    },
+    PaletteAction {
+        id: ActionId::GlobSelect,
+        name: "Select files by glob pattern",
+        keys: "*",
     },
     PaletteAction {
         id: ActionId::ShowHelp,
