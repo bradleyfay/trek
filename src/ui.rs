@@ -785,7 +785,9 @@ fn draw_preview_pane(f: &mut Frame, app: &App, area: Rect) {
         .entries
         .get(app.selected)
         .map(|e| {
-            let mut t = if app.preview_is_diff {
+            let mut t = if app.hex_view_mode {
+                format!("{} [hex]", e.name)
+            } else if app.preview_is_diff {
                 format!("{} [diff]", e.name)
             } else if app.hash_preview_mode {
                 format!("{} [hash]", e.name)
@@ -1940,7 +1942,7 @@ fn draw_yank_picker(f: &mut Frame, app: &App, size: Rect) {
 
 fn draw_help_overlay(f: &mut Frame, size: Rect) {
     let width = 60u16.min(size.width.saturating_sub(4));
-    let height = 90u16.min(size.height.saturating_sub(4));
+    let height = 92u16.min(size.height.saturating_sub(4));
     let x = (size.width.saturating_sub(width)) / 2;
     let y = (size.height.saturating_sub(height)) / 2;
     let area = Rect::new(x, y, width, height);
@@ -1990,6 +1992,7 @@ fn draw_help_overlay(f: &mut Frame, size: Rect) {
         key_line("f", "Compare two selected files (unified diff)"),
         key_line("m", "Toggle file metadata view"),
         key_line("H", "Toggle hash preview (SHA-256 checksum)"),
+        key_line("a", "Toggle hex dump view (binary inspection)"),
         key_line("w", "Toggle preview pane (hide/show)"),
         key_line("T", "Toggle timestamps / sizes in listing"),
         key_line("U", "Toggle preview word wrap"),

@@ -19,7 +19,17 @@ impl App {
             return;
         }
 
-        // File compare — second priority, requires exactly 2 files selected.
+        // Hex dump view — second priority after hash.
+        if self.hex_view_mode {
+            if let Some(entry) = self.entries.get(self.selected).cloned() {
+                if !entry.is_dir {
+                    self.preview_lines = Self::load_hex_lines(&entry.path);
+                }
+            }
+            return;
+        }
+
+        // File compare — third priority, requires exactly 2 files selected.
         if self.file_compare_mode {
             let paths: Vec<_> = self
                 .rename_selected
@@ -169,6 +179,7 @@ impl App {
                 self.hash_preview_mode = false; // mutually exclusive
                 self.git_log_mode = false; // mutually exclusive
                 self.file_compare_mode = false; // mutually exclusive
+                self.hex_view_mode = false; // mutually exclusive
             }
             self.load_preview();
         } else {
@@ -199,8 +210,92 @@ impl App {
             self.meta_preview_mode = false;
             self.hash_preview_mode = false;
             self.git_log_mode = false;
+            self.hex_view_mode = false;
         }
         self.load_preview();
+    }
+
+    /// Toggle hex dump view mode for the currently selected file.
+    ///
+    /// No-op for directories — shows a status message instead.
+    /// Mutually exclusive with all other special preview modes.
+    pub fn toggle_hex_view(&mut self) {
+        if let Some(entry) = self.entries.get(self.selected) {
+            if entry.is_dir {
+                self.status_message = Some("Hex view not available for directories".to_string());
+                return;
+            }
+        }
+        self.hex_view_mode = !self.hex_view_mode;
+        if self.hex_view_mode {
+            self.hash_preview_mode = false;
+            self.meta_preview_mode = false;
+            self.diff_preview_mode = false;
+            self.git_log_mode = false;
+            self.file_compare_mode = false;
+        }
+        self.load_preview();
+    }
+
+    /// Produce a hex dump of `path` using `xxd` or `hexdump -C`.
+    ///
+    /// Caps output at 4 MB to avoid blocking the UI.
+    /// Falls back gracefully when neither tool is available.
+    pub fn load_hex_lines(path: &Path) -> Vec<String> {
+        const MAX_HEX_SIZE: u64 = 4 * 1024 * 1024;
+
+        match std::fs::metadata(path) {
+            Ok(meta) if meta.len() > MAX_HEX_SIZE => {
+                return vec![
+                    String::new(),
+                    format!(
+                        "  File too large for hex view ({} — limit 4 MB)",
+                        super::meta_human_size(meta.len())
+                    ),
+                ];
+            }
+            Err(e) => return vec![String::new(), format!("  Error reading file: {}", e)],
+            _ => {}
+        }
+
+        let tool_available = |bin: &str| -> bool {
+            Command::new("which")
+                .arg(bin)
+                .output()
+                .map(|o| o.status.success())
+                .unwrap_or(false)
+        };
+
+        let (cmd, args): (&str, &[&str]) = if tool_available("xxd") {
+            ("xxd", &[])
+        } else if tool_available("hexdump") {
+            ("hexdump", &["-C"])
+        } else {
+            return vec![
+                String::new(),
+                "  Hex view requires xxd or hexdump".to_string(),
+                String::new(),
+                "  Install: brew install vim   (macOS, provides xxd)".to_string(),
+                "           apt install xxd    (Debian/Ubuntu)".to_string(),
+            ];
+        };
+
+        match Command::new(cmd).args(args).arg(path).output() {
+            Ok(out) if out.status.success() => String::from_utf8_lossy(&out.stdout)
+                .lines()
+                .take(2000)
+                .map(|l| format!("  {}", l))
+                .collect(),
+            Ok(out) => vec![
+                String::new(),
+                format!(
+                    "  {} failed: {}",
+                    cmd,
+                    String::from_utf8_lossy(&out.stderr).trim()
+                ),
+            ],
+            Err(e) => vec![String::new(), format!("  Failed to run {}: {}", cmd, e)],
+        }
     }
 
     /// Produce a unified diff between `a` and `b` as preview lines.
@@ -238,6 +333,7 @@ impl App {
             self.meta_preview_mode = false;
             self.hash_preview_mode = false;
             self.file_compare_mode = false;
+            self.hex_view_mode = false;
         }
         self.load_preview();
     }

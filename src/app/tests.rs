@@ -3219,3 +3219,64 @@ fn toggle_file_compare_with_dir_shows_status() {
     );
     let _ = std::fs::remove_dir_all(&tmp);
 }
+
+/// Given: a file is selected
+/// When: toggle_hex_view is called
+/// Then: hex_view_mode becomes true
+#[test]
+fn toggle_hex_view_enters_mode() {
+    let tmp = std::env::temp_dir().join(format!("trek_hx_on_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("data.bin"), b"\x7fELF\x00\x01\x02\x03").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.toggle_hex_view();
+    assert!(app.hex_view_mode);
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: hex_view_mode is true
+/// When: toggle_hex_view is called again
+/// Then: hex_view_mode becomes false
+#[test]
+fn toggle_hex_view_second_press_exits_mode() {
+    let tmp = std::env::temp_dir().join(format!("trek_hx_off_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("data.bin"), b"\x7fELF\x00\x01\x02\x03").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.toggle_hex_view();
+    assert!(app.hex_view_mode);
+    app.toggle_hex_view();
+    assert!(!app.hex_view_mode);
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: a directory is selected
+/// When: toggle_hex_view is called
+/// Then: hex_view_mode stays false and status_message mentions directories
+#[test]
+fn toggle_hex_view_on_directory_shows_status() {
+    let tmp = std::env::temp_dir().join(format!("trek_hx_dir_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::create_dir_all(tmp.join("asubdir")).unwrap();
+    let mut app = make_app_at(&tmp);
+    app.toggle_hex_view();
+    assert!(!app.hex_view_mode);
+    assert!(app.status_message.is_some());
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: hex_view_mode is active
+/// When: toggle_meta_preview is called
+/// Then: hex_view_mode is cleared (mutual exclusion)
+#[test]
+fn toggle_meta_preview_clears_hex_view() {
+    let tmp = std::env::temp_dir().join(format!("trek_hx_meta_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("data.bin"), b"\x7fELF").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.toggle_hex_view();
+    assert!(app.hex_view_mode);
+    app.toggle_meta_preview();
+    assert!(!app.hex_view_mode);
+    let _ = std::fs::remove_dir_all(&tmp);
+}
