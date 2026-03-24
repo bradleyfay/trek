@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.41.0] - 2026-03-24
+
+### Added
+- **`m` meta card — line/word/char counts**: the meta preview for regular text files now appends `Lines`, `Words`, and `Chars` rows after `Accessed` — equivalent to `wc -l -w -m` inline
+- Binary files (non-UTF-8) and files over 10 MB silently omit the stats rows
+- Directories and symlinks are unaffected
+
 ## [0.40.0] - 2026-03-24
 
 ### Added
