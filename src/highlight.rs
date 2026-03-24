@@ -14,10 +14,13 @@ pub struct Highlighter {
 
 impl Highlighter {
     /// Load bundled syntax definitions and themes. Call once at startup.
+    ///
+    /// Uses `two-face`'s extended syntax set (the same set `bat` uses) which
+    /// includes TOML, Dockerfile, `.env`, and many other types absent from
+    /// Sublime Text's default bundle.
     pub fn new() -> Self {
-        // Stub — does NOT load real data. Tests will fail.
         Self {
-            syntax_set: SyntaxSet::load_defaults_newlines(),
+            syntax_set: two_face::syntax::extra_newlines(),
             theme_set: ThemeSet::load_defaults(),
         }
     }
@@ -140,5 +143,31 @@ mod tests {
         let h = hl();
         let lines = vec!["key: value".to_string(), "list:".to_string()];
         assert!(h.highlight(&lines, "yaml", 100).is_some());
+    }
+
+    /// Given: a .toml extension
+    /// When: highlight is called
+    /// Then: Some is returned (TOML grammar is available)
+    #[test]
+    fn highlight_toml_returns_some() {
+        let h = hl();
+        let lines = vec![r#"[package]"#.to_string(), r#"name = "trek""#.to_string()];
+        assert!(
+            h.highlight(&lines, "toml", 100).is_some(),
+            "expected Some for .toml — TOML grammar must be available"
+        );
+    }
+
+    /// Given: a .json extension
+    /// When: highlight is called
+    /// Then: Some is returned (JSON grammar is available)
+    #[test]
+    fn highlight_json_returns_some() {
+        let h = hl();
+        let lines = vec![r#"{"key": "value"}"#.to_string()];
+        assert!(
+            h.highlight(&lines, "json", 100).is_some(),
+            "expected Some for .json — JSON grammar must be available"
+        );
     }
 }
