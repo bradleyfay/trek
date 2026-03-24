@@ -1,5 +1,6 @@
 use crate::git::GitStatus;
 use crate::icons::icon_for_entry;
+use crate::rename::{self, RenameField, RenamePreviewRow};
 use anyhow::Result;
 use std::collections::HashSet;
 use std::fs;
@@ -88,6 +89,22 @@ pub struct App {
     pub diff_preview_mode: bool,
     /// True when `preview_lines` holds diff output (used by the renderer to colorise lines).
     pub preview_is_diff: bool,
+
+    // --- Bulk rename ---
+    /// True while the rename input bar is open.
+    pub rename_mode: bool,
+    /// Indices into `entries` that the user has marked for renaming.
+    pub rename_selected: HashSet<usize>,
+    /// Regex pattern typed by the user.
+    pub rename_pattern: String,
+    /// Replacement template typed by the user.
+    pub rename_replacement: String,
+    /// Which rename field currently has keyboard focus.
+    pub rename_focus: RenameField,
+    /// Live preview rows recomputed on every keystroke.
+    pub rename_preview: Vec<RenamePreviewRow>,
+    /// Set when the pattern is an invalid regex.
+    pub rename_error: Option<String>,
 }
 
 #[derive(Clone)]
@@ -133,6 +150,13 @@ impl App {
             git_status: None,
             diff_preview_mode: false,
             preview_is_diff: false,
+            rename_mode: false,
+            rename_selected: HashSet::new(),
+            rename_pattern: String::new(),
+            rename_replacement: String::new(),
+            rename_focus: RenameField::Pattern,
+            rename_preview: Vec::new(),
+            rename_error: None,
         };
         app.load_dir();
         Ok(app)
@@ -162,10 +186,8 @@ impl App {
         if let Some(parent) = self.cwd.parent() {
             match Self::read_entries(parent, self.show_hidden) {
                 Ok((entries, _)) => {
-                    self.parent_selected = entries
-                        .iter()
-                        .position(|e| e.path == self.cwd)
-                        .unwrap_or(0);
+                    self.parent_selected =
+                        entries.iter().position(|e| e.path == self.cwd).unwrap_or(0);
                     self.parent_entries = entries;
                 }
                 Err(_) => {
@@ -337,6 +359,138 @@ impl App {
         self.git_status = GitStatus::load(&self.cwd);
         self.load_preview();
         self.status_message = Some("Git status refreshed".to_string());
+    }
+
+    // --- Bulk rename ---
+
+    /// Toggle the rename-selection mark on entry `idx`.
+    ///
+    /// Directories are silently skipped (directory rename is out of scope for v1).
+    pub fn toggle_selection(&mut self, idx: usize) {
+        if let Some(entry) = self.entries.get(idx) {
+            if entry.is_dir {
+                self.status_message = Some("Directory rename not supported".to_string());
+                return;
+            }
+        }
+        if self.rename_selected.contains(&idx) {
+            self.rename_selected.remove(&idx);
+        } else {
+            self.rename_selected.insert(idx);
+        }
+    }
+
+    /// Mark all non-directory entries in the current directory for renaming.
+    pub fn select_all(&mut self) {
+        self.rename_selected = self
+            .entries
+            .iter()
+            .enumerate()
+            .filter(|(_, e)| !e.is_dir)
+            .map(|(i, _)| i)
+            .collect();
+    }
+
+    /// Clear all selection marks.
+    pub fn clear_selections(&mut self) {
+        self.rename_selected.clear();
+        self.status_message = None;
+    }
+
+    /// Enter rename mode (requires at least one file to be selected).
+    pub fn start_rename(&mut self) {
+        if self.rename_selected.is_empty() {
+            self.status_message = Some("No files selected".to_string());
+            return;
+        }
+        self.rename_mode = true;
+        self.rename_pattern.clear();
+        self.rename_replacement.clear();
+        self.rename_focus = RenameField::Pattern;
+        self.rename_preview.clear();
+        self.rename_error = None;
+        self.current_scroll = 0;
+    }
+
+    /// Exit rename mode without touching the filesystem.
+    pub fn cancel_rename(&mut self) {
+        self.rename_mode = false;
+        self.rename_pattern.clear();
+        self.rename_replacement.clear();
+        self.rename_preview.clear();
+        self.rename_error = None;
+        self.rename_selected.clear();
+        self.status_message = None;
+    }
+
+    /// Apply the current rename preview to the filesystem.
+    pub fn confirm_rename(&mut self) {
+        match rename::apply_renames(&self.rename_preview, &self.cwd) {
+            Ok(count) => {
+                let msg = format!(
+                    "Renamed {} file{}",
+                    count,
+                    if count == 1 { "" } else { "s" }
+                );
+                self.rename_mode = false;
+                self.rename_selected.clear();
+                self.rename_pattern.clear();
+                self.rename_replacement.clear();
+                self.rename_preview.clear();
+                self.rename_error = None;
+                self.load_dir();
+                self.status_message = Some(msg);
+            }
+            Err(e) => {
+                self.rename_error = Some(e);
+            }
+        }
+    }
+
+    pub fn rename_push_char(&mut self, c: char) {
+        match self.rename_focus {
+            RenameField::Pattern => self.rename_pattern.push(c),
+            RenameField::Replacement => self.rename_replacement.push(c),
+        }
+        self.update_rename_preview();
+    }
+
+    pub fn rename_pop_char(&mut self) {
+        match self.rename_focus {
+            RenameField::Pattern => {
+                self.rename_pattern.pop();
+            }
+            RenameField::Replacement => {
+                self.rename_replacement.pop();
+            }
+        }
+        self.update_rename_preview();
+    }
+
+    pub fn rename_next_field(&mut self) {
+        self.rename_focus = RenameField::Replacement;
+    }
+
+    pub fn rename_prev_field(&mut self) {
+        self.rename_focus = RenameField::Pattern;
+    }
+
+    /// Recompute the live rename preview from the current pattern and replacement.
+    fn update_rename_preview(&mut self) {
+        let mut indices: Vec<usize> = self.rename_selected.iter().copied().collect();
+        indices.sort_unstable();
+        let selected_entries: Vec<&DirEntry> = indices
+            .iter()
+            .filter_map(|&i| self.entries.get(i))
+            .collect();
+        let (preview, error) = rename::compute_preview(
+            &selected_entries,
+            &self.entries,
+            &self.rename_pattern,
+            &self.rename_replacement,
+        );
+        self.rename_preview = preview;
+        self.rename_error = error;
     }
 
     fn read_file_preview(path: &PathBuf) -> Vec<String> {

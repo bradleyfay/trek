@@ -1,6 +1,7 @@
 mod app;
 mod git;
 mod icons;
+mod rename;
 mod ui;
 
 use anyhow::{bail, Result};
@@ -97,6 +98,16 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<std::pat
                 if app.show_help {
                     // Any key closes help overlay.
                     app.show_help = false;
+                } else if app.rename_mode {
+                    match key.code {
+                        KeyCode::Esc => app.cancel_rename(),
+                        KeyCode::Enter => app.confirm_rename(),
+                        KeyCode::Tab => app.rename_next_field(),
+                        KeyCode::BackTab => app.rename_prev_field(),
+                        KeyCode::Backspace => app.rename_pop_char(),
+                        KeyCode::Char(c) => app.rename_push_char(c),
+                        _ => {}
+                    }
                 } else if app.search_mode {
                     match key.code {
                         KeyCode::Esc => app.cancel_search(),
@@ -126,6 +137,11 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<std::pat
                         KeyCode::Char('d') => app.toggle_diff_preview(),
                         KeyCode::Char('R') => app.refresh_git_status(),
                         KeyCode::Char('?') => app.show_help = true,
+                        // Bulk rename
+                        KeyCode::Char(' ') => app.toggle_selection(app.selected),
+                        KeyCode::Char('v') => app.select_all(),
+                        KeyCode::Char('r') => app.start_rename(),
+                        KeyCode::Esc => app.clear_selections(),
                         _ => {}
                     }
                 }
@@ -177,6 +193,8 @@ fn print_help() {
     println!("    ~           Go to home         .           Toggle hidden files");
     println!("    /           Fuzzy search       y / Y       Yank relative / absolute path");
     println!("    d           Toggle diff preview R           Refresh git status");
+    println!("    Space       Toggle file selection v          Select all files");
+    println!("    r           Rename selected files Esc        Clear selections");
     println!("    ?           Show help overlay  q           Quit");
 }
 
