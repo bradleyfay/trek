@@ -29,7 +29,14 @@ pub fn run(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     start_dir: Option<PathBuf>,
 ) -> Result<PathBuf> {
-    let mut app = App::new(start_dir)?;
+    // Restore previous session if no explicit start directory was given.
+    let session = crate::session::load();
+    let effective_start = start_dir.or(session.cwd);
+
+    let mut app = App::new(effective_start)?;
+
+    // Repopulate marks from the saved session.
+    app.marks = session.marks;
 
     loop {
         terminal.draw(|f| crate::ui::draw(f, &mut app))?;
@@ -445,6 +452,9 @@ pub fn run(
             _ => {}
         }
     }
+    // Save session on clean exit. Errors are non-fatal.
+    let _ = crate::session::save(&app.cwd, &app.marks);
+
     Ok(app.cwd)
 }
 
