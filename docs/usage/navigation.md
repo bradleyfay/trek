@@ -31,6 +31,16 @@ For longer jumps, Trek offers several ways to move to a specific location withou
 
 Press `e` to open the path jump bar. Type any path — absolute (`/usr/local/bin`), relative (`../../other-project`), or home-relative (`~/Documents`) — and press `Enter` to navigate there directly. Press `Esc` to cancel.
 
+The jump bar supports Tab completion as you type:
+
+| Situation | What `Tab` does |
+|-----------|-----------------|
+| Single match | Completes the entry name; appends `/` if it is a directory |
+| Multiple matches | Advances to the longest common prefix shared by all matches |
+| No matches | No-op (silent) |
+
+A `~` prefix is expanded to your home directory before completion is applied. The hint line inside the jump bar reads `Tab=complete  Enter=go  Esc=cancel`.
+
 ### Marks (`` ` `` and `'`)
 
 Marks let you pin up to 52 locations in memory and jump back to them instantly.
@@ -40,7 +50,7 @@ Marks let you pin up to 52 locations in memory and jump back to them instantly.
 | `` ` `` + letter (`a`–`z`, `A`–`Z`) | Set a mark at the current directory |
 | `'` + letter | Jump to a previously set mark |
 
-Marks are session-only — they exist in memory and are cleared when Trek exits. For locations you want to return to across sessions, use bookmarks instead (see [File Operations — Bookmarks](file-operations.md#bookmarks)).
+Marks are saved as part of Trek's session state. When you quit with `q` or `Q` and relaunch Trek without arguments, your marks are restored automatically. For named, always-available locations, use bookmarks instead (see [File Operations — Bookmarks](file-operations.md#bookmarks)).
 
 ### Frecency jump list (`z`)
 
@@ -76,6 +86,8 @@ These keys change what the center pane shows without navigating anywhere:
 | Key | Toggle |
 |-----|--------|
 | `.` | Show/hide hidden files (dotfiles) |
+| `S` | Cycle sort mode (name → size → modified → type) |
+| `s` | Toggle sort order (ascending ↔ descending) |
 | `T` | Switch the size column between file size and last-modified timestamp |
 | `N` | Switch the size column to show directory item counts instead of block size |
 | `i` | Gitignore filter — hide gitignored entries; shows a yellow `[ignore]` badge in the path bar when active |
@@ -87,7 +99,35 @@ These keys change what the center pane shows without navigating anywhere:
 
 Trek has two separate systems for saving and returning to locations:
 
-- **Marks** (`` ` `` / `'`) — session-only, stored in memory, cleared on exit. Fast to set and jump to during a working session.
-- **Bookmarks** (`b` / `B`) — persistent, saved to `~/.local/share/trek/` and available across sessions. Use these for directories you return to regularly.
+- **Marks** (`` ` `` / `'`) — saved as part of Trek's session state on a clean quit (`q` / `Q`) and restored the next time Trek launches without arguments. Fast to set and jump to during a working session.
+- **Bookmarks** (`b` / `B`) — always-persistent, saved to `~/.local/share/trek/` and available regardless of how Trek was launched. Use these for directories you want permanently available.
 
 See [File Operations — Bookmarks](file-operations.md#bookmarks) for details on the bookmark keys.
+
+---
+
+## Session Restore
+
+Trek saves your view state when you quit with `q` or `Q` and restores it the next time you launch without arguments. This means you return to the same context you left — directory, position, and display settings — without any extra steps.
+
+The following state is saved and restored:
+
+| State | Description |
+|-------|-------------|
+| Current directory | Where you were browsing when you quit |
+| Selected entry | The entry your cursor was on |
+| Marks | All marks set during the session (`` ` `` / `'`) |
+| Hidden files toggle | Whether `.` was active (showing dotfiles) |
+| Sort mode | Which sort column was active (`S` cycles: name → size → modified → type) |
+| Sort order | Whether the listing was ascending or descending (`s` toggles) |
+
+**Rules:**
+
+- `trek /path` — always opens at the specified path and ignores saved session state.
+- Session state is only written on a clean quit (`q` or `Q`). Closing the terminal window without quitting does not save state.
+- If the saved directory has been deleted or is unavailable, Trek falls back to the current working directory silently.
+- Unknown keys in the session file are silently ignored, so session files from older Trek versions are safe to keep.
+
+**Session file location:**
+
+Trek stores its session file at `$XDG_DATA_HOME/trek/session`, which defaults to `~/.local/share/trek/session`.

@@ -18,7 +18,11 @@ Or run Trek directly without shell integration:
 trek
 ```
 
-Trek opens in the current directory.
+Trek opens in the current directory. If you have previously quit Trek cleanly (with `q`), it restores your last session: the directory you were in, your cursor position, and your view settings (hidden files, sort order). Pass an explicit path to skip session restore and open at a specific location instead:
+
+```sh
+trek /path/to/project
+```
 
 ---
 
@@ -88,6 +92,6 @@ You do not need to memorize every keybinding. Two overlays surface everything yo
 
 ## Quitting
 
-Press `q` to quit Trek.
+Press `q` to quit Trek. Quitting cleanly saves your session state — current directory, cursor position, marks, hidden-files toggle, and sort settings — so Trek can restore it on the next launch.
 
-If you launched Trek with the `m` shell function, your terminal session will `cd` to the directory Trek had open when you quit.
+If you launched Trek with the `m` shell function, your terminal session will also `cd` to the directory Trek had open when you quit.

@@ -1,6 +1,6 @@
 # Keybinding Reference
 
-Trek v0.48.1
+Trek v0.49.0
 
 This page lists every keybinding available in Trek, organized by category.
 If you can't find what you need here, press `:` to open the command palette and
@@ -19,7 +19,7 @@ type any part of the action name to find and run it.
 | `g` | Jump to top of listing |
 | `G` | Jump to bottom of listing |
 | `~` | Go to home directory |
-| `e` | Open path jump bar (type any path) |
+| `e` | Open path jump bar (type any path; press `Tab` to complete) |
 | `` ` `` + letter | Set session mark at current directory |
 | `'` + letter | Jump to session mark |
 | `z` | Open frecency jump list |
@@ -28,8 +28,9 @@ type any part of the action name to find and run it.
 | `[` | Scroll preview pane up 5 lines |
 | `]` | Scroll preview pane down 5 lines |
 
-Session marks are in-memory only and do not persist across Trek sessions. For
-persistent bookmarks, see the Bookmarks section below.
+Session marks are saved when you quit with `q` or `Q` and restored the next
+time Trek launches without arguments. For always-available bookmarks, see the
+Bookmarks section below.
 
 ---
 
@@ -105,6 +106,8 @@ system. Creation always produces a `.tar.gz` archive.
 | Key | Action |
 |-----|--------|
 | `.` | Toggle hidden files |
+| `S` | Cycle sort mode (name → size → modified → type) |
+| `s` | Toggle sort order (ascending ↔ descending) |
 | `T` | Toggle timestamps (replaces size column) |
 | `N` | Toggle directory item counts |
 | `i` | Toggle gitignore filter |
@@ -130,8 +133,8 @@ sequence, which works over SSH and inside tmux / cmux.
 
 Trek has two bookmark mechanisms:
 
-- **Bookmarks** (`b` / `B`): persist across sessions, stored on disk.
-- **Session marks** (`` ` `` / `'`): in-memory only, lost on quit.
+- **Bookmarks** (`b` / `B`): always persist across sessions, stored on disk.
+- **Session marks** (`` ` `` / `'`): saved on clean quit (`q` / `Q`) and restored on next launch without arguments.
 
 | Key | Action |
 |-----|--------|
@@ -180,6 +183,19 @@ Content search (`Ctrl+F`) uses ripgrep and respects `.gitignore` by default.
 
 Mouse support is enabled by default. All mouse actions have keyboard
 equivalents.
+
+---
+
+## Session Restore
+
+When you quit Trek with `q` or `Q`, Trek saves your view state and restores it
+the next time you launch without arguments. The state that persists includes:
+current directory, selected entry, marks, hidden-files toggle (`.`), sort mode
+(`S`), and sort order (`s`).
+
+Launching with an explicit path (`trek /path`) always ignores saved session
+state. See [Navigation — Session Restore](../usage/navigation.md#session-restore)
+for full details.
 
 ---
 

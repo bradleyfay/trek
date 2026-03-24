@@ -50,6 +50,7 @@ nav:
   - Reference:
     - All Keybindings: reference/keybindings.md
     - Command Palette: reference/command-palette.md
+  - Comparison: comparison.md
   - Contributing: contributing/index.md
 
 markdown_extensions:
