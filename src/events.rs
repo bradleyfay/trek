@@ -124,6 +124,21 @@ pub fn run(
                         KeyCode::Char(c) => app.filter_push_char(c),
                         _ => {}
                     }
+                } else if app.palette_mode {
+                    match key.code {
+                        KeyCode::Esc | KeyCode::Char(':') => app.close_palette(),
+                        KeyCode::Enter | KeyCode::Char('l') | KeyCode::Right => {
+                            if let Some(action) = app.palette_selected_action() {
+                                app.close_palette();
+                                execute_palette_action(&mut app, action, terminal)?;
+                            }
+                        }
+                        KeyCode::Backspace => app.palette_pop_char(),
+                        KeyCode::Up | KeyCode::Char('k') => app.palette_move_up(),
+                        KeyCode::Down | KeyCode::Char('j') => app.palette_move_down(),
+                        KeyCode::Char(c) => app.palette_push_char(c),
+                        _ => {}
+                    }
                 } else if app.search_mode {
                     match key.code {
                         KeyCode::Esc => app.cancel_search(),
@@ -230,6 +245,8 @@ pub fn run(
                                 }
                             }
                         }
+                        // Open command palette
+                        KeyCode::Char(':') => app.open_palette(),
                         // Open with system default (open on macOS, xdg-open on Linux)
                         KeyCode::Char('O') => {
                             if let Some(path) = app.selected_path() {
@@ -288,4 +305,60 @@ pub fn run(
         }
     }
     Ok(app.cwd)
+}
+
+/// Dispatch a palette ActionId to the corresponding App method.
+///
+/// Actions that require terminal teardown (open-in-editor) are handled here
+/// because `events.rs` owns the terminal handle.
+fn execute_palette_action(
+    app: &mut App,
+    action: crate::app::palette::ActionId,
+    terminal: &mut ratatui::Terminal<CrosstermBackend<io::Stdout>>,
+) -> anyhow::Result<()> {
+    use crate::app::palette::ActionId;
+    match action {
+        ActionId::GoHome => app.go_home(),
+        ActionId::GoTop => app.go_top(),
+        ActionId::GoBottom => app.go_bottom(),
+        ActionId::HistoryBack => app.history_back(),
+        ActionId::HistoryForward => app.history_forward(),
+        ActionId::ToggleHidden => app.toggle_hidden(),
+        ActionId::ToggleDiffPreview => app.toggle_diff_preview(),
+        ActionId::ToggleMetaPreview => app.toggle_meta_preview(),
+        ActionId::RefreshGitStatus => app.refresh_git_status(),
+        ActionId::StartSearch => app.start_search(),
+        ActionId::StartFilter => app.start_filter(),
+        ActionId::StartContentSearch => app.start_content_search(),
+        ActionId::StartFind => app.start_find(),
+        ActionId::ClipboardCopyCurrent => app.clipboard_copy_current(),
+        ActionId::ClipboardCopySelected => app.clipboard_copy_selected(),
+        ActionId::ClipboardCutCurrent => app.clipboard_cut_current(),
+        ActionId::PasteClipboard => app.paste_clipboard(),
+        ActionId::BeginDeleteCurrent => app.begin_delete_current(),
+        ActionId::BeginDeleteSelected => app.begin_delete_selected(),
+        ActionId::BeginMkdir => app.begin_mkdir(),
+        ActionId::UndoTrash => app.undo_trash(),
+        ActionId::BeginChmod => app.begin_chmod(),
+        ActionId::ToggleSelection => {
+            let s = app.selected;
+            app.toggle_selection(s);
+        }
+        ActionId::SelectAll => app.select_all(),
+        ActionId::ClearSelections => app.clear_selections(),
+        ActionId::StartRename => app.start_rename(),
+        ActionId::AddBookmark => app.add_bookmark(),
+        ActionId::OpenBookmarks => app.open_bookmarks(),
+        ActionId::CycleSortMode => app.cycle_sort_mode(),
+        ActionId::ToggleSortOrder => app.toggle_sort_order(),
+        ActionId::YankRelativePath => app.yank_relative_path(),
+        ActionId::YankAbsolutePath => app.yank_absolute_path(),
+        ActionId::ShowHelp => app.show_help = true,
+        // Quit appears in the palette for discoverability but cannot break out
+        // of the event loop from here — use q directly.
+        ActionId::Quit => {}
+    }
+    // terminal is available here for any future actions needing TUI teardown.
+    let _ = terminal;
+    Ok(())
 }
