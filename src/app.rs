@@ -1,4 +1,5 @@
 use crate::git::GitStatus;
+use crate::highlight::Highlighter;
 use crate::icons::icon_for_entry;
 use crate::ops::{self, Clipboard, ClipboardOp};
 use crate::rename::{self, RenameField, RenamePreviewRow};
@@ -92,6 +93,9 @@ pub struct App {
     /// True when `preview_lines` holds diff output (used by the renderer to colorise lines).
     pub preview_is_diff: bool,
 
+    // --- Syntax highlighter (initialized once at startup) ---
+    pub highlighter: Highlighter,
+
     // --- File operations clipboard ---
     /// Files queued for copy or cut.
     pub clipboard: Option<Clipboard>,
@@ -179,6 +183,7 @@ impl App {
             git_status: None,
             diff_preview_mode: false,
             preview_is_diff: false,
+            highlighter: Highlighter::new(),
             clipboard: None,
             pending_delete: Vec::new(),
             mkdir_mode: false,

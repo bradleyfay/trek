@@ -456,19 +456,45 @@ fn draw_preview_pane(f: &mut Frame, app: &App, area: Rect) {
         String::new()
     };
 
-    let lines: Vec<Line> = app
-        .preview_lines
-        .iter()
-        .skip(app.preview_scroll)
-        .take(visible_height)
-        .map(|l| {
-            if app.preview_is_diff {
-                colorize_diff_line(l)
+    // Try syntax highlighting for source files (non-diff mode only).
+    let highlighted: Option<Vec<Line<'static>>> = if !app.preview_is_diff {
+        app.entries.get(app.selected).and_then(|e| {
+            let ext = std::path::Path::new(&e.name)
+                .extension()
+                .and_then(|s| s.to_str())
+                .unwrap_or("");
+            if ext.is_empty() {
+                None
             } else {
-                Line::from(l.as_str())
+                let max_process =
+                    (app.preview_scroll + visible_height).min(app.preview_lines.len());
+                app.highlighter
+                    .highlight(&app.preview_lines[..max_process], ext, max_process)
             }
         })
-        .collect();
+    } else {
+        None
+    };
+
+    let lines: Vec<Line> = if let Some(hl) = highlighted {
+        hl.into_iter()
+            .skip(app.preview_scroll)
+            .take(visible_height)
+            .collect()
+    } else {
+        app.preview_lines
+            .iter()
+            .skip(app.preview_scroll)
+            .take(visible_height)
+            .map(|l| {
+                if app.preview_is_diff {
+                    colorize_diff_line(l)
+                } else {
+                    Line::from(l.as_str())
+                }
+            })
+            .collect()
+    };
 
     // Draw main content (leave 1 col for scrollbar).
     let content_area = Rect::new(area.x, area.y, area.width.saturating_sub(1), area.height);
