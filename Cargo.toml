@@ -1,11 +1,14 @@
 [package]
-name = "murdoch"
-version = "0.1.0"
+name = "trek"
+version = "0.2.0"
 edition = "2021"
 description = "A terminal file manager with mouse-resizable panes"
+license = "MIT"
+homepage = "https://github.com/bradleyfay/trek"
+repository = "https://github.com/bradleyfay/trek"
 
 [dependencies]
-crossterm = { version = "0.27", features = ["event-stream"] }
+crossterm = { version = "0.27" }
 ratatui = "0.26"
 anyhow = "1"
 base64 = "0.22"

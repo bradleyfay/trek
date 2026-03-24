@@ -12,9 +12,6 @@ use ratatui::{
 /// then renders parent pane, current-dir pane, and preview pane.
 pub fn draw(f: &mut Frame, app: &mut App) {
     let size = f.size();
-    app.term_width = size.width;
-    app.term_height = size.height;
-
     // Reserve 1 row for path bar at top, 1 row for status/search at bottom.
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -38,9 +35,6 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     let mid_cols = right_cols.saturating_sub(left_cols);
     let preview_cols = main_area.width.saturating_sub(right_cols);
 
-    app.left_div_col = main_area.x + left_cols;
-    app.right_div_col = main_area.x + right_cols;
-
     let pane_chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
@@ -50,24 +44,30 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         ])
         .split(main_area);
 
-    // Store pane areas for mouse hit-testing.
-    app.parent_area = (
-        pane_chunks[0].x,
-        pane_chunks[0].y,
-        pane_chunks[0].width,
-        pane_chunks[0].height,
-    );
-    app.current_area = (
-        pane_chunks[1].x,
-        pane_chunks[1].y,
-        pane_chunks[1].width,
-        pane_chunks[1].height,
-    );
-    app.preview_area = (
-        pane_chunks[2].x,
-        pane_chunks[2].y,
-        pane_chunks[2].width,
-        pane_chunks[2].height,
+    // Store computed geometry so mouse handlers can do hit-testing.
+    app.apply_layout(
+        size.width,
+        size.height,
+        main_area.x + left_cols,
+        main_area.x + right_cols,
+        (
+            pane_chunks[0].x,
+            pane_chunks[0].y,
+            pane_chunks[0].width,
+            pane_chunks[0].height,
+        ),
+        (
+            pane_chunks[1].x,
+            pane_chunks[1].y,
+            pane_chunks[1].width,
+            pane_chunks[1].height,
+        ),
+        (
+            pane_chunks[2].x,
+            pane_chunks[2].y,
+            pane_chunks[2].width,
+            pane_chunks[2].height,
+        ),
     );
 
     // Ensure selection is visible before drawing.
@@ -239,7 +239,11 @@ fn draw_current_pane(f: &mut Frame, app: &App, area: Rect) {
         })
         .collect();
 
-    let info = format!(" {}/{} ", app.selected + 1, app.entries.len());
+    let info = if app.entries_truncated {
+        format!(" {}/{} [limit] ", app.selected + 1, app.entries.len())
+    } else {
+        format!(" {}/{} ", app.selected + 1, app.entries.len())
+    };
     let list = List::new(items).block(
         Block::default()
             .borders(Borders::TOP | Borders::BOTTOM | Borders::RIGHT)

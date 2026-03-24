@@ -5,6 +5,10 @@ use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+/// Maximum directory entries loaded in a single pane.
+/// Prevents UI freezes when navigating extremely large directories (e.g. node_modules).
+const MAX_ENTRIES: usize = 10_000;
+
 /// Which divider the user is currently dragging.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum DragTarget {
@@ -17,6 +21,8 @@ pub struct App {
     pub cwd: PathBuf,
     /// Sorted entries in the current directory.
     pub entries: Vec<DirEntry>,
+    /// True when the entry list was truncated to MAX_ENTRIES.
+    pub entries_truncated: bool,
     /// Index of the selected entry.
     pub selected: usize,
     /// Scroll offset for the current pane.
@@ -31,9 +37,9 @@ pub struct App {
     pub preview_lines: Vec<String>,
     /// Preview scroll offset (line index of top visible line).
     pub preview_scroll: usize,
-    /// Total height of the terminal (set during draw).
+    /// Total height of the terminal (set via apply_layout).
     pub term_height: u16,
-    /// Total width of the terminal (set during draw).
+    /// Total width of the terminal (set via apply_layout).
     pub term_width: u16,
 
     // --- Pane layout (percentage-based, 0.0..1.0) ---
@@ -45,11 +51,11 @@ pub struct App {
     // --- Drag state ---
     pub drag: Option<DragTarget>,
 
-    // --- Pixel positions of dividers (set during draw) ---
+    // --- Pixel positions of dividers (set via apply_layout) ---
     pub left_div_col: u16,
     pub right_div_col: u16,
 
-    /// Areas of each pane (set during draw): (x, y, width, height).
+    /// Areas of each pane (set via apply_layout): (x, y, width, height).
     pub parent_area: (u16, u16, u16, u16),
     pub current_area: (u16, u16, u16, u16),
     pub preview_area: (u16, u16, u16, u16),
@@ -86,8 +92,9 @@ impl App {
     pub fn new() -> Result<Self> {
         let cwd = std::env::current_dir()?;
         let mut app = Self {
-            cwd: cwd.clone(),
+            cwd,
             entries: Vec::new(),
+            entries_truncated: false,
             selected: 0,
             current_scroll: 0,
             parent_entries: Vec::new(),
@@ -114,60 +121,95 @@ impl App {
             show_hidden: false,
             show_help: false,
         };
-        app.load_dir()?;
+        app.load_dir();
         Ok(app)
     }
 
     /// Reload the current directory listing and parent listing.
-    pub fn load_dir(&mut self) -> Result<()> {
-        self.entries = Self::read_entries(&self.cwd, self.show_hidden);
+    ///
+    /// Errors are surfaced via `status_message` rather than propagated, so the
+    /// app stays alive even if the working directory becomes unreadable.
+    pub fn load_dir(&mut self) {
+        match Self::read_entries(&self.cwd, self.show_hidden) {
+            Ok((entries, truncated)) => {
+                self.entries = entries;
+                self.entries_truncated = truncated;
+            }
+            Err(e) => {
+                self.entries = Vec::new();
+                self.entries_truncated = false;
+                self.status_message = Some(format!("Cannot read directory: {e}"));
+            }
+        }
         if self.selected >= self.entries.len() {
             self.selected = self.entries.len().saturating_sub(1);
         }
-        // Parent entries
+
+        // Parent entries (errors here are non-fatal; left pane simply stays empty).
         if let Some(parent) = self.cwd.parent() {
-            self.parent_entries = Self::read_entries(parent, self.show_hidden);
-            self.parent_selected = self
-                .parent_entries
-                .iter()
-                .position(|e| e.path == self.cwd)
-                .unwrap_or(0);
+            match Self::read_entries(parent, self.show_hidden) {
+                Ok((entries, _)) => {
+                    self.parent_selected = entries
+                        .iter()
+                        .position(|e| e.path == self.cwd)
+                        .unwrap_or(0);
+                    self.parent_entries = entries;
+                }
+                Err(_) => {
+                    self.parent_entries.clear();
+                    self.parent_selected = 0;
+                }
+            }
         } else {
             self.parent_entries.clear();
             self.parent_selected = 0;
         }
+
         self.load_preview();
-        Ok(())
     }
 
-    fn read_entries(dir: &Path, show_hidden: bool) -> Vec<DirEntry> {
-        let mut entries: Vec<DirEntry> = match fs::read_dir(dir) {
-            Ok(rd) => rd
-                .filter_map(|e| e.ok())
-                .filter_map(|e| {
-                    let name = e.file_name().to_string_lossy().into_owned();
-                    if !show_hidden && name.starts_with('.') {
-                        return None;
-                    }
-                    let is_dir = e.file_type().map(|ft| ft.is_dir()).unwrap_or(false);
-                    let size = e.metadata().map(|m| m.len()).unwrap_or(0);
-                    Some(DirEntry {
-                        name,
-                        path: e.path(),
-                        is_dir,
-                        size,
-                    })
+    /// Read and sort directory entries, enforcing MAX_ENTRIES.
+    ///
+    /// Returns `(entries, truncated)`. On I/O error (e.g. permission denied)
+    /// the error is returned to the caller rather than silently swallowed.
+    fn read_entries(
+        dir: &Path,
+        show_hidden: bool,
+    ) -> Result<(Vec<DirEntry>, bool), std::io::Error> {
+        let rd = fs::read_dir(dir)?;
+
+        let mut entries: Vec<DirEntry> = rd
+            .filter_map(|e| e.ok())
+            .filter_map(|e| {
+                let name = e.file_name().to_string_lossy().into_owned();
+                if !show_hidden && name.starts_with('.') {
+                    return None;
+                }
+                let is_dir = e.file_type().map(|ft| ft.is_dir()).unwrap_or(false);
+                let size = e.metadata().map(|m| m.len()).unwrap_or(0);
+                Some(DirEntry {
+                    name,
+                    path: e.path(),
+                    is_dir,
+                    size,
                 })
-                .collect(),
-            Err(_) => Vec::new(),
-        };
+            })
+            .take(MAX_ENTRIES + 1) // +1 lets us detect truncation
+            .collect();
+
+        let truncated = entries.len() > MAX_ENTRIES;
+        if truncated {
+            entries.truncate(MAX_ENTRIES);
+        }
+
         // Sort: directories first, then alphabetical (case-insensitive).
         entries.sort_by(|a, b| {
             b.is_dir
                 .cmp(&a.is_dir)
                 .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
         });
-        entries
+
+        Ok((entries, truncated))
     }
 
     pub fn load_preview(&mut self) {
@@ -177,31 +219,44 @@ impl App {
         if let Some(entry) = self.entries.get(self.selected) {
             if entry.is_dir {
                 // Show directory contents as preview.
-                let children = Self::read_entries(&entry.path, self.show_hidden);
-                self.preview_lines = children
-                    .iter()
-                    .map(|c| {
-                        let icon = icon_for_entry(&c.name, c.is_dir);
-                        format!("{} {}", icon, c.name)
-                    })
-                    .collect();
+                if let Ok((children, _)) = Self::read_entries(&entry.path, self.show_hidden) {
+                    self.preview_lines = children
+                        .iter()
+                        .map(|c| {
+                            let icon = icon_for_entry(&c.name, c.is_dir);
+                            format!("{} {}", icon, c.name)
+                        })
+                        .collect();
+                }
             } else {
-                // Try to read as text.
                 self.preview_lines = Self::read_file_preview(&entry.path);
             }
         }
     }
 
     fn read_file_preview(path: &PathBuf) -> Vec<String> {
-        // Read up to 2000 lines / 512KB.
+        // Verify the path is a regular file *before* opening it.
+        // Without this check, fs::read can hang indefinitely on FIFOs, device
+        // files, and other special filesystem entries — even ones reached through
+        // symlinks — because a read on those may block waiting for a writer.
+        let meta = match fs::metadata(path) {
+            Ok(m) => m,
+            Err(_) => return vec!["[cannot read file]".to_string()],
+        };
+        if !meta.file_type().is_file() {
+            return vec!["[not a regular file]".to_string()];
+        }
+        // Check size via metadata *before* allocating.
+        // Previously we allocated the full buffer and then discarded it — this
+        // avoids that wasted allocation and speeds up rejection of large files.
+        if meta.len() > 512 * 1024 {
+            return vec!["[file too large to preview]".to_string()];
+        }
         let data = match fs::read(path) {
             Ok(d) => d,
             Err(_) => return vec!["[cannot read file]".to_string()],
         };
-        if data.len() > 512 * 1024 {
-            return vec!["[file too large to preview]".to_string()];
-        }
-        // Check for binary content (null bytes in first 8KB).
+        // Check for binary content (null bytes in first 8 KB).
         let check_len = data.len().min(8192);
         if data[..check_len].contains(&0) {
             return vec!["[binary file]".to_string()];
@@ -233,6 +288,34 @@ impl App {
         } else if self.parent_selected >= self.parent_scroll + h {
             self.parent_scroll = self.parent_selected - h + 1;
         }
+    }
+
+    // --- Layout cache (written by ui::draw, read by mouse handlers) ---
+
+    /// Store computed layout values needed for mouse hit-testing.
+    /// Called once per frame by `ui::draw` after it calculates pane geometry.
+    pub fn apply_layout(
+        &mut self,
+        term_width: u16,
+        term_height: u16,
+        left_div_col: u16,
+        right_div_col: u16,
+        parent_area: (u16, u16, u16, u16),
+        current_area: (u16, u16, u16, u16),
+        preview_area: (u16, u16, u16, u16),
+    ) {
+        self.term_width = term_width;
+        self.term_height = term_height;
+        self.left_div_col = left_div_col;
+        self.right_div_col = right_div_col;
+        self.parent_area = parent_area;
+        self.current_area = current_area;
+        self.preview_area = preview_area;
+    }
+
+    /// Clear the current status message (called on every keypress).
+    pub fn clear_status(&mut self) {
+        self.status_message = None;
     }
 
     // --- Navigation ---
@@ -270,7 +353,7 @@ impl App {
                 .file_name()
                 .map(|n| n.to_string_lossy().into_owned());
             self.cwd = parent;
-            let _ = self.load_dir();
+            self.load_dir();
             // Try to select the directory we came from.
             if let Some(name) = old_name {
                 if let Some(idx) = self.entries.iter().position(|e| e.name == name) {
@@ -287,7 +370,7 @@ impl App {
                 self.cwd = entry.path;
                 self.selected = 0;
                 self.current_scroll = 0;
-                let _ = self.load_dir();
+                self.load_dir();
             } else {
                 // For files, yank the relative path.
                 self.yank_relative_path();
@@ -300,13 +383,13 @@ impl App {
             self.cwd = home;
             self.selected = 0;
             self.current_scroll = 0;
-            let _ = self.load_dir();
+            self.load_dir();
         }
     }
 
     pub fn toggle_hidden(&mut self) {
         self.show_hidden = !self.show_hidden;
-        let _ = self.load_dir();
+        self.load_dir();
         self.status_message = Some(if self.show_hidden {
             "Showing hidden files".to_string()
         } else {
@@ -360,7 +443,7 @@ impl App {
                     self.cwd = entry.path;
                     self.selected = 0;
                     self.current_scroll = 0;
-                    let _ = self.load_dir();
+                    self.load_dir();
                 }
             }
         }

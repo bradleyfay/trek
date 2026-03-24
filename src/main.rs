@@ -2,7 +2,7 @@ mod app;
 mod icons;
 mod ui;
 
-use anyhow::Result;
+use anyhow::{bail, Result};
 use app::App;
 use crossterm::{
     event::{
@@ -15,6 +15,27 @@ use ratatui::{backend::CrosstermBackend, Terminal};
 use std::io;
 
 fn main() -> Result<()> {
+    let args: Vec<String> = std::env::args().collect();
+
+    if args.iter().any(|a| a == "--help" || a == "-h") {
+        print_help();
+        return Ok(());
+    }
+
+    if args.iter().any(|a| a == "--install-shell") {
+        return install_shell_integration();
+    }
+
+    let choosedir = args
+        .iter()
+        .position(|a| a == "--choosedir")
+        .and_then(|i| args.get(i + 1).cloned());
+
+    // Install a panic hook that restores terminal state before printing the
+    // panic message.  Without this, a panic leaves the terminal in raw mode
+    // with the alternate screen active, requiring a blind `reset` to recover.
+    setup_panic_hook();
+
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
@@ -31,13 +52,37 @@ fn main() -> Result<()> {
     )?;
     terminal.show_cursor()?;
 
-    if let Err(e) = result {
-        eprintln!("Error: {e:?}");
+    match result {
+        Ok(final_dir) => {
+            if let Some(ref path) = choosedir {
+                // Write atomically: write to a temp file first, then rename.
+                // A plain fs::write is not atomic — if the process is killed
+                // mid-write the shell script reads a partial path and passes it
+                // to `cd`, producing confusing behaviour.
+                let tmp = format!("{}.tmp.{}", path, std::process::id());
+                std::fs::write(&tmp, final_dir.to_string_lossy().as_bytes())?;
+                std::fs::rename(&tmp, path)?;
+            }
+        }
+        Err(e) => eprintln!("Error: {e:?}"),
     }
     Ok(())
 }
 
-fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()> {
+/// Install a panic hook that restores the terminal before the default hook
+/// prints the panic message.  This ensures the terminal is usable after a
+/// crash without needing to run `reset`.
+fn setup_panic_hook() {
+    let default_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        // Best-effort — ignore errors; we're already panicking.
+        let _ = disable_raw_mode();
+        let _ = execute!(io::stdout(), LeaveAlternateScreen, DisableMouseCapture);
+        default_hook(info);
+    }));
+}
+
+fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<std::path::PathBuf> {
     let mut app = App::new()?;
 
     loop {
@@ -46,7 +91,7 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()> {
         match event::read()? {
             Event::Key(key) => {
                 // Clear status message on any keypress.
-                app.status_message = None;
+                app.clear_status();
 
                 if app.show_help {
                     // Any key closes help overlay.
@@ -63,7 +108,7 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()> {
                     }
                 } else {
                     match key.code {
-                        KeyCode::Char('Q') => break,
+                        KeyCode::Char('Q') | KeyCode::Char('q') => break,
                         KeyCode::Up | KeyCode::Char('k') => app.move_up(),
                         KeyCode::Down | KeyCode::Char('j') => app.move_down(),
                         KeyCode::Left | KeyCode::Char('h') => app.go_parent(),
@@ -108,5 +153,111 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()> {
             _ => {}
         }
     }
+    Ok(app.cwd)
+}
+
+fn print_help() {
+    println!("trek — a terminal file manager");
+    println!();
+    println!("USAGE:");
+    println!("    trek [OPTIONS]");
+    println!();
+    println!("OPTIONS:");
+    println!("    -h, --help             Print this help message");
+    println!("        --install-shell    Install the `m` shell function into your shell rc file");
+    println!("        --choosedir <path> Write the final directory to <path> on exit");
+    println!();
+    println!("KEYBINDINGS (inside the TUI):");
+    println!("    j / Down    Move down          k / Up      Move up");
+    println!("    l / Right   Enter directory    h / Left    Go to parent");
+    println!("    g           Go to top          G           Go to bottom");
+    println!("    ~           Go to home         .           Toggle hidden files");
+    println!("    /           Fuzzy search       y / Y       Yank relative / absolute path");
+    println!("    ?           Show help overlay  q           Quit");
+}
+
+fn install_shell_integration() -> Result<()> {
+    let shell = std::env::var("SHELL").unwrap_or_default();
+    let home = std::env::var("HOME").unwrap_or_default();
+
+    // Validate HOME before constructing any paths from it.
+    if home.is_empty() {
+        bail!("HOME environment variable is not set; cannot determine shell profile path");
+    }
+    let home_path = std::path::Path::new(&home);
+    if !home_path.is_absolute() {
+        bail!(
+            "HOME is not an absolute path ({:?}); refusing to write shell profile",
+            home
+        );
+    }
+
+    let (profile, snippet) = if shell.contains("zsh") {
+        (
+            format!("{home}/.zshrc"),
+            r#"
+# trek shell integration — added by `trek --install-shell`
+m() {
+  local tmp=$(mktemp)
+  trek --choosedir "$tmp"
+  local dir=$(cat "$tmp")
+  rm -f "$tmp"
+  [[ -n "$dir" ]] && cd "$dir"
+}
+"#,
+        )
+    } else if shell.contains("bash") {
+        (
+            format!("{home}/.bashrc"),
+            r#"
+# trek shell integration — added by `trek --install-shell`
+m() {
+  local tmp=$(mktemp)
+  trek --choosedir "$tmp"
+  local dir=$(cat "$tmp")
+  rm -f "$tmp"
+  [ -n "$dir" ] && cd "$dir"
+}
+"#,
+        )
+    } else if shell.contains("fish") {
+        (
+            format!("{home}/.config/fish/config.fish"),
+            r#"
+# trek shell integration — added by `trek --install-shell`
+function m
+  set tmp (mktemp)
+  trek --choosedir $tmp
+  set dir (cat $tmp)
+  rm -f $tmp
+  if test -n "$dir"
+    cd $dir
+  end
+end
+"#,
+        )
+    } else {
+        bail!(
+            "Unsupported shell: {:?}. Add the wrapper manually — see `trek --help`.",
+            shell
+        );
+    };
+
+    let profile_path = std::path::Path::new(&profile);
+    let contents = std::fs::read_to_string(profile_path).unwrap_or_default();
+
+    if contents.contains("trek --choosedir") {
+        println!("Already installed in {profile}. Nothing to do.");
+        return Ok(());
+    }
+
+    let mut file = std::fs::OpenOptions::new()
+        .append(true)
+        .create(true)
+        .open(profile_path)?;
+    std::io::Write::write_all(&mut file, snippet.as_bytes())?;
+
+    println!("Installed! Added `m` function to {profile}");
+    println!("Reload your shell:  source {profile}");
     Ok(())
 }
