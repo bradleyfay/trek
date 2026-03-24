@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.13.0] - 2026-03-24
 
+
 ### Added
 - Persistent directory bookmarks: `b` saves the current directory; `B` opens a centered picker overlay
 - Bookmarks stored at `$XDG_DATA_HOME/trek/bookmarks` (fallback: `~/.local/share/trek/bookmarks`) — plain text, one path per line, insertion order
