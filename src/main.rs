@@ -2,13 +2,15 @@ mod app;
 mod git;
 mod icons;
 mod rename;
+mod search;
 mod ui;
 
 use anyhow::{bail, Result};
 use app::App;
 use crossterm::{
     event::{
-        self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, MouseButton, MouseEventKind,
+        self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyModifiers, MouseButton,
+        MouseEventKind,
     },
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
@@ -98,6 +100,17 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<std::pat
                 if app.show_help {
                     // Any key closes help overlay.
                     app.show_help = false;
+                } else if app.content_search_mode {
+                    match key.code {
+                        KeyCode::Esc => app.cancel_content_search(),
+                        KeyCode::Enter => app.run_content_search(),
+                        KeyCode::Backspace => app.content_search_pop_char(),
+                        KeyCode::Up | KeyCode::Char('k') => app.content_search_move_up(),
+                        KeyCode::Down | KeyCode::Char('j') => app.content_search_move_down(),
+                        KeyCode::Char('l') | KeyCode::Right => app.jump_to_content_result(),
+                        KeyCode::Char(c) => app.content_search_push_char(c),
+                        _ => {}
+                    }
                 } else if app.rename_mode {
                     match key.code {
                         KeyCode::Esc => app.cancel_rename(),
@@ -120,6 +133,9 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<std::pat
                     }
                 } else {
                     match key.code {
+                        KeyCode::Char('f') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                            app.start_content_search()
+                        }
                         KeyCode::Char('Q') | KeyCode::Char('q') => break,
                         KeyCode::Up | KeyCode::Char('k') => app.move_up(),
                         KeyCode::Down | KeyCode::Char('j') => app.move_down(),
@@ -191,7 +207,8 @@ fn print_help() {
     println!("    l / Right   Enter directory    h / Left    Go to parent");
     println!("    g           Go to top          G           Go to bottom");
     println!("    ~           Go to home         .           Toggle hidden files");
-    println!("    /           Fuzzy search       y / Y       Yank relative / absolute path");
+    println!("    /           Fuzzy search       Ctrl+F      Content search (rg)");
+    println!("    y / Y       Yank relative / absolute path");
     println!("    d           Toggle diff preview R           Refresh git status");
     println!("    Space       Toggle file selection v          Select all files");
     println!("    r           Rename selected files Esc        Clear selections");

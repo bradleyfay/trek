@@ -80,6 +80,8 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     draw_parent_pane(f, app, pane_chunks[0]);
     if app.rename_mode {
         draw_rename_preview_pane(f, app, pane_chunks[1]);
+    } else if app.content_search_mode {
+        draw_content_search_pane(f, app, pane_chunks[1]);
     } else {
         draw_current_pane(f, app, pane_chunks[1]);
     }
@@ -88,6 +90,8 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     // Draw bottom bar.
     if app.rename_mode {
         draw_rename_bar(f, app, bottom_area);
+    } else if app.content_search_mode {
+        draw_content_search_bar(f, app, bottom_area);
     } else if app.search_mode {
         draw_search_bar(f, app, bottom_area);
     } else if let Some(ref msg) = app.status_message {
@@ -560,6 +564,151 @@ fn draw_rename_bar(f: &mut Frame, app: &App, area: Rect) {
     }
 }
 
+/// Render grouped rg results in the center pane during content search mode.
+fn draw_content_search_pane(f: &mut Frame, app: &App, area: Rect) {
+    let total_matches: usize = app
+        .content_search_results
+        .iter()
+        .map(|g| g.matches.len())
+        .sum();
+    let file_count = app.content_search_results.len();
+
+    let title = if total_matches > 0 {
+        let trunc = if app.content_search_truncated {
+            " [truncated]"
+        } else {
+            ""
+        };
+        format!(
+            " {} match{} in {} file{}{} ",
+            total_matches,
+            if total_matches == 1 { "" } else { "es" },
+            file_count,
+            if file_count == 1 { "" } else { "s" },
+            trunc
+        )
+    } else if app.content_search_query.is_empty() {
+        " Content search ".to_string()
+    } else {
+        " No matches ".to_string()
+    };
+
+    let visible_height = area.height.saturating_sub(2) as usize;
+
+    // Build a flat render list so we can compute a scroll offset that keeps
+    // the selected match visible without mutable-variable gymnastics.
+    enum RowKind {
+        Header(String),
+        Match {
+            flat_idx: usize,
+            line_number: u64,
+            content: String,
+        },
+    }
+    let mut flat_rows: Vec<RowKind> = Vec::new();
+    let mut flat_idx = 0usize;
+    for group in &app.content_search_results {
+        flat_rows.push(RowKind::Header(format!(" {}", group.file.display())));
+        for m in &group.matches {
+            flat_rows.push(RowKind::Match {
+                flat_idx,
+                line_number: m.line_number,
+                content: m.line_content.clone(),
+            });
+            flat_idx += 1;
+        }
+    }
+
+    // Find row position of the selected match to compute scroll.
+    let selected_row = flat_rows
+        .iter()
+        .position(|r| matches!(r, RowKind::Match { flat_idx: fi, .. } if *fi == app.content_search_selected))
+        .unwrap_or(0);
+    let scroll = if selected_row >= visible_height {
+        selected_row - visible_height + 1
+    } else {
+        0
+    };
+
+    let items: Vec<ListItem> = flat_rows
+        .iter()
+        .skip(scroll)
+        .take(visible_height)
+        .map(|row| match row {
+            RowKind::Header(text) => ListItem::new(Line::from(Span::styled(
+                text.clone(),
+                Style::default()
+                    .fg(Color::Blue)
+                    .add_modifier(Modifier::BOLD),
+            ))),
+            RowKind::Match {
+                flat_idx: fi,
+                line_number,
+                content,
+            } => {
+                let is_selected = *fi == app.content_search_selected;
+                let style = if is_selected {
+                    Style::default()
+                        .fg(Color::Black)
+                        .bg(Color::LightYellow)
+                        .add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default()
+                };
+                let num_style = if is_selected {
+                    style
+                } else {
+                    Style::default().fg(Color::DarkGray)
+                };
+                ListItem::new(Line::from(vec![
+                    Span::styled(format!("   {:>4}  ", line_number), num_style),
+                    Span::styled(content.clone(), style),
+                ]))
+            }
+        })
+        .collect();
+
+    let list = List::new(items).block(
+        Block::default()
+            .borders(Borders::TOP | Borders::BOTTOM | Borders::RIGHT)
+            .border_style(Style::default().fg(Color::DarkGray))
+            .title(title),
+    );
+    f.render_widget(list, area);
+}
+
+/// Render the content search prompt in the status bar.
+fn draw_content_search_bar(f: &mut Frame, app: &App, area: Rect) {
+    if let Some(ref err) = app.content_search_error {
+        let para = Paragraph::new(Line::from(Span::styled(
+            format!(" \u{26a0} {}", err),
+            Style::default().fg(Color::Red),
+        )));
+        f.render_widget(para, area);
+        return;
+    }
+    let para = Paragraph::new(Line::from(vec![
+        Span::styled(
+            "Search contents: ",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            &app.content_search_query,
+            Style::default()
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled("\u{2588}", Style::default().fg(Color::White)),
+        Span::styled(
+            "  Enter: run   Esc: cancel",
+            Style::default().fg(Color::DarkGray),
+        ),
+    ]));
+    f.render_widget(para, area);
+}
+
 /// Map a `FileStatus` to a display character and colour.
 fn file_status_indicator(status: FileStatus) -> (char, Color) {
     match status {
@@ -647,6 +796,10 @@ fn draw_help_overlay(f: &mut Frame, size: Rect) {
         Line::from(vec![
             Span::styled("  /         ", Style::default().fg(Color::Cyan)),
             Span::raw("Fuzzy search"),
+        ]),
+        Line::from(vec![
+            Span::styled("  Ctrl+F    ", Style::default().fg(Color::Cyan)),
+            Span::raw("Content search (ripgrep)"),
         ]),
         Line::from(vec![
             Span::styled("  y         ", Style::default().fg(Color::Cyan)),

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-03-24
+
+### Added
+- Content search mode (`Ctrl+F`): spawns `rg --line-number --color never` in the current directory and displays grouped results in the center pane
+- Results grouped by file with line numbers; j/k navigate across all matches; `l`/`→` or `Enter` jumps to the matched file and scrolls the preview to the matching line
+- Clear error message shown in status bar when `rg` is not installed (`content search requires ripgrep (rg) — not found in PATH`)
+- Results capped at 500 matches with a visible `[truncated]` notice in the pane title
+- `Esc` returns to normal navigation without side effects
+- New `src/search.rs` module with `run_rg` and `parse_rg_output`; six unit tests covering grouping, empty output, colons in content, result capping, and malformed lines
+- `Ctrl+F` added to the help overlay (`?`) and `--help` output
+
 ## [0.4.0] - 2026-03-24
 
 ### Added
