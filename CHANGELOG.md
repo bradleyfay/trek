@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.31.0] - 2026-03-24
+
+### Added
+- **`H` — hash preview**: press `H` on any file to display its SHA-256 checksum card in the preview pane; shows the full 64-hex-character hash, filename, and human-readable file size
+- Uses `shasum -a 256` (macOS) or `sha256sum` (GNU coreutils); shows a helpful install hint if neither is available
+- Files larger than 512 MB show a size-limit message instead of blocking the UI
+- `H` on a directory shows `"Hash preview not available for directories"` in the status bar without entering hash mode
+- `hash_preview_mode` is mutually exclusive with `meta_preview_mode` and `diff_preview_mode`; activating any of the three clears the others
+- `hash_preview_mode` is cleared on directory navigation (same behaviour as `meta_preview_mode`)
+- `H` appears in the command palette as "Toggle hash preview (SHA-256 checksum)" and in the `?` help overlay alongside `d` and `m`
+
 ## [0.30.0] - 2026-03-24
 
 ### Added

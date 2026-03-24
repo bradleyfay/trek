@@ -161,6 +161,11 @@ pub struct App {
     /// When true the preview pane shows the file metadata card instead of content.
     pub meta_preview_mode: bool,
 
+    // --- Hash preview (H) ---
+    /// When true the preview pane shows the file's SHA-256 checksum card.
+    /// Mutually exclusive with meta_preview_mode and diff_preview_mode.
+    pub hash_preview_mode: bool,
+
     // --- chmod editor (P) ---
     /// True while the chmod input bar is open.
     pub chmod_mode: bool,
@@ -380,6 +385,7 @@ impl App {
             diff_preview_mode: false,
             preview_is_diff: false,
             meta_preview_mode: false,
+            hash_preview_mode: false,
             chmod_mode: false,
             chmod_input: String::new(),
             highlighter: Highlighter::new(),

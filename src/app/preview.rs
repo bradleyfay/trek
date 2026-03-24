@@ -9,6 +9,16 @@ impl App {
         self.preview_lines.clear();
         self.preview_is_diff = false;
 
+        // Hash card — highest-priority special preview mode.
+        if self.hash_preview_mode {
+            if let Some(entry) = self.entries.get(self.selected).cloned() {
+                if !entry.is_dir {
+                    self.preview_lines = Self::load_hash_lines(&entry.path);
+                }
+            }
+            return;
+        }
+
         // Metadata card takes priority over content/diff views.
         if self.meta_preview_mode {
             if let Some(entry) = self.entries.get(self.selected).cloned() {
@@ -131,7 +141,8 @@ impl App {
         if has_git_change {
             self.diff_preview_mode = !self.diff_preview_mode;
             if self.diff_preview_mode {
-                self.meta_preview_mode = false; // mutually exclusive
+                self.meta_preview_mode = false;
+                self.hash_preview_mode = false; // mutually exclusive
             }
             self.load_preview();
         } else {

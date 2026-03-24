@@ -17,6 +17,7 @@ pub enum ActionId {
     ToggleGitignored,
     ToggleDiffPreview,
     ToggleMetaPreview,
+    ToggleHashPreview,
     RefreshGitStatus,
     StartSearch,
     StartFilter,
@@ -121,6 +122,11 @@ pub static PALETTE_ACTIONS: &[PaletteAction] = &[
         id: ActionId::ToggleMetaPreview,
         name: "Toggle meta preview (permissions, size)",
         keys: "m",
+    },
+    PaletteAction {
+        id: ActionId::ToggleHashPreview,
+        name: "Toggle hash preview (SHA-256 checksum)",
+        keys: "H",
     },
     PaletteAction {
         id: ActionId::RefreshGitStatus,
