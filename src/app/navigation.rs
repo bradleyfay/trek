@@ -217,6 +217,16 @@ impl App {
         self.history_pos
     }
 
+    /// Toggle line numbers in the preview pane.
+    pub fn toggle_line_numbers(&mut self) {
+        self.show_line_numbers = !self.show_line_numbers;
+        self.status_message = Some(if self.show_line_numbers {
+            "Line numbers: on".to_string()
+        } else {
+            "Line numbers: off".to_string()
+        });
+    }
+
     // --- Path jump bar (e) ---
 
     /// Open the path jump input bar with an empty input.

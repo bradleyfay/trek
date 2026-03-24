@@ -77,6 +77,7 @@ pub fn print_help() {
     println!("    [           Scroll preview up 5 lines  ]  Scroll preview down 5 lines");
     println!("    /           Fuzzy search       Ctrl+F      Content search (rg)");
     println!("    y / Y       Yank relative / absolute path");
+    println!("    #           Toggle line numbers in preview pane");
     println!("    i           Toggle gitignore filter (hide .gitignored files)");
     println!("    d           Toggle diff preview R           Refresh git status");
     println!("    J           Extend selection down  K           Extend selection up");

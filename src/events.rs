@@ -277,9 +277,10 @@ pub fn run(
                                 }
                             }
                         }
-                        // Preview pane scroll
+                        // Preview pane scroll and display
                         KeyCode::Char('[') => app.scroll_preview_up(5),
                         KeyCode::Char(']') => app.scroll_preview_down(5),
+                        KeyCode::Char('#') => app.toggle_line_numbers(),
                         // Path jump bar
                         KeyCode::Char('e') => app.begin_path_jump(),
                         // Open command palette
@@ -395,6 +396,7 @@ fn execute_palette_action(
         ActionId::ToggleSortOrder => app.toggle_sort_order(),
         ActionId::YankRelativePath => app.yank_relative_path(),
         ActionId::YankAbsolutePath => app.yank_absolute_path(),
+        ActionId::ToggleLineNumbers => app.toggle_line_numbers(),
         ActionId::ScrollPreviewUp => app.scroll_preview_up(5),
         ActionId::ScrollPreviewDown => app.scroll_preview_down(5),
         ActionId::PathJump => app.begin_path_jump(),

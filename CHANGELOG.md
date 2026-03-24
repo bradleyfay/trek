@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-03-24
+
+### Added
+- **`#` — preview line numbers**: toggles a numbered gutter in the preview pane; each line is prefixed with its 1-based absolute line number right-justified in a dynamic-width field (`total.to_string().len()` digits) followed by ` │ `; gutter text is `Color::DarkGray` to stay visually recessive
+- Line numbers are correct regardless of scroll offset — the plain-content path uses `enumerate()` before `skip()` for absolute indices; the highlighted path computes `preview_scroll + i + 1` after `skip()` followed by `enumerate()`
+- The toggle persists across file navigation (`show_line_numbers` is a session-level display preference, like `show_hidden`)
+- Works in all preview modes: raw content, syntax-highlighted source, git diff output, metadata card, and directory child listings
+- Status bar shows "Line numbers: on" / "Line numbers: off" on each toggle
+- `#` registered in the command palette as "Toggle line numbers in preview pane"
+- `#` documented in help overlay (`?`) under View and in `--help` output
+- 4 new unit tests: default off, toggle on, toggle off, persists across navigation
+
 ## [0.24.0] - 2026-03-24
 
 ### Added
