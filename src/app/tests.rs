@@ -1151,3 +1151,140 @@ fn path_jump_push_pop_char() {
     assert_eq!(app.path_input, "/tm");
     let _ = std::fs::remove_dir_all(&tmp);
 }
+
+// ── range selection (J / K) tests ──────────────────────────────────────────────
+
+/// Given: cursor at index 0 in a multi-file directory
+/// When: select_move_down() is called once
+/// Then: entries 0 and 1 are selected, cursor is at 1
+#[test]
+fn select_move_down_marks_both_endpoints() {
+    let tmp = std::env::temp_dir().join(format!("trek_rsel_down_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("a.txt"), b"").unwrap();
+    std::fs::write(tmp.join("b.txt"), b"").unwrap();
+    std::fs::write(tmp.join("c.txt"), b"").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.selected = 0;
+    app.select_move_down();
+    assert!(
+        app.rename_selected.contains(&0),
+        "entry 0 should be selected"
+    );
+    assert!(
+        app.rename_selected.contains(&1),
+        "entry 1 should be selected"
+    );
+    assert_eq!(app.selected, 1, "cursor should be at 1");
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: cursor at index 1 in a multi-file directory
+/// When: select_move_up() is called once
+/// Then: entries 1 and 0 are selected, cursor is at 0
+#[test]
+fn select_move_up_marks_both_endpoints() {
+    let tmp = std::env::temp_dir().join(format!("trek_rsel_up_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("a.txt"), b"").unwrap();
+    std::fs::write(tmp.join("b.txt"), b"").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.selected = 1;
+    app.select_move_up();
+    assert!(
+        app.rename_selected.contains(&1),
+        "entry 1 should be selected"
+    );
+    assert!(
+        app.rename_selected.contains(&0),
+        "entry 0 should be selected"
+    );
+    assert_eq!(app.selected, 0, "cursor should be at 0");
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: cursor at the last entry
+/// When: select_move_down() is called
+/// Then: cursor stays at last entry; last entry is marked
+#[test]
+fn select_move_down_at_bottom_stays_and_marks() {
+    let tmp = std::env::temp_dir().join(format!("trek_rsel_bot_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("a.txt"), b"").unwrap();
+    std::fs::write(tmp.join("b.txt"), b"").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.selected = app.entries.len() - 1;
+    let last = app.selected;
+    app.select_move_down();
+    assert_eq!(app.selected, last, "cursor should not move past bottom");
+    assert!(
+        app.rename_selected.contains(&last),
+        "last entry should be selected"
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: cursor at index 0 (top)
+/// When: select_move_up() is called
+/// Then: cursor stays at 0; entry 0 is marked
+#[test]
+fn select_move_up_at_top_stays_and_marks() {
+    let tmp = std::env::temp_dir().join(format!("trek_rsel_top_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("a.txt"), b"").unwrap();
+    std::fs::write(tmp.join("b.txt"), b"").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.selected = 0;
+    app.select_move_up();
+    assert_eq!(app.selected, 0, "cursor should not move above top");
+    assert!(
+        app.rename_selected.contains(&0),
+        "entry 0 should be selected"
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: directory entries in selection, no file entries
+/// When: start_rename() is called
+/// Then: status message shown, rename_mode stays false
+#[test]
+fn start_rename_with_only_dirs_in_selection_shows_message() {
+    let tmp = std::env::temp_dir().join(format!("trek_rsel_dir_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let subdir = tmp.join("subdir");
+    let _ = std::fs::create_dir_all(&subdir);
+    // Also need a file so load_dir has entries
+    std::fs::write(tmp.join("file.txt"), b"").unwrap();
+    let mut app = make_app_at(&tmp);
+    // Find the directory entry and add it to selection
+    let dir_idx = app.entries.iter().position(|e| e.is_dir).unwrap();
+    app.rename_selected.insert(dir_idx);
+    app.start_rename();
+    assert!(
+        !app.rename_mode,
+        "rename_mode should be false when only dirs selected"
+    );
+    assert!(app.status_message.is_some(), "status message should be set");
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: a directory entry selected by J (select_move_down includes dirs)
+/// When: cursor is on a directory, select_move_down called
+/// Then: the directory index is in rename_selected
+#[test]
+fn select_move_down_includes_directories() {
+    let tmp = std::env::temp_dir().join(format!("trek_rsel_incdir_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let _ = std::fs::create_dir_all(tmp.join("aaa_dir"));
+    std::fs::write(tmp.join("zzz_file.txt"), b"").unwrap();
+    let mut app = make_app_at(&tmp);
+    // Dirs appear first in sorted listing
+    app.selected = 0;
+    assert!(app.entries[0].is_dir, "first entry should be a dir");
+    app.select_move_down();
+    assert!(
+        app.rename_selected.contains(&0),
+        "directory at index 0 should be in rename_selected"
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}

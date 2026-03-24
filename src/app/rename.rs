@@ -38,10 +38,52 @@ impl App {
         self.status_message = None;
     }
 
-    /// Enter rename mode (requires at least one file to be selected).
+    /// Move cursor down while extending the selection (J key).
+    ///
+    /// Marks the current entry, moves down, and marks the new current entry.
+    /// All entry types (including directories) are added to the selection —
+    /// callers that only operate on files (e.g. start_rename) filter at their
+    /// own boundary. At the bottom of the list the cursor stays and the last
+    /// entry is marked.
+    pub fn select_move_down(&mut self) {
+        self.rename_selected.insert(self.selected);
+        if !self.entries.is_empty() && self.selected < self.entries.len() - 1 {
+            self.selected += 1;
+        }
+        self.rename_selected.insert(self.selected);
+        self.load_preview();
+    }
+
+    /// Move cursor up while extending the selection (K key).
+    ///
+    /// Mirrors `select_move_down`. At the top of the list the cursor stays
+    /// and the first entry is marked.
+    pub fn select_move_up(&mut self) {
+        self.rename_selected.insert(self.selected);
+        if self.selected > 0 {
+            self.selected -= 1;
+        }
+        self.rename_selected.insert(self.selected);
+        self.load_preview();
+    }
+
+    /// Enter rename mode (requires at least one *file* to be selected).
+    ///
+    /// Range selection (J/K) can add directories to `rename_selected`.
+    /// Directories are skipped by the rename logic, so only count files.
     pub fn start_rename(&mut self) {
-        if self.rename_selected.is_empty() {
-            self.status_message = Some("No files selected".to_string());
+        let file_count = self
+            .rename_selected
+            .iter()
+            .filter_map(|&i| self.entries.get(i))
+            .filter(|e| !e.is_dir)
+            .count();
+        if file_count == 0 {
+            self.status_message = Some(if self.rename_selected.is_empty() {
+                "No files selected".to_string()
+            } else {
+                "No files selected (directories cannot be renamed in bulk)".to_string()
+            });
             return;
         }
         self.rename_mode = true;
