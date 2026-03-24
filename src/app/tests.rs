@@ -3075,3 +3075,72 @@ fn toggle_git_log_preview_clears_other_modes() {
     assert!(!app.hash_preview_mode);
     let _ = std::fs::remove_dir_all(&tmp);
 }
+
+/// Given: a regular text file with known content
+/// When: load_meta_lines is called
+/// Then: the output contains Lines, Words, and Chars rows
+#[test]
+#[cfg(unix)]
+fn meta_lines_text_file_shows_wc_stats() {
+    let tmp = std::env::temp_dir().join(format!("trek_wc_text_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    // "hello world\nfoo bar baz\n" → 2 lines, 5 words, 24 chars (incl newlines)
+    let content = "hello world\nfoo bar baz\n";
+    let file = tmp.join("sample.txt");
+    std::fs::write(&file, content.as_bytes()).unwrap();
+    let lines = crate::app::App::load_meta_lines(&file);
+    let joined = lines.join("\n");
+    assert!(joined.contains("Lines"), "should have Lines row: {joined}");
+    assert!(joined.contains("Words"), "should have Words row: {joined}");
+    assert!(joined.contains("Chars"), "should have Chars row: {joined}");
+    // 2 lines, 5 words
+    assert!(
+        joined.contains("Lines     2"),
+        "Lines should be 2: {joined}"
+    );
+    assert!(
+        joined.contains("Words     5"),
+        "Words should be 5: {joined}"
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: a binary file (non-UTF-8)
+/// When: load_meta_lines is called
+/// Then: no Lines/Words/Chars rows appear
+#[test]
+#[cfg(unix)]
+fn meta_lines_binary_file_omits_wc_stats() {
+    let tmp = std::env::temp_dir().join(format!("trek_wc_bin_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let file = tmp.join("binary.bin");
+    std::fs::write(&file, &[0u8, 0xFF, 0xFE, 0x80, 0x90]).unwrap();
+    let lines = crate::app::App::load_meta_lines(&file);
+    let joined = lines.join("\n");
+    assert!(
+        !joined.contains("Lines"),
+        "binary should have no Lines row: {joined}"
+    );
+    assert!(
+        !joined.contains("Words"),
+        "binary should have no Words row: {joined}"
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: a directory
+/// When: load_meta_lines is called
+/// Then: no Lines/Words/Chars rows appear
+#[test]
+#[cfg(unix)]
+fn meta_lines_directory_omits_wc_stats() {
+    let tmp = std::env::temp_dir().join(format!("trek_wc_dir_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let lines = crate::app::App::load_meta_lines(&tmp);
+    let joined = lines.join("\n");
+    assert!(
+        !joined.contains("Lines"),
+        "directory should have no Lines row: {joined}"
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}

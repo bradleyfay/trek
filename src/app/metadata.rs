@@ -5,6 +5,34 @@ use std::path::Path;
 /// SHA-256 of 512 MB completes in < 1 s on modern hardware; above this we skip.
 const MAX_HASH_FILE_SIZE: u64 = 512 * 1024 * 1024;
 
+/// Maximum file size for synchronous content statistics (line/word/char count).
+/// Files larger than this are skipped to avoid blocking the render loop.
+const STAT_SIZE_LIMIT: u64 = 10 * 1024 * 1024; // 10 MB
+
+/// Count lines, whitespace-delimited words, and Unicode characters in `path`.
+///
+/// Returns `None` if the file cannot be opened, is not valid UTF-8 (binary),
+/// or exceeds `STAT_SIZE_LIMIT`.
+fn count_text_stats(path: &Path, size: u64) -> Option<(u64, u64, u64)> {
+    if size > STAT_SIZE_LIMIT {
+        return None;
+    }
+    use std::io::{BufRead, BufReader};
+    let file = std::fs::File::open(path).ok()?;
+    let reader = BufReader::new(file);
+    let mut line_count: u64 = 0;
+    let mut word_count: u64 = 0;
+    let mut char_count: u64 = 0;
+    for line_result in reader.lines() {
+        // `lines()` returns Err on invalid UTF-8 — treat as binary, abort.
+        let line = line_result.ok()?;
+        line_count += 1;
+        word_count += line.split_whitespace().count() as u64;
+        char_count += line.chars().count() as u64 + 1; // +1 for the stripped newline
+    }
+    Some((line_count, word_count, char_count))
+}
+
 impl App {
     // --- Hash preview (H) ---
 
@@ -194,6 +222,15 @@ impl App {
                 format!("  Modified  {}", fmt_time(meta.modified())),
                 format!("  Accessed  {}", fmt_time(meta.accessed())),
             ]);
+
+            // Append content stats for regular (non-dir, non-symlink) text files.
+            if !meta.is_dir() && !meta.file_type().is_symlink() {
+                if let Some((lc, wc, cc)) = count_text_stats(path, size) {
+                    lines.push(format!("  Lines     {}", lc));
+                    lines.push(format!("  Words     {}", wc));
+                    lines.push(format!("  Chars     {}", cc));
+                }
+            }
 
             lines
         }
