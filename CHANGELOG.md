@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.34.0] - 2026-03-24
+
+### Added
+- **`U` — preview word wrap**: press `U` to soft-wrap long lines at the preview pane boundary; press `U` again to restore truncated rendering
+- Preview pane title shows `[wrap]` indicator when wrap mode is active (alongside existing `[diff]`, `[meta]`, `[hash]` indicators)
+- `preview_wrap` composes with `show_line_numbers` — both can be active simultaneously
+- Wrap applies to all preview content types: plain text, syntax-highlighted source, diff, meta card, hash card
+- `U` registered in the command palette as "Toggle preview word wrap" and in the `?` help overlay
+
 ## [0.33.0] - 2026-03-24
 
 ### Added

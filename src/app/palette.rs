@@ -20,6 +20,7 @@ pub enum ActionId {
     ToggleHashPreview,
     TogglePreviewPane,
     ToggleTimestamps,
+    TogglePreviewWrap,
     RefreshGitStatus,
     StartSearch,
     StartFilter,
@@ -139,6 +140,11 @@ pub static PALETTE_ACTIONS: &[PaletteAction] = &[
         id: ActionId::ToggleTimestamps,
         name: "Toggle modification timestamps in listing",
         keys: "T",
+    },
+    PaletteAction {
+        id: ActionId::TogglePreviewWrap,
+        name: "Toggle preview word wrap",
+        keys: "U",
     },
     PaletteAction {
         id: ActionId::RefreshGitStatus,

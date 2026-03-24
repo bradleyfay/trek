@@ -394,6 +394,18 @@ impl App {
         self.status_message = Some(format!("\u{2192} {} (mark '{}')", short, c));
     }
 
+    // --- Preview word wrap (U) ---
+
+    /// Toggle soft line-wrapping in the preview pane.
+    pub fn toggle_preview_wrap(&mut self) {
+        self.preview_wrap = !self.preview_wrap;
+        self.status_message = Some(if self.preview_wrap {
+            "Wrap: on".to_string()
+        } else {
+            "Wrap: off".to_string()
+        });
+    }
+
     // --- Listing timestamps (T) ---
 
     /// Toggle between file sizes and last-modified timestamps in the listing.

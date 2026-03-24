@@ -308,6 +308,10 @@ pub struct App {
     /// When true, each preview line is prefixed with its 1-based line number.
     pub show_line_numbers: bool,
 
+    // --- Preview word wrap (U) ---
+    /// When true, the preview pane soft-wraps long lines at the pane boundary.
+    pub preview_wrap: bool,
+
     // --- Listing timestamps (T) ---
     /// When true, the listing shows last-modified dates instead of file sizes.
     pub show_timestamps: bool,
@@ -452,6 +456,7 @@ impl App {
             touch_mode: false,
             touch_input: String::new(),
             show_line_numbers: false,
+            preview_wrap: false,
             show_timestamps: false,
             glob_mode: false,
             glob_input: String::new(),

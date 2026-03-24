@@ -2577,3 +2577,55 @@ fn format_listing_date_epoch_zero_shows_placeholder() {
     let result = format_listing_date(UNIX_EPOCH);
     assert_eq!(result, "----  --:--", "got: {:?}", result);
 }
+
+// ── Preview word wrap tests (issue #67) ──────────────────────────────────────
+
+/// Given: preview_wrap is false (default)
+/// When: toggle_preview_wrap is called
+/// Then: preview_wrap becomes true and status message says "Wrap: on"
+#[test]
+fn toggle_preview_wrap_enters_mode() {
+    let tmp = std::env::temp_dir().join(format!("trek_wrap_on_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("f.txt"), b"hello").unwrap();
+    let mut app = make_app_at(&tmp);
+    assert!(!app.preview_wrap);
+    app.toggle_preview_wrap();
+    assert!(app.preview_wrap);
+    let msg = app.status_message.clone().unwrap_or_default();
+    assert_eq!(msg, "Wrap: on", "got: {msg}");
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: preview_wrap is true
+/// When: toggle_preview_wrap is called again
+/// Then: preview_wrap becomes false and status message says "Wrap: off"
+#[test]
+fn toggle_preview_wrap_toggles_off() {
+    let tmp = std::env::temp_dir().join(format!("trek_wrap_off_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("f.txt"), b"hello").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.toggle_preview_wrap();
+    app.toggle_preview_wrap();
+    assert!(!app.preview_wrap);
+    let msg = app.status_message.clone().unwrap_or_default();
+    assert_eq!(msg, "Wrap: off", "got: {msg}");
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: show_line_numbers and preview_wrap are both false
+/// When: both are toggled on
+/// Then: both fields are true simultaneously (they compose)
+#[test]
+fn preview_wrap_and_line_numbers_compose() {
+    let tmp = std::env::temp_dir().join(format!("trek_wrap_compose_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("f.txt"), b"hello").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.toggle_line_numbers();
+    app.toggle_preview_wrap();
+    assert!(app.show_line_numbers);
+    assert!(app.preview_wrap);
+    let _ = std::fs::remove_dir_all(&tmp);
+}
