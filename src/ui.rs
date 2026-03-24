@@ -85,6 +85,8 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         draw_rename_preview_pane(f, app, pane_chunks[1]);
     } else if app.content_search_mode {
         draw_content_search_pane(f, app, pane_chunks[1]);
+    } else if app.find_mode {
+        draw_find_pane(f, app, pane_chunks[1]);
     } else {
         draw_current_pane(f, app, pane_chunks[1]);
     }
@@ -99,6 +101,8 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         draw_mkdir_bar(f, app, bottom_area);
     } else if app.content_search_mode {
         draw_content_search_bar(f, app, bottom_area);
+    } else if app.find_mode {
+        draw_find_bar(f, app, bottom_area);
     } else if app.search_mode {
         draw_search_bar(f, app, bottom_area);
     } else if let Some(ref msg) = app.status_message {
@@ -924,6 +928,89 @@ fn key_line(key: &'static str, desc: &'static str) -> Line<'static> {
     ])
 }
 
+/// Render recursive find results in the center pane during find mode.
+fn draw_find_pane(f: &mut Frame, app: &App, area: Rect) {
+    let count = app.find_results.len();
+    let title = if app.find_query.is_empty() {
+        " Find files ".to_string()
+    } else if count == 0 {
+        " No matches ".to_string()
+    } else {
+        let trunc = if app.find_truncated {
+            " [truncated]"
+        } else {
+            ""
+        };
+        format!(
+            " {} file{}{} ",
+            count,
+            if count == 1 { "" } else { "s" },
+            trunc
+        )
+    };
+
+    let visible_height = area.height.saturating_sub(2) as usize;
+    let scroll = if app.find_selected >= visible_height {
+        app.find_selected - visible_height + 1
+    } else {
+        0
+    };
+
+    let items: Vec<ListItem> = app
+        .find_results
+        .iter()
+        .enumerate()
+        .skip(scroll)
+        .take(visible_height)
+        .map(|(i, r)| {
+            let is_selected = i == app.find_selected;
+            let style = if is_selected {
+                Style::default()
+                    .fg(Color::White)
+                    .bg(Color::Blue)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default()
+            };
+            ListItem::new(Line::from(Span::styled(
+                format!(" {}", r.relative.display()),
+                style,
+            )))
+        })
+        .collect();
+
+    let list = List::new(items).block(
+        Block::default()
+            .borders(Borders::TOP | Borders::BOTTOM | Borders::RIGHT)
+            .border_style(Style::default().fg(Color::DarkGray))
+            .title(title),
+    );
+    f.render_widget(list, area);
+}
+
+/// Render the find prompt in the status bar.
+fn draw_find_bar(f: &mut Frame, app: &App, area: Rect) {
+    if let Some(ref err) = app.find_error {
+        let para = Paragraph::new(Line::from(Span::styled(
+            format!(" \u{26a0} {}", err),
+            Style::default().fg(Color::Red),
+        )));
+        f.render_widget(para, area);
+        return;
+    }
+    let para = Paragraph::new(Line::from(vec![
+        Span::styled(
+            "Find: ",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(app.find_query.as_str(), Style::default().fg(Color::White)),
+        Span::styled("█", Style::default().fg(Color::Yellow)),
+    ]));
+    f.render_widget(para, area);
+}
+
 fn draw_help_overlay(f: &mut Frame, size: Rect) {
     let width = 60u16.min(size.width.saturating_sub(4));
     let height = 46u16.min(size.height.saturating_sub(4));
@@ -951,6 +1038,7 @@ fn draw_help_overlay(f: &mut Frame, size: Rect) {
         section_header("Search"),
         key_line("/", "Fuzzy search"),
         key_line("Ctrl+F", "Content search (ripgrep)"),
+        key_line("Ctrl+P", "Recursive filename find"),
         Line::from(""),
         // ── View ────────────────────────────────────────────────────────────
         section_header("View"),
