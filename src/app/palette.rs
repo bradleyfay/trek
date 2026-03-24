@@ -42,6 +42,8 @@ pub enum ActionId {
     ToggleSortOrder,
     YankRelativePath,
     YankAbsolutePath,
+    ScrollPreviewUp,
+    ScrollPreviewDown,
     PathJump,
     ShowHelp,
     Quit,
@@ -236,6 +238,16 @@ pub static PALETTE_ACTIONS: &[PaletteAction] = &[
         id: ActionId::YankAbsolutePath,
         name: "Yank absolute path to clipboard",
         keys: "Y",
+    },
+    PaletteAction {
+        id: ActionId::ScrollPreviewUp,
+        name: "Scroll preview pane up",
+        keys: "[",
+    },
+    PaletteAction {
+        id: ActionId::ScrollPreviewDown,
+        name: "Scroll preview pane down",
+        keys: "]",
     },
     PaletteAction {
         id: ActionId::PathJump,

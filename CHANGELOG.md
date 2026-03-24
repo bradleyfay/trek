@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-03-24
+
+### Added
+- **`[` / `]` — preview pane keyboard scrolling**: scrolls the preview pane up or down 5 lines per keypress in normal mode; complements the existing mouse-wheel scroll (3 lines per event) and gives keyboard-only users full access to any file longer than the visible pane height
+- Works in all preview modes: raw content, syntax-highlighted content, diff preview (`d`), file metadata view (`m`), and directory child listings
+- `[` clamps at scroll offset 0 (no underflow); `]` clamps at `preview_lines.len() - 1` (no overshoot); both are no-ops on empty previews
+- Navigating to a different file resets preview scroll to 0 (existing behaviour, no regression)
+- `[`/`]` registered in the command palette as "Scroll preview pane up/down"
+- `[`/`]` documented in help overlay (`?`) under Navigation and in `--help` output
+- 5 new unit tests: down advances offset, up decreases offset, top clamps at 0, bottom clamps at max, empty preview is no-op
+
 ## [0.22.0] - 2026-03-24
 
 ### Added
