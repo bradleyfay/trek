@@ -52,3 +52,38 @@ impl DirWatcher {
         })
     }
 }
+
+/// Watches a directory tree recursively for filesystem events, exposing full
+/// event kind information (create / modify / delete).
+///
+/// Unlike [`DirWatcher`], this watcher uses `notify`'s `RecommendedWatcher`
+/// directly so callers receive [`notify::Event`] values with detailed
+/// [`notify::EventKind`] — necessary for the live change feed.
+pub struct RecursiveWatcher {
+    /// Receive end of the event channel.
+    pub rx: Receiver<notify::Result<notify::Event>>,
+    // Keep the watcher alive; dropping it cancels the OS watch automatically.
+    _watcher: notify::RecommendedWatcher,
+}
+
+impl RecursiveWatcher {
+    /// Start watching `dir` and all its descendants for changes.
+    ///
+    /// Returns `None` if the OS watcher fails to initialise.
+    pub fn new(dir: &Path) -> Option<Self> {
+        use notify::Watcher;
+
+        let (tx, rx) = mpsc::channel();
+        let mut watcher = notify::recommended_watcher(move |res| {
+            let _ = tx.send(res);
+        })
+        .ok()?;
+
+        watcher.watch(dir, notify::RecursiveMode::Recursive).ok()?;
+
+        Some(RecursiveWatcher {
+            rx,
+            _watcher: watcher,
+        })
+    }
+}

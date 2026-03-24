@@ -63,6 +63,7 @@ pub enum ActionId {
     ToggleHexView,
     InspectClipboard,
     OpenFrecency,
+    ToggleChangeFeed,
     ShowHelp,
     OpenInCmuxTab,
     OpenToTheRight,
@@ -357,6 +358,11 @@ pub static PALETTE_ACTIONS: &[PaletteAction] = &[
     PaletteAction {
         id: ActionId::InspectClipboard,
         name: "Inspect clipboard contents",
+        keys: "F9",
+    },
+    PaletteAction {
+        id: ActionId::ToggleChangeFeed,
+        name: "Toggle change feed (live filesystem event stream)",
         keys: "F",
     },
     PaletteAction {
