@@ -1,6 +1,10 @@
 # trek
 
-A terminal file browser built for AI-native developers. When Claude Code or Codex is working in your project, Trek keeps you oriented — live file tree, git status, and file preview in a persistent cmux pane.
+When you work with an AI coding assistant, the project directory becomes a black box. Files appear, change, and move while you're focused on the conversation. You lose track of what actually exists, what got modified, and whether the structure makes sense.
+
+Trek is a terminal file browser that runs in a persistent pane alongside your AI session. You can see the file tree update as the AI works, preview what it wrote, check git status without switching context, and navigate to anything without typing full paths.
+
+It runs inside [cmux](https://github.com/bradleyfay/cmux). It is not a text editor.
 
 ![trek screenshot](https://raw.githubusercontent.com/bradleyfay/trek/main/assets/demo.gif)
 
@@ -12,24 +16,22 @@ brew install bradleyfay/trek/trek
 
 ### Shell integration
 
-The `m` function lets you navigate with trek and `cd` into the selected directory when you quit:
-
 ```sh
 trek --install-shell
 ```
 
-Then reload your shell (`source ~/.zshrc` or open a new terminal) and use `m` to launch trek.
+Adds an `m` function to your shell that launches trek and `cd`s into whatever directory you were in when you quit.
 
-## Features
+## What it does
 
-- **Three-pane layout**: parent directory, current directory, and file preview
-- **Mouse-resizable panes**: drag the dividers between panes to resize them
-- **Scroll wheel preview**: scroll through file previews with your mouse wheel
-- **File preview**: text files are previewed in the right pane; directories show their contents
-- **Nerd font icons**: file-type icons for 100+ extensions and special directories
-- **Fuzzy search**: press `/` to incrementally filter files with fuzzy matching
-- **Yank to clipboard**: `y` copies relative path, `Y` copies absolute path via OSC 52
-- **Keyboard navigation**: vim-style keybindings (h/j/k/l)
+- Three-pane layout: parent directory, current directory, file preview
+- File tree auto-refreshes when the filesystem changes (watch mode on by default)
+- Git status shown inline — modified, staged, untracked, deleted
+- Full-text search across the project via ripgrep (`Ctrl+F`)
+- Fuzzy file name filtering (`/`)
+- Opens files in the right tool: code in `$EDITOR`, HTML/images/PDFs via system default
+- Yank file paths to clipboard via OSC 52 (`y` relative, `Y` absolute)
+- Mouse-resizable panes; mouse and keyboard both work throughout
 
 ## Keybindings
 
@@ -37,33 +39,19 @@ Then reload your shell (`source ~/.zshrc` or open a new terminal) and use `m` to
 |-----|--------|
 | `j` / `↓` | Move down |
 | `k` / `↑` | Move up |
-| `h` / `←` | Go to parent directory |
-| `l` / `→` / `Enter` | Enter directory |
-| `g` | Go to top |
-| `G` | Go to bottom |
-| `~` | Go to home directory |
+| `h` / `←` | Parent directory |
+| `l` / `→` / `Enter` | Enter directory / open file |
+| `g` / `G` | Top / bottom |
+| `~` | Home directory |
 | `.` | Toggle hidden files |
-| `/` | Start fuzzy search |
-| `y` | Yank relative path to clipboard |
-| `Y` | Yank absolute path to clipboard |
-| `?` | Show help overlay |
+| `/` | Fuzzy file search |
+| `Ctrl+F` | Full-text search (ripgrep) |
+| `y` / `Y` | Yank relative / absolute path |
+| `?` | Help overlay |
+| `:` | Command palette |
 | `q` | Quit |
 
-### Search mode
-
-| Key | Action |
-|-----|--------|
-| Type | Filter files (fuzzy match) |
-| `Tab` / `↓` | Next match |
-| `Shift+Tab` / `↑` | Previous match |
-| `Enter` | Confirm selection |
-| `Esc` | Cancel |
-
-### Mouse
-
-- **Drag dividers** between panes to resize them
-- **Scroll wheel** over the preview pane to scroll file contents
-- **Click** to select a file or enter a directory
+Press `:` or `?` to see everything else.
 
 ## Build from source
 
