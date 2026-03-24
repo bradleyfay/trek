@@ -6,13 +6,14 @@ This document describes how AI agents should contribute to trek. Follow these ru
 
 ## Development Philosophy
 
-trek is built to last. Every feature addition should leave the codebase in a better state than it found it. Two principles govern all decisions:
+**1. Tests first**
+Write a failing test before writing implementation code. No feature or fix ships without passing tests. Prefer behavior-level tests (Given/When/Then) over unit tests that only cover internals.
 
-**1. Test-driven, behavior-verified delivery**
-Write tests before or alongside code. Prefer integration-style tests that verify observable behavior (BDD-style: _given_ state, _when_ action, _then_ outcome). Unit tests cover logic; behavior tests cover contracts. No feature ships without both passing.
+**2. Refactor aggressively**
+Every change is an opportunity to improve the code it touches. If you encounter a module doing two things, split it. If you encounter duplicated logic, extract it. If a function is too long to test in isolation, break it up. Do not leave code worse than you found it. Do not leave code the same if it can be made clearer, faster, or better structured. This is not optional — refactoring is part of the work, not a separate task.
 
-**2. Modular, SOLID-aligned architecture**
-Keep modules small, focused, and independently testable. Prefer loose coupling through well-defined interfaces over direct dependency. High cohesion means each module owns one thing well. When adding a feature, ask: _does this belong here, or should it be its own module?_
+**3. Module boundaries are strict**
+Each module owns one responsibility. State lives in `app/mod.rs`. Rendering lives in `ui.rs`. Preview logic lives in its own module. Cross-module field access is a design smell — expose only what callers need through well-defined interfaces. When a new feature requires new state or behavior, decide upfront whether it belongs in an existing module or warrants a new one.
 
 ---
 
