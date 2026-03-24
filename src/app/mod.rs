@@ -20,6 +20,7 @@ mod navigation;
 pub mod palette;
 mod palette_ops;
 mod preview;
+mod quick_rename;
 mod rename;
 mod search;
 mod sort;
@@ -264,6 +265,12 @@ pub struct App {
     pub palette_selected: usize,
     /// Indices into `palette::PALETTE_ACTIONS` matching the current query.
     pub palette_filtered: Vec<usize>,
+
+    // --- Quick single-file rename (n / F2) ---
+    /// True when the quick rename bar is open.
+    pub quick_rename_mode: bool,
+    /// The text currently in the quick rename input bar.
+    pub quick_rename_input: String,
 }
 
 #[derive(Clone)]
@@ -359,6 +366,8 @@ impl App {
             palette_query: String::new(),
             palette_selected: 0,
             palette_filtered: palette::filter_palette(""),
+            quick_rename_mode: false,
+            quick_rename_input: String::new(),
         };
         app.load_dir();
         Ok(app)

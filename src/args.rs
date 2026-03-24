@@ -77,7 +77,8 @@ pub fn print_help() {
     println!("    y / Y       Yank relative / absolute path");
     println!("    d           Toggle diff preview R           Refresh git status");
     println!("    Space       Toggle file selection v          Select all files");
-    println!("    r           Rename selected files Esc        Clear selections");
+    println!("    n / F2      Quick rename (inline bar pre-filled with current name)");
+    println!("    r           Bulk rename selected files with regex  Esc  Clear selections");
     println!("    o           Open in $EDITOR        O           Open with system default");
     println!("    c           Copy current to clipboard C          Copy selected to clipboard");
     println!("    x           Cut current to clipboard");

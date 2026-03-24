@@ -31,6 +31,7 @@ pub enum ActionId {
     ToggleSelection,
     SelectAll,
     ClearSelections,
+    QuickRename,
     StartRename,
     AddBookmark,
     OpenBookmarks,
@@ -176,6 +177,11 @@ pub static PALETTE_ACTIONS: &[PaletteAction] = &[
         id: ActionId::ClearSelections,
         name: "Clear selections",
         keys: "Esc",
+    },
+    PaletteAction {
+        id: ActionId::QuickRename,
+        name: "Quick rename current file or directory",
+        keys: "n / F2",
     },
     PaletteAction {
         id: ActionId::StartRename,
