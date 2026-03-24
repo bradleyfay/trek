@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.56.1] - 2026-03-24
+
+### Fixed
+- **TOML syntax highlighting** — `.toml` files (e.g. `Cargo.toml`) now render with full syntax highlighting in the preview pane. The bundled syntax set has been switched from Sublime Text's default package (which lacks TOML) to the `two-face` extended set — the same set used by `bat` — which includes TOML, Dockerfile, `.env`, and dozens of other types not covered by the defaults. `.yaml`, `.json`, `.rs`, and all previously-supported types are unaffected.
+
 ## [0.56.0] - 2026-03-24
 
 ### Added
