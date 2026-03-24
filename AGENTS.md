@@ -148,10 +148,12 @@ High-level modules (the app loop, rendering) should depend on abstractions, not 
 ## Every change requires three things
 
 1. **A version bump** in `Cargo.toml`
-2. **A CHANGELOG entry** in `CHANGELOG.md`
+2. **A CHANGELOG entry** in `CHANGELOG.md` — add under `## [Unreleased]` before committing, never after
 3. **A conventional commit message** with issue linkage when applicable
 
 These must be in the same commit as the change itself. Never skip them.
+
+The CHANGELOG is the most commonly skipped step. Before running `git commit`, open `CHANGELOG.md` and confirm the `[Unreleased]` section describes what you just built. If it does not, write the entry first.
 
 ---
 
@@ -280,6 +282,8 @@ The release workflow will:
 
 Run this before `git commit`. These gates must pass locally — do not rely on CI to catch them.
 
+- [ ] **`CHANGELOG.md` updated under `[Unreleased]`** — do this first, before writing the commit message
+- [ ] **`Cargo.toml` version bumped**
 - [ ] `cargo fmt` run (not just checked — actually applied)
 - [ ] `cargo clippy -- -D warnings` passes with zero warnings
 - [ ] `cargo build --release` succeeds
@@ -287,8 +291,6 @@ Run this before `git commit`. These gates must pass locally — do not rely on C
 - [ ] Tests written before or alongside the implementation (failing first)
 - [ ] All tests describe behavior using Given/When/Then where appropriate
 - [ ] New code follows SOLID principles — no god structs, no cross-module coupling
-- [ ] `Cargo.toml` version bumped
-- [ ] `CHANGELOG.md` updated under `[Unreleased]`
 - [ ] Commit message references the issue with `Closes #N` or `Fixes #N`
 
 ## Checklist before pushing a release tag

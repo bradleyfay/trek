@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-03-24
+
+### Added
+- Bulk rename mode: select files with `Space`, `v` to select all, `r` to open rename bar
+- Live rename preview in center pane showing `old → new`, `[no match]`, and `[conflict]` rows
+- Regex pattern matching with full capture group support (`$1`, `$2`, etc.)
+- Template tokens in replacement field: `{n}`, `{n:02}`, `{stem}`, `{ext}`, `{date}`
+- Two-pass conflict detection against the post-rename namespace (avoids ordering bugs)
+- `Esc` clears selections in normal mode; `Esc` in rename mode cancels without touching filesystem
+- Selection count and hint shown in status bar while files are marked
+
+### Fixed
+- `cargo fmt` violations in `draw_rename_bar` (lines too long)
+- `clippy::ptr_arg` in `load_git_diff` (changed `&PathBuf` to `&Path`)
+- `clippy::manual_flatten` in rename preview batch-count loop
+- Deprecated `macos-13` runner replaced with `macos-14` cross-compilation for `x86_64-apple-darwin`
+
+## [0.3.0] - 2026-03-24
+
+### Added
+- Git status integration: inline `M` (modified), `S` (staged), `!` (conflict), `D` (deleted), `?` (untracked) indicators on files in the current pane
+- `~` indicator on directories that contain any changed files
+- Branch name displayed in path bar: `~/project/src  (main)` or `(HEAD:abc1234)` for detached HEAD
+- `d` key toggles diff preview — preview pane shows `git diff` / `git diff --cached` output with colorized `+`/`-`/`@@` lines
+- `R` key manually refreshes git status
+- Git status cached per directory navigation; no re-query on every render cycle
+- New `src/git.rs` module with pre-computed dirty-dir set for O(1) `subtree_dirty()` checks
+
 ## [0.2.2] - 2026-03-23
 
 ### Added
