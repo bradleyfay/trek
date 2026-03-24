@@ -471,3 +471,93 @@ fn clear_filter_restores_full_listing() {
 
     let _ = std::fs::remove_dir_all(&tmp);
 }
+
+// ── open-in-external tests ───────────────────────────────────────────────────
+
+/// Given: no entries in the listing
+/// When: selected_file_path() is called
+/// Then: returns None
+#[test]
+fn selected_file_path_empty_entries_returns_none() {
+    let tmp = std::env::temp_dir().join(format!("trek_open_empty_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let mut app = make_app_at(&tmp);
+    app.entries.clear();
+    assert!(app.selected_file_path().is_none());
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: selected entry is a directory
+/// When: selected_file_path() is called
+/// Then: returns None (directories are not files)
+#[test]
+fn selected_file_path_on_directory_returns_none() {
+    let tmp = std::env::temp_dir().join(format!("trek_open_dir_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let sub = tmp.join("subdir");
+    let _ = std::fs::create_dir_all(&sub);
+
+    let mut app = make_app_at(&tmp);
+    if let Some(idx) = app.entries.iter().position(|e| e.is_dir) {
+        app.selected = idx;
+    }
+    assert!(app.selected_file_path().is_none());
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: selected entry is a regular file
+/// When: selected_file_path() is called
+/// Then: returns Some(path) pointing to that file
+#[test]
+fn selected_file_path_on_file_returns_some() {
+    let tmp = std::env::temp_dir().join(format!("trek_open_file_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("readme.md"), b"hello").unwrap();
+
+    let mut app = make_app_at(&tmp);
+    if let Some(idx) = app.entries.iter().position(|e| !e.is_dir) {
+        app.selected = idx;
+        let path = app.selected_file_path();
+        assert!(path.is_some());
+        assert_eq!(
+            path.unwrap().file_name().unwrap().to_string_lossy(),
+            "readme.md"
+        );
+    }
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: selected entry is a directory
+/// When: selected_path() is called
+/// Then: returns Some(path) (selected_path works for both files and dirs)
+#[test]
+fn selected_path_on_directory_returns_some() {
+    let tmp = std::env::temp_dir().join(format!("trek_selpath_dir_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let sub = tmp.join("subdir");
+    let _ = std::fs::create_dir_all(&sub);
+
+    let mut app = make_app_at(&tmp);
+    if let Some(idx) = app.entries.iter().position(|e| e.is_dir) {
+        app.selected = idx;
+    }
+    assert!(app.selected_path().is_some());
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: selected entry is a file
+/// When: selected_path() is called
+/// Then: returns Some(path)
+#[test]
+fn selected_path_on_file_returns_some() {
+    let tmp = std::env::temp_dir().join(format!("trek_selpath_file_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("config.toml"), b"[tool]").unwrap();
+
+    let mut app = make_app_at(&tmp);
+    if let Some(idx) = app.entries.iter().position(|e| !e.is_dir) {
+        app.selected = idx;
+    }
+    assert!(app.selected_path().is_some());
+    let _ = std::fs::remove_dir_all(&tmp);
+}

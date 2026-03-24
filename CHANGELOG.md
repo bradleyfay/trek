@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-03-24
+
+### Added
+- **`o` — open in terminal editor**: pressing `o` on a file tears down the TUI, launches `$VISUAL` → `$EDITOR` → `vi` (fallback) with the file path, then restores the TUI on exit; status bar shows `Returned from <editor>`; `app.load_dir()` is called on return to pick up filesystem changes; `o` on a directory is a no-op
+- **`O` — open with system default**: spawns `open` (macOS) or `xdg-open` (Linux) in the background; Trek stays running; status bar shows `Opening <name> with system default…`; descriptive error shown if the opener is not available
+- TUI is always restored after `o` even if the editor command fails to start (unconditional `enable_raw_mode` + `EnterAlternateScreen` outside the status match)
+- Both bindings documented in the help overlay (`?`) under File Operations and in `--help` output
+- 5 new unit tests covering `selected_file_path` (empty entries, directory no-op, file returns path) and `selected_path` (directory and file variants)
+
 ## [0.16.1] - 2026-03-24
 
 ### Changed

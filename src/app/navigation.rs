@@ -216,4 +216,19 @@ impl App {
     pub fn history_position(&self) -> usize {
         self.history_pos
     }
+
+    /// Returns the path of the currently selected file (not directory), or None.
+    /// Used by the open-in-editor (`o`) handler which should not act on directories.
+    pub fn selected_file_path(&self) -> Option<PathBuf> {
+        self.entries
+            .get(self.selected)
+            .filter(|e| !e.is_dir)
+            .map(|e| e.path.clone())
+    }
+
+    /// Returns the path of the currently selected entry (file or directory).
+    /// Used by the open-with-system-default (`O`) handler.
+    pub fn selected_path(&self) -> Option<PathBuf> {
+        self.entries.get(self.selected).map(|e| e.path.clone())
+    }
 }

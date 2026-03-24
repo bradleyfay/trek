@@ -78,6 +78,7 @@ pub fn print_help() {
     println!("    d           Toggle diff preview R           Refresh git status");
     println!("    Space       Toggle file selection v          Select all files");
     println!("    r           Rename selected files Esc        Clear selections");
+    println!("    o           Open in $EDITOR        O           Open with system default");
     println!("    c           Copy current to clipboard C          Copy selected to clipboard");
     println!("    x           Cut current to clipboard");
     println!("    p           Paste clipboard       Delete      Delete current file/dir");

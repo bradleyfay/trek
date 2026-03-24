@@ -1,9 +1,12 @@
 use crate::app::App;
 use anyhow::Result;
 use crossterm::{
-    event::{self, DisableMouseCapture, Event, KeyCode, KeyModifiers, MouseButton, MouseEventKind},
+    event::{
+        self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyModifiers, MouseButton,
+        MouseEventKind,
+    },
     execute,
-    terminal::{disable_raw_mode, LeaveAlternateScreen},
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use ratatui::{backend::CrosstermBackend, Terminal};
 use std::io;
@@ -190,6 +193,69 @@ pub fn run(
                         }
                         KeyCode::Char('i') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                             app.history_forward()
+                        }
+                        // Open in terminal editor ($VISUAL → $EDITOR → vi)
+                        KeyCode::Char('o') => {
+                            if let Some(path) = app.selected_file_path() {
+                                let editor = std::env::var("VISUAL")
+                                    .or_else(|_| std::env::var("EDITOR"))
+                                    .unwrap_or_else(|_| "vi".to_string());
+
+                                // Tear down TUI so the editor owns the terminal.
+                                disable_raw_mode()?;
+                                execute!(io::stdout(), LeaveAlternateScreen, DisableMouseCapture)?;
+
+                                let status =
+                                    std::process::Command::new(&editor).arg(&path).status();
+
+                                // Always restore the TUI, even if the editor failed.
+                                enable_raw_mode()?;
+                                execute!(io::stdout(), EnterAlternateScreen, EnableMouseCapture)?;
+                                terminal.clear()?;
+
+                                // Refresh listing in case the editor created/deleted files.
+                                app.load_dir();
+
+                                match status {
+                                    Ok(_) => {
+                                        app.status_message =
+                                            Some(format!("Returned from {}", editor))
+                                    }
+                                    Err(e) => {
+                                        app.status_message = Some(format!(
+                                            "Failed to open editor '{}': {}",
+                                            editor, e
+                                        ))
+                                    }
+                                }
+                            }
+                        }
+                        // Open with system default (open on macOS, xdg-open on Linux)
+                        KeyCode::Char('O') => {
+                            if let Some(path) = app.selected_path() {
+                                let name = path
+                                    .file_name()
+                                    .map(|n| n.to_string_lossy().into_owned())
+                                    .unwrap_or_else(|| path.to_string_lossy().into_owned());
+
+                                #[cfg(target_os = "macos")]
+                                let opener = "open";
+                                #[cfg(not(target_os = "macos"))]
+                                let opener = "xdg-open";
+
+                                match std::process::Command::new(opener).arg(&path).spawn() {
+                                    Ok(_) => {
+                                        app.status_message = Some(format!(
+                                            "Opening {} with system default\u{2026}",
+                                            name
+                                        ))
+                                    }
+                                    Err(e) => {
+                                        app.status_message =
+                                            Some(format!("Failed to open '{}': {}", name, e))
+                                    }
+                                }
+                            }
                         }
                         _ => {}
                     }
