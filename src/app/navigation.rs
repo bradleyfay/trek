@@ -62,8 +62,9 @@ impl App {
                 self.current_scroll = 0;
                 self.load_dir();
             } else {
-                // For files, yank the relative path.
-                self.yank_relative_path();
+                // For files, open in a new cmux tab (consistent with the
+                // "right means go deeper / act on this" navigation model).
+                self.open_in_cmux_tab();
             }
         }
     }
