@@ -2420,3 +2420,68 @@ fn load_preview_in_hash_mode_shows_hash_card() {
     );
     let _ = std::fs::remove_dir_all(&tmp);
 }
+
+// ── Preview pane collapse tests (issue #63) ──────────────────────────────────
+
+/// Given: preview_collapsed is false (default)
+/// When: toggle_preview_pane is called
+/// Then: preview_collapsed becomes true, right_div is set to 1.0, status is "Preview: hidden"
+#[test]
+fn toggle_preview_pane_collapses_pane() {
+    let tmp = std::env::temp_dir().join(format!("trek_wc_col_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("f.txt"), b"hi").unwrap();
+    let mut app = make_app_at(&tmp);
+    assert!(!app.preview_collapsed);
+    let saved = app.right_div;
+    app.toggle_preview_pane();
+    assert!(app.preview_collapsed);
+    assert!((app.right_div - 1.0).abs() < f64::EPSILON);
+    assert!((app.preview_right_div - saved).abs() < f64::EPSILON);
+    let msg = app.status_message.clone().unwrap_or_default();
+    assert!(msg.contains("hidden"), "got: {msg}");
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: preview_collapsed is true
+/// When: toggle_preview_pane is called
+/// Then: preview_collapsed becomes false, right_div is restored to preview_right_div
+#[test]
+fn toggle_preview_pane_restores_pane() {
+    let tmp = std::env::temp_dir().join(format!("trek_wc_rest_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("f.txt"), b"hi").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.toggle_preview_pane(); // collapse
+    app.toggle_preview_pane(); // restore
+    assert!(!app.preview_collapsed);
+    // right_div should be back near its original value (0.55 default)
+    assert!(
+        app.right_div > 0.4 && app.right_div < 0.9,
+        "right_div: {}",
+        app.right_div
+    );
+    let msg = app.status_message.clone().unwrap_or_default();
+    assert!(msg.contains("shown"), "got: {msg}");
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: the user set a custom right_div before collapsing
+/// When: toggle_preview_pane is called twice
+/// Then: right_div is restored exactly to the custom value
+#[test]
+fn toggle_preview_pane_preserves_custom_div() {
+    let tmp = std::env::temp_dir().join(format!("trek_wc_custom_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("f.txt"), b"hi").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.right_div = 0.70;
+    app.toggle_preview_pane(); // collapse
+    app.toggle_preview_pane(); // restore
+    assert!(
+        (app.right_div - 0.70).abs() < 1e-10,
+        "right_div: {}",
+        app.right_div
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}

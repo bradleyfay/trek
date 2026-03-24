@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.32.0] - 2026-03-24
+
+### Added
+- **`w` — preview pane collapse**: press `w` to hide the right preview pane entirely, expanding the centre listing column to full width; press `w` again to restore the pane to its previous divider position
+- Collapse saves the current `right_div` ratio (including any user-dragged position) and restores it exactly on expand
+- `w` registered in the command palette as "Toggle preview pane (hide/show right pane)" and in the `?` help overlay
+
 ## [0.31.0] - 2026-03-24
 
 ### Added
