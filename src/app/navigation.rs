@@ -555,4 +555,46 @@ impl App {
             self.status_message = Some("Preview: hidden".to_string());
         }
     }
+
+    // --- Watch mode (I) ---
+
+    /// Toggle watch mode (auto-refresh listing on directory mtime change).
+    pub fn toggle_watch_mode(&mut self) {
+        self.watch_mode = !self.watch_mode;
+        if self.watch_mode {
+            self.last_dir_mtime = std::fs::metadata(&self.cwd).and_then(|m| m.modified()).ok();
+            self.status_message =
+                Some("Watch mode ON — listing auto-refreshes on changes".to_string());
+        } else {
+            self.last_dir_mtime = None;
+            self.status_message = Some("Watch mode OFF".to_string());
+        }
+    }
+
+    /// Check whether the current directory has been modified since the last
+    /// load. Called on each poll timeout when watch mode is active.
+    ///
+    /// Reloads the listing if the mtime changed, preserving the selection by name.
+    pub fn poll_dir_changed(&mut self) {
+        if !self.watch_mode {
+            return;
+        }
+        let current_mtime = std::fs::metadata(&self.cwd).and_then(|m| m.modified()).ok();
+        let changed = match (current_mtime, self.last_dir_mtime) {
+            (Some(current), Some(last)) => current != last,
+            _ => false,
+        };
+        if changed {
+            // Update baseline before load_dir() to avoid re-trigger.
+            self.last_dir_mtime = current_mtime;
+            let selected_name = self.entries.get(self.selected).map(|e| e.name.clone());
+            self.load_dir();
+            if let Some(name) = selected_name {
+                if let Some(idx) = self.entries.iter().position(|e| e.name == name) {
+                    self.selected = idx;
+                    self.load_preview();
+                }
+            }
+        }
+    }
 }

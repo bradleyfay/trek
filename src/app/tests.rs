@@ -3493,3 +3493,85 @@ fn toggle_meta_clears_du_preview_mode() {
     assert!(!app.du_preview_mode);
     let _ = std::fs::remove_dir_all(&tmp);
 }
+
+/// Given: watch mode is off
+/// When: toggle_watch_mode is called
+/// Then: watch_mode becomes true and status_message mentions ON
+#[test]
+fn toggle_watch_mode_turns_on() {
+    let tmp = std::env::temp_dir().join(format!("trek_watch_on_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let mut app = make_app_at(&tmp);
+    assert!(!app.watch_mode);
+    app.toggle_watch_mode();
+    assert!(app.watch_mode);
+    let msg = app.status_message.clone().unwrap_or_default();
+    assert!(
+        msg.to_lowercase().contains("on"),
+        "expected ON message: {msg}"
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: watch mode is on
+/// When: toggle_watch_mode is called
+/// Then: watch_mode becomes false and status_message mentions OFF
+#[test]
+fn toggle_watch_mode_turns_off() {
+    let tmp = std::env::temp_dir().join(format!("trek_watch_off_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let mut app = make_app_at(&tmp);
+    app.toggle_watch_mode();
+    assert!(app.watch_mode);
+    app.toggle_watch_mode();
+    assert!(!app.watch_mode);
+    let msg = app.status_message.clone().unwrap_or_default();
+    assert!(
+        msg.to_lowercase().contains("off"),
+        "expected OFF message: {msg}"
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: watch mode is on and a new file appears in the directory
+/// When: poll_dir_changed is called
+/// Then: the new file appears in the listing
+#[test]
+fn poll_dir_changed_detects_new_file() {
+    let tmp = std::env::temp_dir().join(format!("trek_watch_poll_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let mut app = make_app_at(&tmp);
+    app.toggle_watch_mode(); // ON — records initial mtime
+                             // Force mtime to appear changed by backdating last_dir_mtime
+    app.last_dir_mtime = Some(std::time::SystemTime::UNIX_EPOCH);
+    // Create a new file — listing is stale
+    std::fs::write(tmp.join("newfile.txt"), b"x").unwrap();
+    let before = app.entries.len();
+    app.poll_dir_changed();
+    assert!(
+        app.entries.len() > before,
+        "new file should appear after poll"
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: watch mode is off
+/// When: poll_dir_changed is called even with a changed mtime
+/// Then: listing does NOT reload (watch mode gate)
+#[test]
+fn poll_dir_changed_noop_when_watch_off() {
+    let tmp = std::env::temp_dir().join(format!("trek_watch_noop_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let mut app = make_app_at(&tmp);
+    // Don't enable watch mode — force a stale mtime anyway
+    app.last_dir_mtime = Some(std::time::SystemTime::UNIX_EPOCH);
+    std::fs::write(tmp.join("ignored.txt"), b"x").unwrap();
+    let before = app.entries.len();
+    app.poll_dir_changed();
+    assert_eq!(
+        app.entries.len(),
+        before,
+        "should not reload when watch mode is off"
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}
