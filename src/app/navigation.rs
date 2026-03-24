@@ -332,4 +332,62 @@ impl App {
     pub fn selected_path(&self) -> Option<PathBuf> {
         self.entries.get(self.selected).map(|e| e.path.clone())
     }
+
+    // --- Per-session marks ---
+
+    /// Enter mark-set mode: the next alphabetic key will record a mark slot.
+    pub fn begin_set_mark(&mut self) {
+        self.mark_set_mode = true;
+        self.status_message = Some("Mark: [a-z A-Z]".to_string());
+    }
+
+    /// Record the current directory under mark slot `c` and exit mark-set mode.
+    pub fn set_mark(&mut self, c: char) {
+        self.mark_set_mode = false;
+        self.marks.insert(c, self.cwd.clone());
+        let short = self
+            .cwd
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_else(|| self.cwd.to_string_lossy().into_owned());
+        self.status_message = Some(format!("Marked '{}' \u{2192} {}", c, short));
+    }
+
+    /// Enter mark-jump mode: the next alphabetic key will jump to that mark slot.
+    pub fn begin_jump_mark(&mut self) {
+        self.mark_jump_mode = true;
+        self.status_message = Some("Jump: [a-z A-Z]".to_string());
+    }
+
+    /// Navigate to the directory stored under mark slot `c`.
+    ///
+    /// - Slot not set → show error, no navigation.
+    /// - Slot set but directory deleted → show error, no navigation.
+    /// - Otherwise → navigate and push to history.
+    pub fn jump_to_mark(&mut self, c: char) {
+        self.mark_jump_mode = false;
+        let dest = match self.marks.get(&c).cloned() {
+            Some(p) => p,
+            None => {
+                self.status_message = Some(format!("Mark '{}' not set", c));
+                return;
+            }
+        };
+        if !dest.is_dir() {
+            self.status_message = Some(format!("Mark '{}' no longer exists", c));
+            return;
+        }
+        let short = dest
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_else(|| dest.to_string_lossy().into_owned());
+        self.filter_input.clear();
+        self.filter_mode = false;
+        self.push_history(dest.clone());
+        self.cwd = dest;
+        self.selected = 0;
+        self.current_scroll = 0;
+        self.load_dir();
+        self.status_message = Some(format!("\u{2192} {} (mark '{}')", short, c));
+    }
 }

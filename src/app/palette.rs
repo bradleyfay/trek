@@ -11,6 +11,8 @@ pub enum ActionId {
     GoBottom,
     HistoryBack,
     HistoryForward,
+    BeginSetMark,
+    BeginJumpMark,
     ToggleHidden,
     ToggleGitignored,
     ToggleDiffPreview,
@@ -88,6 +90,16 @@ pub static PALETTE_ACTIONS: &[PaletteAction] = &[
         id: ActionId::HistoryForward,
         name: "Go forward in history",
         keys: "Ctrl+I",
+    },
+    PaletteAction {
+        id: ActionId::BeginSetMark,
+        name: "Set mark (record current directory to a letter slot)",
+        keys: "` <letter>",
+    },
+    PaletteAction {
+        id: ActionId::BeginJumpMark,
+        name: "Jump to mark (navigate to a previously marked directory)",
+        keys: "' <letter>",
     },
     PaletteAction {
         id: ActionId::ToggleHidden,

@@ -4,7 +4,7 @@ use crate::ops::Clipboard;
 use crate::rename::{RenameField, RenamePreviewRow};
 use crate::search::SearchResultGroup;
 use anyhow::Result;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -303,6 +303,14 @@ pub struct App {
     /// Glob pattern typed by the user.
     pub glob_input: String,
 
+    // --- Per-session marks (` to set, ' to jump) ---
+    /// True while Trek is waiting for the mark-slot key after the user pressed `.
+    pub mark_set_mode: bool,
+    /// True while Trek is waiting for the jump-slot key after the user pressed '.
+    pub mark_jump_mode: bool,
+    /// Maps mark characters (a–z, A–Z) to directory paths recorded this session.
+    pub marks: HashMap<char, PathBuf>,
+
     // --- Yank picker (A) ---
     /// True while the yank format picker overlay is open.
     pub yank_picker_mode: bool,
@@ -420,6 +428,9 @@ impl App {
             show_line_numbers: false,
             glob_mode: false,
             glob_input: String::new(),
+            mark_set_mode: false,
+            mark_jump_mode: false,
+            marks: HashMap::new(),
             yank_picker_mode: false,
             dup_mode: false,
             dup_input: String::new(),

@@ -200,6 +200,16 @@ pub fn run(
                         }
                         _ => {}
                     }
+                } else if app.mark_set_mode {
+                    match key.code {
+                        KeyCode::Char(c) if c.is_alphabetic() => app.set_mark(c),
+                        _ => app.mark_set_mode = false, // Esc or non-letter cancels silently
+                    }
+                } else if app.mark_jump_mode {
+                    match key.code {
+                        KeyCode::Char(c) if c.is_alphabetic() => app.jump_to_mark(c),
+                        _ => app.mark_jump_mode = false,
+                    }
                 } else if app.search_mode {
                     match key.code {
                         KeyCode::Esc => app.cancel_search(),
@@ -324,6 +334,9 @@ pub fn run(
                         KeyCode::Char('e') => app.begin_path_jump(),
                         // Glob pattern selection
                         KeyCode::Char('*') => app.begin_glob_select(),
+                        // Per-session marks
+                        KeyCode::Char('`') => app.begin_set_mark(),
+                        KeyCode::Char('\'') => app.begin_jump_mark(),
                         // Open command palette
                         KeyCode::Char(':') => app.open_palette(),
                         // Open with system default (open on macOS, xdg-open on Linux)
@@ -402,6 +415,8 @@ fn execute_palette_action(
         ActionId::GoBottom => app.go_bottom(),
         ActionId::HistoryBack => app.history_back(),
         ActionId::HistoryForward => app.history_forward(),
+        ActionId::BeginSetMark => app.begin_set_mark(),
+        ActionId::BeginJumpMark => app.begin_jump_mark(),
         ActionId::ToggleHidden => app.toggle_hidden(),
         ActionId::ToggleGitignored => app.toggle_gitignored(),
         ActionId::ToggleDiffPreview => app.toggle_diff_preview(),
