@@ -1,5 +1,6 @@
 mod app;
 mod archive;
+mod find;
 mod git;
 mod highlight;
 mod icons;
@@ -322,6 +323,21 @@ fn run(
                         KeyCode::Char(c) => app.rename_push_char(c),
                         _ => {}
                     }
+                } else if app.find_mode {
+                    match key.code {
+                        KeyCode::Esc => app.cancel_find(),
+                        KeyCode::Char('p') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                            app.cancel_find()
+                        }
+                        KeyCode::Enter | KeyCode::Char('l') | KeyCode::Right => {
+                            app.jump_to_find_result()
+                        }
+                        KeyCode::Backspace => app.find_pop_char(),
+                        KeyCode::Up | KeyCode::Char('k') => app.find_move_up(),
+                        KeyCode::Down | KeyCode::Char('j') => app.find_move_down(),
+                        KeyCode::Char(c) => app.find_push_char(c),
+                        _ => {}
+                    }
                 } else if app.search_mode {
                     match key.code {
                         KeyCode::Esc => app.cancel_search(),
@@ -336,6 +352,9 @@ fn run(
                     match key.code {
                         KeyCode::Char('f') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                             app.start_content_search()
+                        }
+                        KeyCode::Char('p') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                            app.start_find()
                         }
                         KeyCode::Char('Q') | KeyCode::Char('q') => break,
                         KeyCode::Up | KeyCode::Char('k') => app.move_up(),
@@ -363,7 +382,9 @@ fn run(
                         KeyCode::Char('c') => app.clipboard_copy_current(),
                         KeyCode::Char('C') => app.clipboard_copy_selected(),
                         KeyCode::Char('x') => app.clipboard_cut_current(),
-                        KeyCode::Char('p') => app.paste_clipboard(),
+                        KeyCode::Char('p') if !key.modifiers.contains(KeyModifiers::CONTROL) => {
+                            app.paste_clipboard()
+                        }
                         KeyCode::Delete => app.begin_delete_current(),
                         KeyCode::Char('X') => app.begin_delete_selected(),
                         KeyCode::Char('M') => app.begin_mkdir(),

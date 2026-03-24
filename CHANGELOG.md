@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-03-23
+
+### Added
+- Recursive filename find (`Ctrl+P`): live search across all files under the current directory, updating results on every keystroke
+- New `src/find.rs` module: `run_find()` prefers `fd` when available and falls back to a built-in directory walker; walker skips hidden dirs, `target/`, and `node_modules/`
+- Results capped at 500 entries with a `[truncated]` notice in the pane title
+- Results sorted by relevance: exact filename/stem match → prefix → substring
+- `j`/`k` navigate results; `l`/`Enter`/`→` jump to the selected file (navigates to its parent directory, selects the file, exits find mode, and pushes a history entry); `Esc` or `Ctrl+P` again cancels without side effects
+- `Ctrl+P` added to the help overlay (`?`) under the Search section
+- 7 unit tests covering output parsing, empty-query short-circuit, truncation, relevance sorting, walker finds, and hidden-directory skip
+
 ## [0.11.0] - 2026-03-23
 
 ### Changed
