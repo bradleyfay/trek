@@ -303,6 +303,14 @@ pub struct App {
     /// Glob pattern typed by the user.
     pub glob_input: String,
 
+    // --- Symlink creation (L) ---
+    /// True while the symlink name input bar is open.
+    pub symlink_mode: bool,
+    /// Name typed by the user (the link name, not the target).
+    pub symlink_input: String,
+    /// Absolute path the symlink will point to. Set on begin, cleared on confirm/cancel.
+    pub symlink_target: Option<PathBuf>,
+
     // --- Per-session marks (` to set, ' to jump) ---
     /// True while Trek is waiting for the mark-slot key after the user pressed `.
     pub mark_set_mode: bool,
@@ -428,6 +436,9 @@ impl App {
             show_line_numbers: false,
             glob_mode: false,
             glob_input: String::new(),
+            symlink_mode: false,
+            symlink_input: String::new(),
+            symlink_target: None,
             mark_set_mode: false,
             mark_jump_mode: false,
             marks: HashMap::new(),

@@ -410,4 +410,85 @@ impl App {
     pub fn dup_pop_char(&mut self) {
         self.dup_input.pop();
     }
+
+    // --- Symlink creation (L) ---
+
+    /// Enter symlink mode for the currently selected entry.
+    ///
+    /// Pre-fills the input with the selected entry's filename; stores
+    /// the entry's absolute path as the link target.
+    /// Does nothing when the directory is empty.
+    pub fn begin_symlink(&mut self) {
+        if let Some(entry) = self.entries.get(self.selected) {
+            self.symlink_target = Some(entry.path.clone());
+            self.symlink_input = entry.name.clone();
+            self.symlink_mode = true;
+        }
+    }
+
+    /// Cancel symlink mode without touching the filesystem.
+    pub fn cancel_symlink(&mut self) {
+        self.symlink_mode = false;
+        self.symlink_input.clear();
+        self.symlink_target = None;
+    }
+
+    /// Execute symlink creation with the current input name.
+    ///
+    /// - Empty name → error message.
+    /// - Name already exists (file, directory, or dangling symlink) → error message.
+    /// - Success → symlink created, listing refreshed, new entry selected.
+    /// - Non-Unix platforms → informational error message.
+    pub fn confirm_symlink(&mut self) {
+        let name = self.symlink_input.trim().to_string();
+        self.symlink_mode = false;
+        self.symlink_input.clear();
+        let target = match self.symlink_target.take() {
+            Some(p) => p,
+            None => return,
+        };
+        if name.is_empty() {
+            self.status_message = Some("Symlink name cannot be empty".to_string());
+            return;
+        }
+        let link_path = self.cwd.join(&name);
+        // Use symlink_metadata to catch dangling symlinks that .exists() misses.
+        if link_path.exists() || link_path.symlink_metadata().is_ok() {
+            self.status_message = Some(format!("'{}' already exists", name));
+            return;
+        }
+        #[cfg(unix)]
+        match std::os::unix::fs::symlink(&target, &link_path) {
+            Ok(()) => {
+                self.load_dir();
+                self.git_status = crate::git::GitStatus::load(&self.cwd);
+                if let Some(idx) = self.entries.iter().position(|e| e.name == name) {
+                    self.selected = idx;
+                    self.load_preview();
+                }
+                self.status_message = Some(format!(
+                    "Created symlink \"{}\" \u{2192} {}",
+                    name,
+                    target.to_string_lossy()
+                ));
+            }
+            Err(e) => {
+                self.status_message = Some(format!("symlink failed: {}", e));
+            }
+        }
+        #[cfg(not(unix))]
+        {
+            self.status_message = Some("Symlink creation requires a Unix system".to_string());
+        }
+    }
+
+    /// Append a character to the symlink name input.
+    pub fn symlink_push_char(&mut self, c: char) {
+        self.symlink_input.push(c);
+    }
+
+    /// Remove the last character from the symlink name input.
+    pub fn symlink_pop_char(&mut self) {
+        self.symlink_input.pop();
+    }
 }

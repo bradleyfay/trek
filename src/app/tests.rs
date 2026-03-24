@@ -2165,3 +2165,132 @@ fn jump_to_mark_pushes_history() {
     );
     let _ = std::fs::remove_dir_all(&base);
 }
+
+// ── Symlink creation (L) ─────────────────────────────────────────────────────
+
+/// Given: a directory with a file "config.toml"
+/// When: begin_symlink is called on that file
+/// Then: symlink_mode is true, symlink_input is pre-filled with "config.toml", symlink_target is set
+#[test]
+fn begin_symlink_opens_bar_prefilled() {
+    let tmp = std::env::temp_dir().join(format!("trek_sym_open_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("config.toml"), b"").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.begin_symlink();
+    assert!(app.symlink_mode, "symlink_mode should be true");
+    assert_eq!(app.symlink_input, "config.toml");
+    assert!(app.symlink_target.is_some(), "symlink_target should be set");
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: symlink_mode is open
+/// When: cancel_symlink is called
+/// Then: symlink_mode is false, input cleared, target cleared
+#[test]
+fn cancel_symlink_closes_without_creating() {
+    let tmp = std::env::temp_dir().join(format!("trek_sym_cancel_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("readme.md"), b"").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.begin_symlink();
+    app.cancel_symlink();
+    assert!(!app.symlink_mode);
+    assert!(app.symlink_input.is_empty());
+    assert!(app.symlink_target.is_none());
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: symlink_mode open, valid name typed
+/// When: confirm_symlink is called
+/// Then: a symlink exists in cwd, listing refreshes, new entry is selected
+#[cfg(unix)]
+#[test]
+fn confirm_symlink_creates_link() {
+    let tmp = std::env::temp_dir().join(format!("trek_sym_create_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("original.txt"), b"hello").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.begin_symlink();
+    app.symlink_input = "link.txt".to_string();
+    app.confirm_symlink();
+    assert!(!app.symlink_mode);
+    let link_path = tmp.join("link.txt");
+    assert!(
+        link_path.symlink_metadata().is_ok(),
+        "symlink should exist at cwd/link.txt"
+    );
+    let names: Vec<_> = app.entries.iter().map(|e| e.name.as_str()).collect();
+    assert!(
+        names.contains(&"link.txt"),
+        "listing should contain the symlink"
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: symlink_mode open, name conflicts with an existing file
+/// When: confirm_symlink is called
+/// Then: error shown, no overwrite
+#[test]
+fn confirm_symlink_existing_name_shows_error() {
+    let tmp = std::env::temp_dir().join(format!("trek_sym_exist_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("target.txt"), b"").unwrap();
+    std::fs::write(tmp.join("existing.txt"), b"").unwrap();
+    let mut app = make_app_at(&tmp);
+    // Select target.txt (first entry alphabetically)
+    app.begin_symlink();
+    app.symlink_input = "existing.txt".to_string();
+    app.confirm_symlink();
+    let msg = app.status_message.clone().unwrap_or_default();
+    assert!(msg.contains("already exists"), "got: {msg}");
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: symlink_mode open, empty input
+/// When: confirm_symlink is called
+/// Then: error shown, no symlink created
+#[test]
+fn confirm_symlink_empty_name_shows_error() {
+    let tmp = std::env::temp_dir().join(format!("trek_sym_empty_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("source.sh"), b"").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.begin_symlink();
+    app.symlink_input.clear();
+    app.confirm_symlink();
+    let msg = app.status_message.clone().unwrap_or_default();
+    assert!(msg.to_lowercase().contains("cannot be empty"), "got: {msg}");
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: L pressed on an empty directory
+/// When: begin_symlink is called
+/// Then: symlink_mode stays false (nothing to link to)
+#[test]
+fn begin_symlink_empty_dir_is_noop() {
+    let tmp = std::env::temp_dir().join(format!("trek_sym_noop_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let mut app = make_app_at(&tmp);
+    app.begin_symlink();
+    assert!(!app.symlink_mode);
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: a directory "subdir" is selected
+/// When: begin_symlink is called
+/// Then: symlink_input is pre-filled with the directory name
+#[test]
+fn begin_symlink_on_directory_prefills_name() {
+    let tmp = std::env::temp_dir().join(format!("trek_sym_dir_{}", std::process::id()));
+    let subdir = tmp.join("subdir");
+    let _ = std::fs::create_dir_all(&subdir);
+    // Need a file in subdir so it appears, but the parent dir listing shows subdir
+    std::fs::write(subdir.join("f.txt"), b"").unwrap();
+    let mut app = make_app_at(&tmp);
+    // subdir should be the only entry
+    app.begin_symlink();
+    assert!(app.symlink_mode);
+    assert_eq!(app.symlink_input, "subdir");
+    let _ = std::fs::remove_dir_all(&tmp);
+}

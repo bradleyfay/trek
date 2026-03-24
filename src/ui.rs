@@ -105,6 +105,8 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         draw_glob_select_bar(f, app, bottom_area);
     } else if app.dup_mode {
         draw_dup_bar(f, app, bottom_area);
+    } else if app.symlink_mode {
+        draw_symlink_bar(f, app, bottom_area);
     } else if app.mkdir_mode {
         draw_mkdir_bar(f, app, bottom_area);
     } else if app.touch_mode {
@@ -483,6 +485,35 @@ fn draw_dup_bar(f: &mut Frame, app: &App, area: Rect) {
         Span::styled("\u{2588}", Style::default().fg(Color::White)),
         Span::styled(
             "  Enter: copy   Esc: cancel",
+            Style::default().fg(Color::DarkGray),
+        ),
+    ]));
+    f.render_widget(para, area);
+}
+
+fn draw_symlink_bar(f: &mut Frame, app: &App, area: Rect) {
+    let target_name = app
+        .symlink_target
+        .as_deref()
+        .and_then(|p| p.file_name())
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "\u{2026}".to_string());
+    let para = Paragraph::new(Line::from(vec![
+        Span::styled(
+            format!("Symlink \u{2192} {} : ", target_name),
+            Style::default()
+                .fg(Color::LightBlue)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            &app.symlink_input,
+            Style::default()
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled("\u{2588}", Style::default().fg(Color::White)),
+        Span::styled(
+            "  Enter: create   Esc: cancel",
             Style::default().fg(Color::DarkGray),
         ),
     ]));
@@ -1632,7 +1663,7 @@ fn draw_yank_picker(f: &mut Frame, app: &App, size: Rect) {
 
 fn draw_help_overlay(f: &mut Frame, size: Rect) {
     let width = 60u16.min(size.width.saturating_sub(4));
-    let height = 70u16.min(size.height.saturating_sub(4));
+    let height = 72u16.min(size.height.saturating_sub(4));
     let x = (size.width.saturating_sub(width)) / 2;
     let y = (size.height.saturating_sub(height)) / 2;
     let area = Rect::new(x, y, width, height);
@@ -1704,6 +1735,7 @@ fn draw_help_overlay(f: &mut Frame, size: Rect) {
         key_line("u", "Undo last trash operation"),
         key_line("t", "New file (touch — create empty file)"),
         key_line("W", "Duplicate selected entry in place"),
+        key_line("L", "Create symlink to selected entry"),
         key_line("M", "Make new directory"),
         Line::from(""),
         // ── Yank & Misc ─────────────────────────────────────────────────────
