@@ -1248,7 +1248,7 @@ fn draw_find_bar(f: &mut Frame, app: &App, area: Rect) {
 
 fn draw_help_overlay(f: &mut Frame, size: Rect) {
     let width = 60u16.min(size.width.saturating_sub(4));
-    let height = 46u16.min(size.height.saturating_sub(4));
+    let height = 48u16.min(size.height.saturating_sub(4));
     let x = (size.width.saturating_sub(width)) / 2;
     let y = (size.height.saturating_sub(height)) / 2;
     let area = Rect::new(x, y, width, height);
@@ -1296,6 +1296,8 @@ fn draw_help_overlay(f: &mut Frame, size: Rect) {
         Line::from(""),
         // ── File Operations ─────────────────────────────────────────────────
         section_header("File Operations"),
+        key_line("o", "Open in $EDITOR (suspends TUI)"),
+        key_line("O", "Open with system default (background)"),
         key_line("c / C", "Copy current / selected"),
         key_line("x", "Cut current to clipboard"),
         key_line("p", "Paste clipboard into current dir"),
