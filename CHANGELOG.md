@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.14.0] - 2026-03-24
 
+
 ### Changed
 - `Delete` and `X` now move files to the platform trash (recoverable) instead of permanent deletion; the confirmation prompt now reads `[t/y]trash  [D]delete permanently  [Esc]cancel`
 - Status message after trash shows `Trashed N items [u to undo]` to make the undo path discoverable
