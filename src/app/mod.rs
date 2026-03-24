@@ -308,6 +308,10 @@ pub struct App {
     /// When true, each preview line is prefixed with its 1-based line number.
     pub show_line_numbers: bool,
 
+    // --- Listing timestamps (T) ---
+    /// When true, the listing shows last-modified dates instead of file sizes.
+    pub show_timestamps: bool,
+
     // --- Glob pattern selection (*) ---
     /// True while the glob pattern input bar is open.
     pub glob_mode: bool,
@@ -448,6 +452,7 @@ impl App {
             touch_mode: false,
             touch_input: String::new(),
             show_line_numbers: false,
+            show_timestamps: false,
             glob_mode: false,
             glob_input: String::new(),
             symlink_mode: false,
@@ -693,6 +698,68 @@ pub fn format_unix_timestamp_utc(secs: u64) -> String {
 
 fn is_leap_year(y: u32) -> bool {
     (y % 4 == 0 && y % 100 != 0) || y % 400 == 0
+}
+
+const MONTH_ABBR: [&str; 12] = [
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
+/// Decompose a Unix timestamp (seconds since epoch) into (year, month 1-12, day 1-31, hour, minute).
+fn decompose_unix_secs(secs: u64) -> (u32, u32, u32, u32, u32) {
+    let hh = ((secs / 3_600) % 24) as u32;
+    let mins = ((secs / 60) % 60) as u32;
+    let mut days = secs / 86_400;
+    let mut year = 1970u32;
+    loop {
+        let dy: u64 = if is_leap_year(year) { 366 } else { 365 };
+        if days < dy {
+            break;
+        }
+        days -= dy;
+        year += 1;
+    }
+    let month_days: [u64; 12] = if is_leap_year(year) {
+        [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    } else {
+        [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    };
+    let mut month = 1u32;
+    for &md in &month_days {
+        if days < md {
+            break;
+        }
+        days -= md;
+        month += 1;
+    }
+    (year, month, (days + 1) as u32, hh, mins)
+}
+
+/// Format a `SystemTime` as a fixed-12-char listing date (UTC).
+///
+/// - Same calendar year: `"Jan 15 14:32"` (13 chars including trailing space to reach 12 — actually exactly 12)
+/// - Prior year: `"2023 Nov  8 "` (12 chars including trailing space)
+/// - Unavailable (epoch = 0): `"----  --:--"` (11 chars, padded to 12 via one leading space)
+pub fn format_listing_date(t: std::time::SystemTime) -> String {
+    let file_secs = match t.duration_since(std::time::UNIX_EPOCH) {
+        Ok(d) if d.as_secs() > 0 => d.as_secs(),
+        _ => return "----  --:--".to_string(),
+    };
+    let now_secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+
+    let (fy, fm, fd, fh, fmin) = decompose_unix_secs(file_secs);
+    let (ny, ..) = decompose_unix_secs(now_secs);
+
+    let mon = MONTH_ABBR[fm.saturating_sub(1) as usize];
+    if fy == ny {
+        // "Jan 15 14:32" — 12 chars
+        format!("{} {:2} {:02}:{:02}", mon, fd, fh, fmin)
+    } else {
+        // "2023 Nov  8 " — 12 chars (trailing space for alignment)
+        format!("{} {} {:2} ", fy, mon, fd)
+    }
 }
 
 /// Format a file size in human-readable form.

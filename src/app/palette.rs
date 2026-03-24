@@ -19,6 +19,7 @@ pub enum ActionId {
     ToggleMetaPreview,
     ToggleHashPreview,
     TogglePreviewPane,
+    ToggleTimestamps,
     RefreshGitStatus,
     StartSearch,
     StartFilter,
@@ -133,6 +134,11 @@ pub static PALETTE_ACTIONS: &[PaletteAction] = &[
         id: ActionId::TogglePreviewPane,
         name: "Toggle preview pane (hide/show right pane)",
         keys: "w",
+    },
+    PaletteAction {
+        id: ActionId::ToggleTimestamps,
+        name: "Toggle modification timestamps in listing",
+        keys: "T",
     },
     PaletteAction {
         id: ActionId::RefreshGitStatus,

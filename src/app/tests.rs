@@ -2485,3 +2485,95 @@ fn toggle_preview_pane_preserves_custom_div() {
     );
     let _ = std::fs::remove_dir_all(&tmp);
 }
+
+// ── Timestamp listing tests (issue #62) ─────────────────────────────────────
+
+/// Given: show_timestamps is false (default)
+/// When: toggle_timestamps is called
+/// Then: show_timestamps becomes true and status message contains "modification dates"
+#[test]
+fn toggle_timestamps_enters_mode() {
+    let tmp = std::env::temp_dir().join(format!("trek_ts_enter_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("f.txt"), b"hi").unwrap();
+    let mut app = make_app_at(&tmp);
+    assert!(!app.show_timestamps);
+    app.toggle_timestamps();
+    assert!(app.show_timestamps);
+    let msg = app.status_message.clone().unwrap_or_default();
+    assert!(msg.contains("modification"), "got: {msg}");
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: show_timestamps is true
+/// When: toggle_timestamps is called again
+/// Then: show_timestamps becomes false and status message contains "sizes"
+#[test]
+fn toggle_timestamps_toggles_off() {
+    let tmp = std::env::temp_dir().join(format!("trek_ts_off_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("f.txt"), b"hi").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.toggle_timestamps();
+    app.toggle_timestamps();
+    assert!(!app.show_timestamps);
+    let msg = app.status_message.clone().unwrap_or_default();
+    assert!(msg.contains("sizes"), "got: {msg}");
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: a Unix timestamp within the current calendar year
+/// When: format_listing_date is called
+/// Then: the result is exactly 12 characters with format "Mon DD HH:MM"
+#[test]
+fn format_listing_date_same_year_is_12_chars() {
+    use std::time::{Duration, UNIX_EPOCH};
+    // 2025-06-15 14:32:00 UTC  →  secs = known constant
+    // Pick a date far enough in the past to be the "same year" in tests
+    // We use now - 1 day (will always be same year as now)
+    let now = std::time::SystemTime::now();
+    let yesterday = now - Duration::from_secs(86_400);
+    let result = format_listing_date(yesterday);
+    assert_eq!(result.len(), 12, "expected 12 chars, got {:?}", result);
+    // Should contain a colon (HH:MM part)
+    assert!(
+        result.contains(':'),
+        "expected HH:MM in same-year format: {:?}",
+        result
+    );
+    let _ = UNIX_EPOCH;
+}
+
+/// Given: a Unix timestamp from a prior year (2020)
+/// When: format_listing_date is called
+/// Then: the result is exactly 12 characters with format "YYYY Mon DD "
+#[test]
+fn format_listing_date_prior_year_is_12_chars() {
+    use std::time::{Duration, UNIX_EPOCH};
+    // 2020-01-15 00:00:00 UTC
+    let t = UNIX_EPOCH + Duration::from_secs(1_578_960_000);
+    let result = format_listing_date(t);
+    assert_eq!(result.len(), 12, "expected 12 chars, got {:?}", result);
+    // Should start with "2020"
+    assert!(
+        result.starts_with("2020"),
+        "expected year prefix: {:?}",
+        result
+    );
+    // Should NOT contain a colon
+    assert!(
+        !result.contains(':'),
+        "prior-year should not have HH:MM: {:?}",
+        result
+    );
+}
+
+/// Given: a SystemTime at Unix epoch (secs = 0)
+/// When: format_listing_date is called
+/// Then: result is "----  --:--"
+#[test]
+fn format_listing_date_epoch_zero_shows_placeholder() {
+    use std::time::UNIX_EPOCH;
+    let result = format_listing_date(UNIX_EPOCH);
+    assert_eq!(result, "----  --:--", "got: {:?}", result);
+}
