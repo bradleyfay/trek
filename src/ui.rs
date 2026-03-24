@@ -99,6 +99,8 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         draw_delete_confirm_bar(f, app, bottom_area);
     } else if app.mkdir_mode {
         draw_mkdir_bar(f, app, bottom_area);
+    } else if app.chmod_mode {
+        draw_chmod_bar(f, app, bottom_area);
     } else if app.content_search_mode {
         draw_content_search_bar(f, app, bottom_area);
     } else if app.find_mode {
@@ -273,6 +275,48 @@ fn draw_delete_confirm_bar(f: &mut Frame, app: &App, area: Rect) {
         Span::styled("delete permanently  ", Style::default().fg(Color::DarkGray)),
         Span::styled("[Esc]", Style::default().fg(Color::DarkGray)),
         Span::styled("cancel", Style::default().fg(Color::DarkGray)),
+    ]));
+    f.render_widget(para, area);
+}
+
+fn draw_chmod_bar(f: &mut Frame, app: &App, area: Rect) {
+    // Show the current octal mode as context.
+    let current = app
+        .entries
+        .get(app.selected)
+        .and_then(|e| std::fs::metadata(&e.path).ok())
+        .map(|m| {
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                format!("{:04o}", m.permissions().mode() & 0o7777)
+            }
+            #[cfg(not(unix))]
+            {
+                "????".to_string()
+            }
+        })
+        .unwrap_or_default();
+
+    let name = app
+        .entries
+        .get(app.selected)
+        .map(|e| e.name.as_str())
+        .unwrap_or("");
+
+    let para = Paragraph::new(Line::from(vec![
+        Span::styled(
+            format!(" chmod {} [current: {}]: ", name, current),
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(app.chmod_input.as_str(), Style::default().fg(Color::White)),
+        Span::styled("\u{2588}", Style::default().fg(Color::Yellow)),
+        Span::styled(
+            "  Enter=apply  Esc=cancel",
+            Style::default().fg(Color::DarkGray),
+        ),
     ]));
     f.render_widget(para, area);
 }
@@ -504,6 +548,8 @@ fn draw_preview_pane(f: &mut Frame, app: &App, area: Rect) {
         .map(|e| {
             if app.preview_is_diff {
                 format!("{} [diff]", e.name)
+            } else if app.meta_preview_mode {
+                format!("{} [meta]", e.name)
             } else {
                 e.name.clone()
             }
@@ -1204,6 +1250,8 @@ fn draw_help_overlay(f: &mut Frame, size: Rect) {
         // ── View ────────────────────────────────────────────────────────────
         section_header("View"),
         key_line("d", "Toggle git diff preview"),
+        key_line("m", "Toggle file metadata view"),
+        key_line("P", "Edit file permissions (chmod)"),
         key_line("R", "Refresh git status"),
         key_line("S", "Cycle sort: Name/Size/Modified/Ext"),
         key_line("s", "Toggle sort order ↑↓"),

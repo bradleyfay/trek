@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-03-24
+
+### Added
+- **`m` — metadata preview**: toggles the preview pane to a structured info card showing path, type, size (human-readable + raw bytes), Unix mode (symbolic `rwxrwxrwx` and octal), UID/GID, modified time, and accessed time; pane title shows `filename [meta]`; mutually exclusive with diff mode (`d`)
+- **`P` — chmod editor**: opens an inline input bar showing the current octal mode; input restricted to digits 0–7 (max 4 chars); `Enter` applies via `std::fs::set_permissions`, `Esc` cancels; metadata card refreshes immediately on success; non-Unix platforms show a descriptive message
+- `m` and `P` documented in the help overlay (`?`) under View
+- New helper functions: `format_permission_bits`, `meta_human_size`, `format_unix_timestamp_utc` (pure Rust UTC arithmetic, no subprocess)
+- 6 new unit tests covering permission bit formatting, human-readable sizes, and UTC timestamp formatting (epoch + known date)
+
 ## [0.14.0] - 2026-03-24
 
 

@@ -355,6 +355,14 @@ fn run(
                         KeyCode::Char(c) => app.find_push_char(c),
                         _ => {}
                     }
+                } else if app.chmod_mode {
+                    match key.code {
+                        KeyCode::Esc => app.cancel_chmod(),
+                        KeyCode::Enter => app.confirm_chmod(),
+                        KeyCode::Backspace => app.chmod_pop_char(),
+                        KeyCode::Char(c @ '0'..='7') => app.chmod_push_char(c),
+                        _ => {}
+                    }
                 } else if app.search_mode {
                     match key.code {
                         KeyCode::Esc => app.cancel_search(),
@@ -388,6 +396,8 @@ fn run(
                         KeyCode::Char('y') => app.yank_relative_path(),
                         KeyCode::Char('Y') => app.yank_absolute_path(),
                         KeyCode::Char('d') => app.toggle_diff_preview(),
+                        KeyCode::Char('m') => app.toggle_meta_preview(),
+                        KeyCode::Char('P') => app.begin_chmod(),
                         KeyCode::Char('R') => app.refresh_git_status(),
                         KeyCode::Char('?') => app.show_help = true,
                         // Bulk rename
