@@ -199,6 +199,11 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         draw_bookmark_overlay(f, app, size);
     }
 
+    // Frecency jump overlay.
+    if app.frecency_mode {
+        draw_frecency_overlay(f, app, size);
+    }
+
     // Yank picker overlay.
     if app.yank_picker_mode {
         draw_yank_picker(f, app, size);
@@ -1474,6 +1479,141 @@ fn draw_bookmark_overlay(f: &mut Frame, app: &App, size: Rect) {
     f.render_widget(hint, inner_chunks[1]);
 }
 
+/// Render the frecency jump list as a centred overlay.
+fn draw_frecency_overlay(f: &mut Frame, app: &App, size: Rect) {
+    let max_visible: usize = 12;
+    let row_count = app.frecency_filtered.len().max(1).min(max_visible);
+    let width = 62u16.min(size.width.saturating_sub(4));
+    let height = (row_count as u16 + 4)
+        .min(size.height.saturating_sub(4))
+        .max(6);
+    let x = (size.width.saturating_sub(width)) / 2;
+    let y = (size.height.saturating_sub(height)) / 2;
+    let area = Rect::new(x, y, width, height);
+
+    f.render_widget(Clear, area);
+
+    let title = if app.frecency_query.is_empty() {
+        " Frecency ".to_string()
+    } else {
+        format!(" Frecency  {} ", app.frecency_query)
+    };
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::Yellow))
+        .title(Span::styled(
+            title,
+            Style::default()
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD),
+        ));
+
+    let inner = block.inner(area);
+    f.render_widget(block, area);
+
+    let visible_height = inner.height.saturating_sub(1) as usize; // -1 for hint row
+    let name_col = 16usize;
+
+    if app.frecency_filtered.is_empty() {
+        let msg = if app.frecency_list.is_empty() {
+            "  Navigate to a directory to start tracking"
+        } else {
+            "  No matches"
+        };
+        let para = Paragraph::new(Line::from(Span::styled(
+            msg,
+            Style::default().fg(Color::DarkGray),
+        )));
+        f.render_widget(para, inner);
+        return;
+    }
+
+    let scroll = if app.frecency_selected >= visible_height {
+        app.frecency_selected - visible_height + 1
+    } else {
+        0
+    };
+
+    let home = std::env::var("HOME").unwrap_or_default();
+    let path_width = (inner.width as usize).saturating_sub(name_col + 2);
+
+    let items: Vec<ListItem> = app
+        .frecency_filtered
+        .iter()
+        .enumerate()
+        .skip(scroll)
+        .take(visible_height)
+        .map(|(display_idx, &real_idx)| {
+            let entry = &app.frecency_list[real_idx];
+            let is_selected = display_idx + scroll == app.frecency_selected;
+
+            let short = entry
+                .path
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_else(|| entry.path.to_string_lossy().into_owned());
+            let short_col = truncate_with_ellipsis(&short, name_col);
+
+            let full = entry.path.to_string_lossy().into_owned();
+            let display_path = if !home.is_empty() && full.starts_with(&home) {
+                format!("~{}", &full[home.len()..])
+            } else {
+                full
+            };
+            let path_col = truncate_with_ellipsis(&display_path, path_width);
+
+            if is_selected {
+                let style = Style::default()
+                    .fg(Color::White)
+                    .bg(Color::Blue)
+                    .add_modifier(Modifier::BOLD);
+                ListItem::new(Line::from(vec![
+                    Span::styled(format!(" {:<width$}", short_col, width = name_col), style),
+                    Span::styled(path_col, style),
+                ]))
+            } else {
+                ListItem::new(Line::from(vec![
+                    Span::styled(
+                        format!(" {:<width$}", short_col, width = name_col),
+                        Style::default().fg(Color::Yellow),
+                    ),
+                    Span::raw(path_col),
+                ]))
+            }
+        })
+        .collect();
+
+    let hint = Paragraph::new(Line::from(vec![
+        Span::styled(
+            "  Enter",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(": jump  ", Style::default().fg(Color::DarkGray)),
+        Span::styled(
+            "Esc",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            ": close  type to filter",
+            Style::default().fg(Color::DarkGray),
+        ),
+    ]));
+
+    let inner_chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Min(1), Constraint::Length(1)])
+        .split(inner);
+
+    let list = List::new(items);
+    f.render_widget(list, inner_chunks[0]);
+    f.render_widget(hint, inner_chunks[1]);
+}
+
 /// Render the find prompt in the status bar.
 fn draw_find_bar(f: &mut Frame, app: &App, area: Rect) {
     if let Some(ref err) = app.find_error {
@@ -1790,7 +1930,7 @@ fn draw_yank_picker(f: &mut Frame, app: &App, size: Rect) {
 
 fn draw_help_overlay(f: &mut Frame, size: Rect) {
     let width = 60u16.min(size.width.saturating_sub(4));
-    let height = 84u16.min(size.height.saturating_sub(4));
+    let height = 86u16.min(size.height.saturating_sub(4));
     let x = (size.width.saturating_sub(width)) / 2;
     let y = (size.height.saturating_sub(height)) / 2;
     let area = Rect::new(x, y, width, height);
@@ -1829,6 +1969,7 @@ fn draw_help_overlay(f: &mut Frame, size: Rect) {
         key_line("Ctrl+P", "Recursive filename find"),
         key_line("b", "Bookmark current directory"),
         key_line("B", "Open bookmark picker"),
+        key_line("z", "Open frecency jump list (auto-ranked recent dirs)"),
         Line::from(""),
         // ── View ────────────────────────────────────────────────────────────
         section_header("View"),

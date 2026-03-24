@@ -128,6 +128,8 @@ impl App {
     /// forward entries (browser-style), appends the new location, and caps
     /// the stack at MAX_HISTORY.
     pub fn push_history(&mut self, new_dir: PathBuf) {
+        // Record destination in the session frecency table.
+        self.record_frecency(new_dir.clone());
         // Save current cursor into the current history entry.
         if let Some(e) = self.history.get_mut(self.history_pos) {
             e.selected = self.selected;
@@ -146,6 +148,110 @@ impl App {
             self.history.drain(..drop);
             self.history_pos = self.history_pos.saturating_sub(drop);
         }
+    }
+
+    /// Record a visit to `path` in the session frecency table.
+    pub fn record_frecency(&mut self, path: PathBuf) {
+        if let Some(e) = self.frecency_list.iter_mut().find(|e| e.path == path) {
+            e.visits += 1;
+            e.last_visit = std::time::Instant::now();
+        } else {
+            use crate::app::frecency::FrecencyEntry;
+            self.frecency_list.push(FrecencyEntry {
+                path,
+                visits: 1,
+                last_visit: std::time::Instant::now(),
+            });
+        }
+    }
+
+    /// Open the frecency overlay and build the initial filtered list.
+    pub fn open_frecency(&mut self) {
+        self.frecency_mode = true;
+        self.frecency_query.clear();
+        self.frecency_selected = 0;
+        self.rebuild_frecency_filtered();
+    }
+
+    /// Close the frecency overlay without navigating.
+    pub fn close_frecency(&mut self) {
+        self.frecency_mode = false;
+        self.frecency_query.clear();
+    }
+
+    /// Rebuild `frecency_filtered`: filter by query, sort by score descending.
+    pub fn rebuild_frecency_filtered(&mut self) {
+        let q = self.frecency_query.to_lowercase();
+        let mut scored: Vec<(usize, f64)> = self
+            .frecency_list
+            .iter()
+            .enumerate()
+            .filter(|(_, e)| {
+                if q.is_empty() {
+                    return true;
+                }
+                let name = e
+                    .path
+                    .file_name()
+                    .map(|n| n.to_string_lossy().to_lowercase())
+                    .unwrap_or_default();
+                name.contains(&q)
+            })
+            .map(|(i, e)| (i, e.score()))
+            .collect();
+        scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        self.frecency_filtered = scored.into_iter().map(|(i, _)| i).collect();
+        if self.frecency_selected >= self.frecency_filtered.len() {
+            self.frecency_selected = self.frecency_filtered.len().saturating_sub(1);
+        }
+    }
+
+    pub fn frecency_push_char(&mut self, c: char) {
+        self.frecency_query.push(c);
+        self.frecency_selected = 0;
+        self.rebuild_frecency_filtered();
+    }
+
+    pub fn frecency_pop_char(&mut self) {
+        self.frecency_query.pop();
+        self.frecency_selected = 0;
+        self.rebuild_frecency_filtered();
+    }
+
+    pub fn frecency_move_up(&mut self) {
+        if self.frecency_selected > 0 {
+            self.frecency_selected -= 1;
+        }
+    }
+
+    pub fn frecency_move_down(&mut self) {
+        if self.frecency_selected + 1 < self.frecency_filtered.len() {
+            self.frecency_selected += 1;
+        }
+    }
+
+    /// Navigate to the currently selected frecency entry and close the overlay.
+    pub fn confirm_frecency(&mut self) {
+        let idx = match self.frecency_filtered.get(self.frecency_selected) {
+            Some(&i) => i,
+            None => {
+                self.close_frecency();
+                return;
+            }
+        };
+        let dest = self.frecency_list[idx].path.clone();
+        self.close_frecency();
+        if !dest.is_dir() {
+            self.status_message = Some(format!("No longer exists: {}", dest.display()));
+            return;
+        }
+        self.filter_input.clear();
+        self.filter_mode = false;
+        self.push_history(dest.clone());
+        self.cwd = dest;
+        self.selected = 0;
+        self.current_scroll = 0;
+        self.load_dir();
     }
 
     /// Go back to the previous location in the jump history stack.

@@ -219,6 +219,17 @@ pub fn run(
                         }
                         _ => {}
                     }
+                } else if app.frecency_mode {
+                    match key.code {
+                        KeyCode::Esc => app.close_frecency(),
+                        KeyCode::Char('z') => app.close_frecency(),
+                        KeyCode::Enter => app.confirm_frecency(),
+                        KeyCode::Up | KeyCode::Char('k') => app.frecency_move_up(),
+                        KeyCode::Down | KeyCode::Char('j') => app.frecency_move_down(),
+                        KeyCode::Backspace => app.frecency_pop_char(),
+                        KeyCode::Char(c) => app.frecency_push_char(c),
+                        _ => {}
+                    }
                 } else if app.mark_set_mode {
                     match key.code {
                         KeyCode::Char(c) if c.is_alphabetic() => app.set_mark(c),
@@ -276,6 +287,7 @@ pub fn run(
                         KeyCode::Char('U') => app.toggle_preview_wrap(),
                         KeyCode::Char('N') => app.toggle_dir_counts(),
                         KeyCode::Char('F') => app.open_clipboard_inspect(),
+                        KeyCode::Char('z') => app.open_frecency(),
                         KeyCode::Char('P') => app.begin_chmod(),
                         KeyCode::Char('R') => app.refresh_git_status(),
                         KeyCode::Char('?') => app.show_help = true,
@@ -492,6 +504,7 @@ fn execute_palette_action(
         ActionId::BeginDup => app.begin_dup(),
         ActionId::BeginSymlink => app.begin_symlink(),
         ActionId::InspectClipboard => app.open_clipboard_inspect(),
+        ActionId::OpenFrecency => app.open_frecency(),
         ActionId::ShowHelp => app.show_help = true,
         // Quit appears in the palette for discoverability but cannot break out
         // of the event loop from here — use q directly.

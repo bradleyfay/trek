@@ -2922,3 +2922,106 @@ fn meta_lines_regular_file_has_no_target_line() {
     );
     let _ = std::fs::remove_dir_all(&tmp);
 }
+
+/// Given: a freshly created App
+/// When: record_frecency is called with a path
+/// Then: frecency_list has one entry for that path with visits = 1
+#[test]
+fn record_frecency_adds_new_entry() {
+    let tmp = std::env::temp_dir().join(format!("trek_frec_new_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let mut app = make_app_at(&tmp);
+    let sub = tmp.join("alpha");
+    std::fs::create_dir_all(&sub).unwrap();
+    app.record_frecency(sub.clone());
+    let entry = app.frecency_list.iter().find(|e| e.path == sub);
+    assert!(
+        entry.is_some(),
+        "frecency_list should contain the recorded path"
+    );
+    assert_eq!(entry.unwrap().visits, 1);
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: a path already in frecency_list with visits = 1
+/// When: record_frecency is called again for the same path
+/// Then: visits increments to 2 (no duplicate entry)
+#[test]
+fn record_frecency_increments_existing_entry() {
+    let tmp = std::env::temp_dir().join(format!("trek_frec_inc_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let mut app = make_app_at(&tmp);
+    let sub = tmp.join("beta");
+    std::fs::create_dir_all(&sub).unwrap();
+    app.record_frecency(sub.clone());
+    app.record_frecency(sub.clone());
+    let count = app.frecency_list.iter().filter(|e| e.path == sub).count();
+    assert_eq!(count, 1, "should not create duplicate entries");
+    let entry = app.frecency_list.iter().find(|e| e.path == sub).unwrap();
+    assert_eq!(entry.visits, 2);
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: frecency_list has two entries
+/// When: open_frecency is called
+/// Then: frecency_mode is true, frecency_filtered is populated sorted by score
+#[test]
+fn open_frecency_sets_mode_and_builds_filtered() {
+    let tmp = std::env::temp_dir().join(format!("trek_frec_open_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let mut app = make_app_at(&tmp);
+    let a = tmp.join("aaa");
+    let b = tmp.join("bbb");
+    std::fs::create_dir_all(&a).unwrap();
+    std::fs::create_dir_all(&b).unwrap();
+    app.record_frecency(a.clone());
+    app.record_frecency(a.clone()); // visits=2, scores higher
+    app.record_frecency(b.clone()); // visits=1
+    app.open_frecency();
+    assert!(app.frecency_mode);
+    assert_eq!(app.frecency_filtered.len(), 2);
+    // First entry should be 'aaa' (higher score)
+    let first_path = &app.frecency_list[app.frecency_filtered[0]].path;
+    assert_eq!(first_path, &a);
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: frecency overlay is open with entries
+/// When: close_frecency is called
+/// Then: frecency_mode is false and query is cleared
+#[test]
+fn close_frecency_clears_mode_and_query() {
+    let tmp = std::env::temp_dir().join(format!("trek_frec_close_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let mut app = make_app_at(&tmp);
+    app.frecency_mode = true;
+    app.frecency_query = "abc".to_string();
+    app.close_frecency();
+    assert!(!app.frecency_mode);
+    assert!(app.frecency_query.is_empty());
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: frecency overlay open with entries containing "src" in name
+/// When: frecency_push_char filters by "src"
+/// Then: only matching entries appear in frecency_filtered
+#[test]
+fn frecency_push_char_filters_by_name() {
+    let tmp = std::env::temp_dir().join(format!("trek_frec_filt_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let mut app = make_app_at(&tmp);
+    let alpha = tmp.join("alpha");
+    let beta = tmp.join("beta");
+    std::fs::create_dir_all(&alpha).unwrap();
+    std::fs::create_dir_all(&beta).unwrap();
+    app.record_frecency(alpha.clone());
+    app.record_frecency(beta.clone());
+    app.open_frecency();
+    // "lph" is only in "alpha", not "beta"
+    app.frecency_push_char('l');
+    app.frecency_push_char('p');
+    assert_eq!(app.frecency_filtered.len(), 1);
+    let matched = &app.frecency_list[app.frecency_filtered[0]].path;
+    assert_eq!(matched, &alpha);
+    let _ = std::fs::remove_dir_all(&tmp);
+}

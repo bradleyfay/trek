@@ -78,6 +78,7 @@ pub fn print_help() {
     println!("    '<c>        Jump to mark 'c' — navigate to the marked directory");
     println!("    [           Scroll preview up 5 lines  ]  Scroll preview down 5 lines");
     println!("    /           Fuzzy search       Ctrl+F      Content search (rg)");
+    println!("    z           Frecency jump list (auto-ranked recent dirs)");
     println!("    y / Y       Yank relative / absolute path");
     println!(
         "    A           Yank path (pick format: r=relative  a=absolute  f=filename  p=parent dir)"
