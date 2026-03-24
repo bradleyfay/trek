@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.0] - 2026-03-24
+
+### Added
+- **Session restore**: Trek now remembers where you were when it last exited and reopens there on the next launch (no argument required)
+- Restores the current directory, the selected entry (by name, so it survives renames of other files), `show_hidden` state, sort mode, and sort order
+- Session file lives at `$XDG_DATA_HOME/trek/session` (default `~/.local/share/trek/session`) using the same XDG pattern as bookmarks
+- Explicit path argument (`trek /some/path`) always wins — session is never restored when a start directory is given
+- Missing or deleted saved directory falls back silently to CWD; corrupt/absent session file causes no error
+- Session is written only on clean `q`/`Q` exit — panic or SIGKILL leaves the previous session intact
+- All session fields are forward-compatible: unknown keys from future versions are silently ignored
+
 ## [0.49.0] - 2026-03-24
 
 ### Added

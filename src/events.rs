@@ -36,8 +36,21 @@ pub fn run(
 
     let mut app = App::new(effective_start)?;
 
-    // Repopulate marks from the saved session.
+    // Repopulate marks and view settings from the saved session.
     app.marks = session.marks;
+    app.show_hidden = session.show_hidden;
+    app.sort_mode = session.sort_mode;
+    app.sort_order = session.sort_order;
+    // Reload the listing with restored sort/hidden settings so the view is
+    // consistent from the very first frame.
+    app.load_dir();
+    // Restore the selected entry by name; indices shift as files are added/removed.
+    if let Some(ref name) = session.selected_name {
+        if let Some(idx) = app.entries.iter().position(|e| &e.name == name) {
+            app.selected = idx;
+            app.load_preview();
+        }
+    }
 
     loop {
         terminal.draw(|f| crate::ui::draw(f, &mut app))?;
@@ -480,7 +493,15 @@ pub fn run(
         }
     }
     // Save session on clean exit. Errors are non-fatal.
-    let _ = crate::session::save(&app.cwd, &app.marks);
+    let selected_name = app.entries.get(app.selected).map(|e| e.name.as_str());
+    let _ = crate::session::save(
+        &app.cwd,
+        &app.marks,
+        app.show_hidden,
+        app.sort_mode,
+        app.sort_order,
+        selected_name,
+    );
 
     Ok(app.cwd)
 }
