@@ -58,6 +58,7 @@ pub enum ActionId {
     GlobSelect,
     BeginDup,
     BeginSymlink,
+    ToggleGitLogPreview,
     InspectClipboard,
     OpenFrecency,
     ShowHelp,
@@ -133,6 +134,11 @@ pub static PALETTE_ACTIONS: &[PaletteAction] = &[
         id: ActionId::ToggleHashPreview,
         name: "Toggle hash preview (SHA-256 checksum)",
         keys: "H",
+    },
+    PaletteAction {
+        id: ActionId::ToggleGitLogPreview,
+        name: "Toggle git log preview (file/dir commit history)",
+        keys: "V",
     },
     PaletteAction {
         id: ActionId::TogglePreviewPane,

@@ -27,6 +27,14 @@ impl App {
             return;
         }
 
+        // Git log — third priority.
+        if self.git_log_mode {
+            if let Some(entry) = self.entries.get(self.selected).cloned() {
+                self.preview_lines = Self::load_git_log(&entry.path);
+            }
+            return;
+        }
+
         if let Some(entry) = self.entries.get(self.selected).cloned() {
             if entry.is_dir {
                 // Directories never show a diff preview.
@@ -143,6 +151,7 @@ impl App {
             if self.diff_preview_mode {
                 self.meta_preview_mode = false;
                 self.hash_preview_mode = false; // mutually exclusive
+                self.git_log_mode = false; // mutually exclusive
             }
             self.load_preview();
         } else {
@@ -155,5 +164,48 @@ impl App {
         self.git_status = crate::git::GitStatus::load(&self.cwd);
         self.load_preview();
         self.status_message = Some("Git status refreshed".to_string());
+    }
+
+    /// Toggle git log preview mode for the currently selected entry.
+    ///
+    /// Works for both files and directories. Mutually exclusive with
+    /// diff_preview_mode, meta_preview_mode, and hash_preview_mode.
+    pub fn toggle_git_log_preview(&mut self) {
+        self.git_log_mode = !self.git_log_mode;
+        if self.git_log_mode {
+            self.diff_preview_mode = false;
+            self.meta_preview_mode = false;
+            self.hash_preview_mode = false;
+        }
+        self.load_preview();
+    }
+
+    /// Load `git log --oneline -30 -- <path>` output as preview lines.
+    ///
+    /// Works for both files and directories. Returns an explanatory message
+    /// on failure or when there are no commits for the path.
+    fn load_git_log(path: &Path) -> Vec<String> {
+        let parent = match path.parent() {
+            Some(p) if p.as_os_str().is_empty() => Path::new("."),
+            Some(p) => p,
+            None => return vec!["  (unable to determine parent directory)".to_string()],
+        };
+        let path_str = path.to_string_lossy();
+        match Command::new("git")
+            .arg("-C")
+            .arg(parent)
+            .args(["log", "--oneline", "-30", "--", path_str.as_ref()])
+            .output()
+        {
+            Ok(out) if out.status.success() => {
+                let text = String::from_utf8_lossy(&out.stdout);
+                if text.trim().is_empty() {
+                    vec!["  (no commits for this path yet)".to_string()]
+                } else {
+                    text.lines().map(|l| format!("  {}", l)).collect()
+                }
+            }
+            _ => vec!["  (git log failed — not a git repository?)".to_string()],
+        }
     }
 }
