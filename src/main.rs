@@ -1,5 +1,6 @@
 mod app;
 mod archive;
+mod bookmarks;
 mod find;
 mod git;
 mod highlight;
@@ -323,6 +324,18 @@ fn run(
                         KeyCode::Char(c) => app.rename_push_char(c),
                         _ => {}
                     }
+                } else if app.bookmark_mode {
+                    match key.code {
+                        KeyCode::Esc => app.close_bookmarks(),
+                        KeyCode::Char('B') => app.close_bookmarks(),
+                        KeyCode::Enter => app.confirm_bookmark(),
+                        KeyCode::Char('d') => app.remove_bookmark(),
+                        KeyCode::Up | KeyCode::Char('k') => app.bookmark_move_up(),
+                        KeyCode::Down | KeyCode::Char('j') => app.bookmark_move_down(),
+                        KeyCode::Backspace => app.bookmark_pop_char(),
+                        KeyCode::Char(c) => app.bookmark_push_char(c),
+                        _ => {}
+                    }
                 } else if app.find_mode {
                     match key.code {
                         KeyCode::Esc => app.cancel_find(),
@@ -388,6 +401,8 @@ fn run(
                         KeyCode::Delete => app.begin_delete_current(),
                         KeyCode::Char('X') => app.begin_delete_selected(),
                         KeyCode::Char('M') => app.begin_mkdir(),
+                        KeyCode::Char('b') => app.add_bookmark(),
+                        KeyCode::Char('B') => app.open_bookmarks(),
                         KeyCode::Char('S') => app.cycle_sort_mode(),
                         KeyCode::Char('s') => app.toggle_sort_order(),
                         KeyCode::Char('o') if key.modifiers.contains(KeyModifiers::CONTROL) => {

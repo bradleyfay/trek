@@ -163,6 +163,11 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     if app.show_help {
         draw_help_overlay(f, size);
     }
+
+    // Bookmark picker overlay (rendered on top of everything else).
+    if app.bookmark_mode {
+        draw_bookmark_overlay(f, app, size);
+    }
 }
 
 fn draw_path_bar(f: &mut Frame, app: &App, area: Rect) {
@@ -988,6 +993,156 @@ fn draw_find_pane(f: &mut Frame, app: &App, area: Rect) {
     f.render_widget(list, area);
 }
 
+/// Render the bookmark picker as a centered overlay.
+fn draw_bookmark_overlay(f: &mut Frame, app: &App, size: Rect) {
+    // Compute overlay dimensions.  Minimum usable height is 6 rows.
+    let width = 62u16.min(size.width.saturating_sub(4));
+    let max_rows = app.bookmark_filtered.len().max(1) as u16;
+    let height = (max_rows + 4).min(size.height.saturating_sub(4)).max(6);
+    let x = (size.width.saturating_sub(width)) / 2;
+    let y = (size.height.saturating_sub(height)) / 2;
+    let area = Rect::new(x, y, width, height);
+
+    f.render_widget(Clear, area);
+
+    // Title: show filter query when active.
+    let title = if app.bookmark_query.is_empty() {
+        " Bookmarks ".to_string()
+    } else {
+        format!(" Bookmarks  {} ", app.bookmark_query)
+    };
+
+    // Hint in title right section — put it in the title for simplicity.
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::Cyan))
+        .title(Span::styled(
+            title,
+            Style::default()
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD),
+        ));
+
+    let inner = block.inner(area);
+    f.render_widget(block, area);
+
+    let visible_height = inner.height as usize;
+    let name_col = 16usize; // chars reserved for short name
+
+    if app.bookmark_filtered.is_empty() {
+        let msg = if app.bookmarks.is_empty() {
+            "  No bookmarks — press b to add one"
+        } else {
+            "  No matches"
+        };
+        let para = Paragraph::new(Line::from(Span::styled(
+            msg,
+            Style::default().fg(Color::DarkGray),
+        )));
+        f.render_widget(para, inner);
+        return;
+    }
+
+    let scroll = if app.bookmark_selected >= visible_height {
+        app.bookmark_selected - visible_height + 1
+    } else {
+        0
+    };
+
+    let path_width = (inner.width as usize).saturating_sub(name_col + 2);
+
+    let items: Vec<ListItem> = app
+        .bookmark_filtered
+        .iter()
+        .enumerate()
+        .skip(scroll)
+        .take(visible_height)
+        .map(|(display_idx, &real_idx)| {
+            let path = &app.bookmarks[real_idx];
+            let exists = path.is_dir();
+            let is_selected = display_idx == app.bookmark_selected;
+
+            // Short name = last path component.
+            let short = path
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_else(|| path.to_string_lossy().into_owned());
+            let short_col = truncate_with_ellipsis(&short, name_col);
+
+            let full = path.to_string_lossy().into_owned();
+            // Replace $HOME with ~
+            let home = std::env::var("HOME").unwrap_or_default();
+            let display_path = if !home.is_empty() && full.starts_with(&home) {
+                format!("~{}", &full[home.len()..])
+            } else {
+                full
+            };
+            let path_col = truncate_with_ellipsis(&display_path, path_width);
+
+            let gone_suffix = if exists { "" } else { "  [gone]" };
+
+            if is_selected {
+                let style = Style::default()
+                    .fg(Color::White)
+                    .bg(Color::Blue)
+                    .add_modifier(Modifier::BOLD);
+                ListItem::new(Line::from(vec![
+                    Span::styled(format!(" {:<width$}", short_col, width = name_col), style),
+                    Span::styled(format!("{}{}", path_col, gone_suffix), style),
+                ]))
+            } else if !exists {
+                let style = Style::default().fg(Color::DarkGray);
+                ListItem::new(Line::from(vec![
+                    Span::styled(format!(" {:<width$}", short_col, width = name_col), style),
+                    Span::styled(format!("{}{}", path_col, gone_suffix), style),
+                ]))
+            } else {
+                ListItem::new(Line::from(vec![
+                    Span::styled(
+                        format!(" {:<width$}", short_col, width = name_col),
+                        Style::default().fg(Color::Cyan),
+                    ),
+                    Span::raw(path_col),
+                ]))
+            }
+        })
+        .collect();
+
+    let hint = Paragraph::new(Line::from(vec![
+        Span::styled(
+            "  Enter",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(": jump  ", Style::default().fg(Color::DarkGray)),
+        Span::styled(
+            "d",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(": remove  ", Style::default().fg(Color::DarkGray)),
+        Span::styled(
+            "Esc",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(": close", Style::default().fg(Color::DarkGray)),
+    ]));
+
+    // Split inner area: list rows above, hint row at bottom.
+    let inner_chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Min(1), Constraint::Length(1)])
+        .split(inner);
+
+    let list = List::new(items);
+    f.render_widget(list, inner_chunks[0]);
+    f.render_widget(hint, inner_chunks[1]);
+}
+
 /// Render the find prompt in the status bar.
 fn draw_find_bar(f: &mut Frame, app: &App, area: Rect) {
     if let Some(ref err) = app.find_error {
@@ -1039,6 +1194,8 @@ fn draw_help_overlay(f: &mut Frame, size: Rect) {
         key_line("/", "Fuzzy search"),
         key_line("Ctrl+F", "Content search (ripgrep)"),
         key_line("Ctrl+P", "Recursive filename find"),
+        key_line("b", "Bookmark current directory"),
+        key_line("B", "Open bookmark picker"),
         Line::from(""),
         // ── View ────────────────────────────────────────────────────────────
         section_header("View"),
