@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.43.0] - 2026-03-24
+
+### Added
+- **`a` — hex dump preview**: press `a` to toggle a hex dump of the selected file in the preview pane using `xxd` (or `hexdump -C` as fallback)
+- Preview pane title shows `filename [hex]` when hex view is active
+- Files larger than 4 MB show a size-limit message instead of attempting a full dump
+- Graceful fallback message when neither `xxd` nor `hexdump` is found
+- Works on any file type — text or binary; blocked for directories (status message shown)
+- Mutually exclusive with all other special preview modes (hash, meta, git log, diff, compare)
+- `ToggleHexView` registered in the command palette (`a`) and `?` help overlay
+
 ## [0.42.0] - 2026-03-24
 
 ### Added

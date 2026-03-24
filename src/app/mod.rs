@@ -184,6 +184,10 @@ pub struct App {
     /// Mutually exclusive with all other special preview modes.
     pub file_compare_mode: bool,
 
+    // --- Hex dump view (a) ---
+    /// When true the preview pane shows a hex dump (xxd / hexdump -C).
+    pub hex_view_mode: bool,
+
     // --- chmod editor (P) ---
     /// True while the chmod input bar is open.
     pub chmod_mode: bool,
@@ -439,6 +443,7 @@ impl App {
             hash_preview_mode: false,
             git_log_mode: false,
             file_compare_mode: false,
+            hex_view_mode: false,
             chmod_mode: false,
             chmod_input: String::new(),
             highlighter: Highlighter::new(),

@@ -60,6 +60,7 @@ pub enum ActionId {
     BeginSymlink,
     ToggleGitLogPreview,
     CompareFiles,
+    ToggleHexView,
     InspectClipboard,
     OpenFrecency,
     ShowHelp,
@@ -145,6 +146,11 @@ pub static PALETTE_ACTIONS: &[PaletteAction] = &[
         id: ActionId::CompareFiles,
         name: "Compare two selected files (unified diff)",
         keys: "f",
+    },
+    PaletteAction {
+        id: ActionId::ToggleHexView,
+        name: "Toggle hex dump view (binary file inspection)",
+        keys: "a",
     },
     PaletteAction {
         id: ActionId::TogglePreviewPane,

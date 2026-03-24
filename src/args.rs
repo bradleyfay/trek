@@ -89,6 +89,7 @@ pub fn print_help() {
     println!("    V           Toggle git log preview (file/dir commit history)");
     println!("    f           Compare two selected files (unified diff)");
     println!("    H           Toggle hash preview (SHA-256 checksum)");
+    println!("    a           Toggle hex dump view (binary file inspection)");
     println!("    w           Toggle preview pane (hide/show right pane)");
     println!("    T           Toggle modification timestamps / file sizes in listing");
     println!("    U           Toggle preview word wrap (soft-wrap long lines)");
