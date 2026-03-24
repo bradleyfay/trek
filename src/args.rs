@@ -90,6 +90,7 @@ pub fn print_help() {
     println!("    x           Cut current to clipboard");
     println!("    p           Paste clipboard       Delete      Delete current file/dir");
     println!("    t           New empty file         M           Make new directory");
+    println!("    W           Duplicate selected entry in place (editable name bar)");
     println!("    X           Delete all selected");
     println!("    :           Open command palette");
     println!("    ?           Show help overlay  q           Quit");

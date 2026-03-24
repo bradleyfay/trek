@@ -1778,3 +1778,139 @@ fn glob_dots_are_literal_not_regex_wildcards() {
     assert_eq!(matched_name, "archive.tar.gz");
     let _ = std::fs::remove_dir_all(&tmp);
 }
+
+// ── File duplication (W) ────────────────────────────────────────────────────
+
+/// Given: a directory with a file "config.toml"
+/// When: begin_dup is called on that file
+/// Then: dup_mode is true and dup_input is pre-filled with "config_copy.toml"
+#[test]
+fn begin_dup_opens_bar_with_suggested_name() {
+    let tmp = std::env::temp_dir().join(format!("trek_dup_open_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("config.toml"), b"").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.begin_dup();
+    assert!(app.dup_mode, "dup_mode should be true");
+    assert_eq!(app.dup_input, "config_copy.toml");
+    assert!(app.dup_src.is_some(), "dup_src should be set");
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: dup_mode is open
+/// When: cancel_dup is called
+/// Then: dup_mode is false, dup_input is cleared, dup_src is None
+#[test]
+fn cancel_dup_closes_without_creating() {
+    let tmp = std::env::temp_dir().join(format!("trek_dup_cancel_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("readme.md"), b"").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.begin_dup();
+    assert!(app.dup_mode);
+    app.cancel_dup();
+    assert!(!app.dup_mode);
+    assert!(app.dup_input.is_empty());
+    assert!(app.dup_src.is_none());
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: dup_mode is open with a valid name typed
+/// When: confirm_dup is called
+/// Then: a copy is created in cwd, listing refreshes, new entry is selected
+#[test]
+fn confirm_dup_creates_file_copy() {
+    let tmp = std::env::temp_dir().join(format!("trek_dup_confirm_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("notes.txt"), b"hello").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.begin_dup();
+    app.dup_input = "notes_backup.txt".to_string();
+    app.confirm_dup();
+    assert!(!app.dup_mode);
+    assert!(tmp.join("notes_backup.txt").exists(), "copy should exist");
+    let names: Vec<_> = app.entries.iter().map(|e| e.name.as_str()).collect();
+    assert!(
+        names.contains(&"notes_backup.txt"),
+        "listing should contain the copy"
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: a file "data.csv" exists, dup_input is "data.csv" (same name)
+/// When: confirm_dup is called
+/// Then: no overwrite, status message contains "already exists"
+#[test]
+fn confirm_dup_existing_name_shows_error() {
+    let tmp = std::env::temp_dir().join(format!("trek_dup_existing_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("data.csv"), b"").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.begin_dup();
+    app.dup_input = "data.csv".to_string();
+    app.confirm_dup();
+    let msg = app.status_message.unwrap_or_default();
+    assert!(
+        msg.contains("already exists"),
+        "expected 'already exists', got: {msg}"
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: dup_mode is open, dup_input is empty
+/// When: confirm_dup is called
+/// Then: status message contains "cannot be empty", no file created
+#[test]
+fn confirm_dup_empty_name_shows_error() {
+    let tmp = std::env::temp_dir().join(format!("trek_dup_empty_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("script.sh"), b"").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.begin_dup();
+    app.dup_input.clear();
+    app.confirm_dup();
+    let msg = app.status_message.unwrap_or_default();
+    assert!(msg.to_lowercase().contains("cannot be empty"), "got: {msg}");
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: a file "archive.tar.gz" (compound extension)
+/// When: begin_dup is called
+/// Then: dup_input is "archive_copy.tar.gz"
+#[test]
+fn begin_dup_compound_extension_suggestion() {
+    let tmp = std::env::temp_dir().join(format!("trek_dup_compound_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("archive.tar.gz"), b"").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.begin_dup();
+    assert_eq!(app.dup_input, "archive_copy.tar.gz");
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: a file "Makefile" (no extension)
+/// When: begin_dup is called
+/// Then: dup_input is "Makefile_copy"
+#[test]
+fn begin_dup_no_extension_suggestion() {
+    let tmp = std::env::temp_dir().join(format!("trek_dup_noext_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("Makefile"), b"").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.begin_dup();
+    assert_eq!(app.dup_input, "Makefile_copy");
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: begin_dup is called with no entries (empty dir)
+/// When: begin_dup is called
+/// Then: dup_mode remains false (nothing to duplicate)
+#[test]
+fn begin_dup_empty_dir_is_noop() {
+    let tmp = std::env::temp_dir().join(format!("trek_dup_noop_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let mut app = make_app_at(&tmp);
+    app.begin_dup();
+    assert!(!app.dup_mode, "no entries — dup_mode should stay false");
+    let _ = std::fs::remove_dir_all(&tmp);
+}
