@@ -176,6 +176,8 @@ pub fn run(
                         KeyCode::Char('Q') | KeyCode::Char('q') => break,
                         KeyCode::Up | KeyCode::Char('k') => app.move_up(),
                         KeyCode::Down | KeyCode::Char('j') => app.move_down(),
+                        KeyCode::Char('K') => app.select_move_up(),
+                        KeyCode::Char('J') => app.select_move_down(),
                         KeyCode::Left | KeyCode::Char('h') => app.go_parent(),
                         KeyCode::Right | KeyCode::Char('l') | KeyCode::Enter => {
                             app.enter_selected()
@@ -364,6 +366,8 @@ fn execute_palette_action(
         ActionId::BeginMkdir => app.begin_mkdir(),
         ActionId::UndoTrash => app.undo_trash(),
         ActionId::BeginChmod => app.begin_chmod(),
+        ActionId::SelectMoveDown => app.select_move_down(),
+        ActionId::SelectMoveUp => app.select_move_up(),
         ActionId::ToggleSelection => {
             let s = app.selected;
             app.toggle_selection(s);

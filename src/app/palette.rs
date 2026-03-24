@@ -29,6 +29,8 @@ pub enum ActionId {
     BeginMkdir,
     UndoTrash,
     BeginChmod,
+    SelectMoveDown,
+    SelectMoveUp,
     ToggleSelection,
     SelectAll,
     ClearSelections,
@@ -169,6 +171,16 @@ pub static PALETTE_ACTIONS: &[PaletteAction] = &[
         id: ActionId::BeginChmod,
         name: "chmod — edit file permissions",
         keys: "P",
+    },
+    PaletteAction {
+        id: ActionId::SelectMoveDown,
+        name: "Extend selection down (range select)",
+        keys: "J",
+    },
+    PaletteAction {
+        id: ActionId::SelectMoveUp,
+        name: "Extend selection up (range select)",
+        keys: "K",
     },
     PaletteAction {
         id: ActionId::ToggleSelection,

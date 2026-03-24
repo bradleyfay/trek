@@ -1451,7 +1451,7 @@ fn draw_palette_overlay(f: &mut Frame, app: &App, size: Rect) {
 
 fn draw_help_overlay(f: &mut Frame, size: Rect) {
     let width = 60u16.min(size.width.saturating_sub(4));
-    let height = 54u16.min(size.height.saturating_sub(4));
+    let height = 56u16.min(size.height.saturating_sub(4));
     let x = (size.width.saturating_sub(width)) / 2;
     let y = (size.height.saturating_sub(height)) / 2;
     let area = Rect::new(x, y, width, height);
@@ -1494,6 +1494,7 @@ fn draw_help_overlay(f: &mut Frame, size: Rect) {
         Line::from(""),
         // ── Selection & Rename ──────────────────────────────────────────────
         section_header("Selection & Rename"),
+        key_line("J / K", "Extend selection down / up (range select)"),
         key_line("Space", "Toggle file selection"),
         key_line("v", "Select all files"),
         key_line("n / F2", "Quick rename (inline bar pre-filled)"),

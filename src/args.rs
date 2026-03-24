@@ -78,6 +78,7 @@ pub fn print_help() {
     println!("    y / Y       Yank relative / absolute path");
     println!("    i           Toggle gitignore filter (hide .gitignored files)");
     println!("    d           Toggle diff preview R           Refresh git status");
+    println!("    J           Extend selection down  K           Extend selection up");
     println!("    Space       Toggle file selection v          Select all files");
     println!("    n / F2      Quick rename (inline bar pre-filled with current name)");
     println!("    r           Bulk rename selected files with regex  Esc  Clear selections");

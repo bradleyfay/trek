@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-03-24
+
+### Added
+- **`J` / `K` — range selection**: pressing `J` (Shift+j) marks the current entry as selected, moves the cursor down, and marks the new current entry; `K` does the same moving up; enables fast contiguous multi-file selection without pressing Space on each entry individually
+- Both `J` and `K` include all entry types (files and directories) in the selection so bulk copy (`C`) and bulk delete (`X`) work naturally with directory entries; `start_rename` (`r`) filters out directories and shows an informative message if no files remain
+- `J`/`K` stop at list boundaries without wrapping — the boundary entry is marked and the cursor stays
+- Updated `start_rename()` guard: previously rejected an empty `rename_selected` set; now rejects selections that contain no *file* entries (e.g. only directories from range selection) with the message "No files selected (directories cannot be renamed in bulk)"
+- `J`/`K` registered in the command palette under "Extend selection down/up (range select)"
+- `J`/`K` documented in help overlay (`?`) under Selection & Rename and in `--help` output
+- 6 new unit tests: down marks both endpoints, up marks both endpoints, bottom boundary stays and marks, top boundary stays and marks, directories included in range selection, only-dirs selection shows appropriate message in start_rename
+
 ## [0.21.0] - 2026-03-24
 
 ### Added
