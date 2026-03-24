@@ -1,6 +1,6 @@
 # Keybinding Reference
 
-Trek v0.49.0
+Trek v0.51.0
 
 This page lists every keybinding available in Trek, organized by category.
 If you can't find what you need here, press `:` to open the command palette and
@@ -112,7 +112,7 @@ system. Creation always produces a `.tar.gz` archive.
 | `N` | Toggle directory item counts |
 | `i` | Toggle gitignore filter |
 | `w` | Collapse / expand preview pane |
-| `I` | Toggle watch mode (auto-refresh on filesystem changes) |
+| `I` | Toggle watch mode off/on (on by default; disables auto-refresh when toggled off) |
 
 ---
 

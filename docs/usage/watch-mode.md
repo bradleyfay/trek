@@ -1,41 +1,47 @@
 # Watch Mode
 
-Watch mode keeps the Trek file listing current without manual refreshes. When active, Trek detects changes to the current directory and reloads automatically.
+Trek automatically watches the current directory for filesystem changes and refreshes the listing within ~150 ms — no configuration required. Watch mode is always on by default.
 
 ---
 
 ## Toggling Watch Mode (`I`)
 
-Press `I` (uppercase) to enable watch mode. Press `I` again to disable it.
+Press `I` (uppercase) to disable watch mode. Press `I` again to re-enable it.
 
 | State | Status bar message |
 |-------|--------------------|
-| Enabled | `"Watch mode ON — listing auto-refreshes on changes"` |
+| Enabled (default) | `"Watch mode ON — listing auto-refreshes on changes"` |
 | Disabled | `"Watch mode OFF"` |
 
-While watch mode is active, a cyan `[watch]` badge appears in the path bar as a persistent indicator.
+When watch mode is active, a cyan `[watch]` badge appears in the path bar. When you disable it, the badge disappears and the listing no longer auto-refreshes — use `R` to refresh manually.
 
 ---
 
 ## How It Works
 
-Trek polls the current directory's modification time (`mtime`) at a 500ms interval. When a change is detected, it reloads the directory listing and attempts to restore the cursor to the previously selected entry by name, so the cursor does not jump to an unexpected position after a refresh.
+Trek uses OS-native filesystem events via the `notify` crate — FSEvents on macOS and inotify on Linux. This means changes appear within ~150 ms of any file creation, deletion, rename, or modification in the current directory, without polling.
 
-The poll interval is short enough to catch rapid changes (build output, log rotation) without busy-waiting or noticeable CPU overhead.
+A debounce window of 150 ms coalesces rapid bursts (such as `git checkout` touching many files) into a single reload. When a reload occurs, Trek attempts to restore the cursor to the previously selected entry by name so the cursor does not jump to an unexpected position.
+
+The watcher updates automatically when you navigate to a new directory.
+
+**Graceful degradation:** if the OS watcher fails to start (for example, due to an inotify instance limit or a read-only filesystem), Trek continues working normally and falls back to manual `R` refresh.
 
 ---
 
 ## Use Cases
 
-Watch mode is useful any time the contents of a directory change without your direct involvement:
+Because watch mode is always on, the file tree stays current without any action on your part. This is especially useful when:
 
-- **Build output** — monitor a `dist/` or `target/` directory for newly built artifacts
-- **Log directories** — watch for new log files written by a running process
-- **Downloads** — keep a downloads folder current as files arrive
-- **Generated files** — observe test output, code generation, or data pipeline results as they are written
+- **Build output** — artifacts appear in `dist/` or `target/` as they are built
+- **Log directories** — new log files written by a running process appear immediately
+- **Downloads** — files appear in a downloads folder as they arrive
+- **Generated files** — test output, code generation, or data pipeline results are visible as they are written
+
+If you find the auto-refresh distracting in a particular session, press `I` to turn it off.
 
 ---
 
 ## Limitations
 
-Watch mode monitors the current directory only. Navigating to a different directory while watch mode is active will begin monitoring the new directory. Watch mode does not recursively watch subdirectories.
+Watch mode monitors the current directory only. Navigating to a different directory automatically moves the watcher to the new location. Watch mode does not recursively watch subdirectories.
