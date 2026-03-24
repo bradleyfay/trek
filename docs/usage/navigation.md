@@ -13,7 +13,7 @@ Move the cursor and change directories with these keys:
 | `j` / `↓` | Move cursor down |
 | `k` / `↑` | Move cursor up |
 | `h` / `←` | Go to parent directory |
-| `l` / `→` / `Enter` | Enter the selected directory, or open the selected file |
+| `l` / `→` / `Enter` | Enter the selected directory; open the selected file in a new cmux tab |
 | `g` | Jump to top of listing |
 | `G` | Jump to bottom of listing |
 | `~` | Go to your home directory |

@@ -53,7 +53,7 @@ Trek supports both keyboard and mouse. Use whichever feels natural.
 | `j` or `Down` | Move cursor down |
 | `k` or `Up` | Move cursor up |
 | `h` or `Left` | Go to parent directory |
-| `l`, `Enter`, or `Right` | Enter directory / open file |
+| `l`, `Enter`, or `Right` | Enter directory; open file in a new cmux tab |
 | `g` | Jump to top of list |
 | `G` | Jump to bottom of list |
 
@@ -69,14 +69,23 @@ Trek supports both keyboard and mouse. Use whichever feels natural.
 
 ## Opening Files
 
-When a file is selected in the center pane, you have two ways to open it:
+When a file is selected in the center pane, pressing `l`, `Enter`, or `Right` opens it in a new cmux tab. Trek routes by file type automatically:
+
+- HTML, images, and PDFs open with the system default application (`open` on macOS, `xdg-open` on Linux).
+- All other text and code files open in `$EDITOR` inside a new terminal surface.
+
+If Trek is not running inside cmux, a status-bar message tells you so and no external action is taken.
+
+You can also open files directly without cmux routing:
 
 | Key | Action |
 |---|---|
 | `o` | Open in `$EDITOR` (your default terminal editor) |
 | `O` | Open with the system default application |
 
-Trek routes files based on type. Directories are always navigated in-place. Other file types open in the appropriate external tool.
+To copy a file path to the clipboard without opening the file, press `y` (relative path) or `Y` (absolute path).
+
+Directories are always navigated in-place regardless of which key you use.
 
 ---
 

@@ -8,9 +8,24 @@ Trek handles the full range of day-to-day file management tasks: creating, copyi
 
 | Key | Action |
 |-----|--------|
+| `l` / `→` / `Enter` | Enter a directory; for files, open in a new cmux tab (routes by file type — see below) |
 | `o` | Open in terminal editor — checks `$VISUAL`, then `$EDITOR`, then falls back to `vi` |
 | `O` | Open with system default — `open` on macOS, `xdg-open` on Linux |
-| `l` / `Enter` | Enter a directory; for files, opens in the terminal editor |
+
+### File routing with `l` / `→` / `Enter`
+
+When you press `l`, `→`, or `Enter` on a file, Trek routes it based on type:
+
+| File type | Opens with |
+|-----------|-----------|
+| HTML (`.html`, `.htm`) | System default opener (`open` / `xdg-open`) |
+| Images (`.png`, `.jpg`, `.gif`, etc.) | System default opener |
+| PDFs (`.pdf`) | System default opener |
+| All other text / code files | `$EDITOR` in a new terminal surface |
+
+This requires Trek to be running inside cmux. When Trek is not running inside cmux, a status-bar message appears instead. Use `o` or `O` as alternatives in that case.
+
+To copy a file's path to the clipboard instead of opening it, use `y` (relative path) or `Y` (absolute path) from the Yanking Paths section below.
 
 ---
 

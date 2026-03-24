@@ -1,6 +1,6 @@
 # Keybinding Reference
 
-Trek v0.51.0
+Trek v0.52.0
 
 This page lists every keybinding available in Trek, organized by category.
 If you can't find what you need here, press `:` to open the command palette and
@@ -15,7 +15,7 @@ type any part of the action name to find and run it.
 | `j` / `↓` | Move cursor down |
 | `k` / `↑` | Move cursor up |
 | `h` / `←` | Go to parent directory |
-| `l` / `→` / `Enter` | Enter directory or open file |
+| `l` / `→` / `Enter` | Enter directory; open file in a new cmux tab (see [cmux Integration](#cmux-integration)) |
 | `g` | Jump to top of listing |
 | `G` | Jump to bottom of listing |
 | `~` | Go to home directory |
@@ -31,6 +31,23 @@ type any part of the action name to find and run it.
 Session marks are saved when you quit with `q` or `Q` and restored the next
 time Trek launches without arguments. For always-available bookmarks, see the
 Bookmarks section below.
+
+---
+
+## cmux Integration
+
+Pressing `l`, `→`, or `Enter` on a **file** opens it in a new cmux surface. Trek routes the file based on its type:
+
+| File type | Opens with |
+|-----------|-----------|
+| HTML (`.html`, `.htm`) | System default opener (`open` / `xdg-open`) |
+| Images (`.png`, `.jpg`, `.gif`, etc.) | System default opener |
+| PDFs (`.pdf`) | System default opener |
+| All other text / code files | `$EDITOR` in a new terminal surface |
+
+When Trek is not running inside cmux, pressing `l`, `→`, or `Enter` on a file falls back gracefully and shows a hint in the status bar. Use `o` to open in `$EDITOR` directly, or `O` to open with the system default, without requiring cmux.
+
+To copy a file path without opening the file, use `y` (relative path) or `Y` (absolute path). The `l/→/Enter` keys no longer yank to the clipboard.
 
 ---
 
