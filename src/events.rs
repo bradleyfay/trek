@@ -59,11 +59,12 @@ pub fn run(
         // the loop can process OS-native directory events even when idle.
         // try_recv() is non-blocking — zero cost on the hot path when nothing
         // has changed.
-        let maybe_event = if app.watcher.is_some() {
+        let maybe_event = if app.watcher.is_some() || app.recursive_watcher.is_some() {
             if event::poll(Duration::from_millis(150))? {
                 Some(event::read()?)
             } else {
                 app.check_watcher();
+                app.check_recursive_watcher();
                 None
             }
         } else {
@@ -235,9 +236,20 @@ pub fn run(
                         }
                         _ => {}
                     }
+                } else if app.change_feed_mode {
+                    match key.code {
+                        KeyCode::Esc | KeyCode::Char('F') => app.toggle_change_feed(),
+                        KeyCode::Up | KeyCode::Char('k') => app.change_feed_move_up(),
+                        KeyCode::Down | KeyCode::Char('j') => app.change_feed_move_down(),
+                        KeyCode::Enter | KeyCode::Char('l') | KeyCode::Right => {
+                            app.jump_to_feed_entry()
+                        }
+                        KeyCode::Char('c') => app.clear_change_feed(),
+                        _ => {}
+                    }
                 } else if app.clipboard_inspect_mode {
                     match key.code {
-                        KeyCode::Esc | KeyCode::Char('F') | KeyCode::Char('q') => {
+                        KeyCode::Esc | KeyCode::F(9) | KeyCode::Char('q') => {
                             app.close_clipboard_inspect()
                         }
                         KeyCode::Char('p') => {
@@ -317,7 +329,8 @@ pub fn run(
                         KeyCode::Char('T') => app.toggle_timestamps(),
                         KeyCode::Char('U') => app.toggle_preview_wrap(),
                         KeyCode::Char('N') => app.toggle_dir_counts(),
-                        KeyCode::Char('F') => app.open_clipboard_inspect(),
+                        KeyCode::Char('F') => app.toggle_change_feed(),
+                        KeyCode::F(9) => app.open_clipboard_inspect(),
                         KeyCode::Char('z') => app.open_frecency(),
                         KeyCode::Char('P') => app.begin_chmod(),
                         KeyCode::Char('R') => app.refresh_git_status(),
@@ -552,6 +565,7 @@ fn execute_palette_action(
         ActionId::BeginExtract => app.begin_extract(),
         ActionId::InspectClipboard => app.open_clipboard_inspect(),
         ActionId::OpenFrecency => app.open_frecency(),
+        ActionId::ToggleChangeFeed => app.toggle_change_feed(),
         ActionId::OpenInCmuxTab => app.open_in_cmux_tab(),
         ActionId::OpenToTheRight => app.open_to_the_right(),
         ActionId::ShowHelp => app.show_help = true,

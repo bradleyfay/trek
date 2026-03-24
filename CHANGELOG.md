@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.56.0] - 2026-03-24
+
+### Added
+- **Live change feed** (`F`) — press `F` to open a real-time overlay in the preview pane area showing every filesystem event under the project root (detected via `git rev-parse --show-toplevel`, falling back to Trek's launch directory). Events are listed most-recent-first with a relative age (`mm:ss`), a kind symbol (`+` created, `~` modified, `✕` deleted), and a path relative to the project root. Navigate with `j`/`k`, jump to a file with `Enter`/`l`, clear the buffer with `c`, and close with `F` or `Esc`. The buffer holds up to 500 events; oldest are evicted when full. Build artifact directories (`.git/`, `target/`, `node_modules/`, `__pycache__/`, `.next/`, `dist/`, `build/`) are suppressed from the feed. The feed header shows `(paused)` when watch mode is disabled (`I`).
+- **Toggle change feed** action added to the command palette as `"Toggle change feed (live filesystem event stream)"`.
+
+### Changed
+- **Clipboard inspector keybinding moved** from `F` to `F9` — `F` is now reserved for the change feed. The action remains accessible via the command palette as `"Inspect clipboard contents"` and the help overlay is updated accordingly.
+
 ## [0.55.0] - 2026-03-24
 
 ### Added

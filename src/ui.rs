@@ -84,7 +84,11 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         draw_current_pane(f, app, pane_chunks[1]);
     }
     if !app.preview_collapsed {
-        draw_preview_pane(f, app, pane_chunks[2]);
+        if app.change_feed_mode {
+            draw_change_feed_pane(f, app, pane_chunks[2]);
+        } else {
+            draw_preview_pane(f, app, pane_chunks[2]);
+        }
     }
 
     // Draw bottom bar.
@@ -954,6 +958,133 @@ fn draw_preview_pane(f: &mut Frame, app: &App, area: Rect) {
                 };
                 f.render_widget(Paragraph::new(Line::from(Span::styled(ch, style))), r);
             }
+        }
+    }
+}
+
+/// Render the live change feed in the preview pane area when change_feed_mode is on.
+fn draw_change_feed_pane(f: &mut Frame, app: &App, area: Rect) {
+    use crate::app::change_feed::FeedEventKind;
+
+    let paused = app.recursive_watcher.is_none();
+    let title = if paused {
+        " Change Feed (paused) "
+    } else {
+        " Change Feed "
+    };
+
+    let block = Block::default()
+        .title(title)
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::Cyan));
+
+    let inner = block.inner(area);
+    f.render_widget(block, area);
+
+    if app.change_feed.events.is_empty() {
+        let msg = Paragraph::new(Line::from(Span::styled(
+            "No changes recorded yet",
+            Style::default().fg(Color::DarkGray),
+        )))
+        .alignment(ratatui::layout::Alignment::Center);
+        f.render_widget(msg, inner);
+        return;
+    }
+
+    let now = std::time::Instant::now();
+    let height = inner.height as usize;
+    let total = app.change_feed.events.len();
+    let selected = app.change_feed.selected;
+
+    // Compute a scroll window that keeps `selected` visible.
+    let scroll_offset = if selected < height {
+        0
+    } else {
+        selected - height + 1
+    };
+
+    let items: Vec<ListItem> = app
+        .change_feed
+        .events
+        .iter()
+        .enumerate()
+        .skip(scroll_offset)
+        .take(height)
+        .map(|(idx, ev)| {
+            let elapsed = now.duration_since(ev.recorded_at);
+            let secs = elapsed.as_secs();
+            let age = format!("{:02}:{:02}", secs / 60, secs % 60);
+
+            // Compute path relative to the feed root.
+            let display_path = ev
+                .path
+                .strip_prefix(&app.change_feed_root)
+                .unwrap_or(&ev.path)
+                .to_string_lossy()
+                .into_owned();
+
+            // Left-truncate to fit the pane width.
+            let max_path_chars = inner.width.saturating_sub(12) as usize;
+            let display_path =
+                if display_path.chars().count() > max_path_chars && max_path_chars > 3 {
+                    let skip = display_path.chars().count() - max_path_chars + 1;
+                    format!("…{}", &display_path[skip..])
+                } else {
+                    display_path
+                };
+
+            let sym = ev.kind.symbol();
+            let sym_color = match ev.kind {
+                FeedEventKind::Created => Color::Green,
+                FeedEventKind::Modified => Color::Yellow,
+                FeedEventKind::Deleted => Color::Red,
+            };
+
+            let is_selected = idx == selected;
+            let base_style = if is_selected {
+                Style::default().add_modifier(Modifier::REVERSED)
+            } else {
+                Style::default()
+            };
+
+            let line = Line::from(vec![
+                Span::styled(format!(" {:>5}  ", age), base_style.fg(Color::DarkGray)),
+                Span::styled(
+                    format!("{} ", sym),
+                    if is_selected {
+                        base_style.fg(sym_color)
+                    } else {
+                        Style::default().fg(sym_color)
+                    },
+                ),
+                Span::styled(display_path, base_style),
+            ]);
+
+            ListItem::new(line)
+        })
+        .collect();
+
+    let list = List::new(items);
+    f.render_widget(list, inner);
+
+    // Scrollbar indicator when there are more events than visible rows.
+    if total > height {
+        let indicator = format!(" {}/{} ", selected + 1, total);
+        let ind_len = indicator.len() as u16;
+        if inner.width > ind_len + 2 {
+            let ind_area = Rect::new(
+                inner.x + inner.width - ind_len,
+                inner.y + inner.height.saturating_sub(1),
+                ind_len,
+                1,
+            );
+            f.render_widget(
+                Paragraph::new(Span::styled(
+                    indicator,
+                    Style::default().fg(Color::DarkGray),
+                )),
+                ind_area,
+            );
         }
     }
 }
@@ -1882,6 +2013,7 @@ fn draw_help_overlay(f: &mut Frame, size: Rect) {
         key_line("U", "Toggle preview word wrap"),
         key_line("N", "Toggle directory item counts"),
         key_line("P", "Edit file permissions (chmod)"),
+        key_line("F", "Toggle change feed (live filesystem events)"),
         key_line("R", "Refresh git status"),
         key_line("S", "Cycle sort: Name/Size/Modified/Ext"),
         key_line("s", "Toggle sort order ↑↓"),
@@ -1902,7 +2034,7 @@ fn draw_help_overlay(f: &mut Frame, size: Rect) {
         key_line("O", "Open with system default (background)"),
         key_line("c / C", "Copy current / selected"),
         key_line("x", "Cut current to clipboard"),
-        key_line("F", "Inspect clipboard contents"),
+        key_line("F9", "Inspect clipboard contents"),
         key_line("p", "Paste clipboard into current dir"),
         key_line("Delete / X", "Trash current / selected (recoverable)"),
         key_line("u", "Undo last trash operation"),

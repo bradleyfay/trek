@@ -9,6 +9,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 mod bookmarks;
+pub mod change_feed;
+mod change_feed_ops;
 mod cmux;
 mod content;
 mod file_ops;
@@ -383,6 +385,18 @@ pub struct App {
     pub last_click_time: Option<std::time::Instant>,
     /// Terminal cell position (col, row) of the most recent left-button click.
     pub last_click_pos: Option<(u16, u16)>,
+
+    // --- Live change feed (F) ---
+    /// Recursive watcher watching the project root for all filesystem events.
+    /// Feeds events exclusively into `change_feed`. Separate from the
+    /// non-recursive `watcher` that triggers directory-listing refresh.
+    pub recursive_watcher: Option<crate::watcher::RecursiveWatcher>,
+    /// Buffer of recent filesystem events fed by the recursive watcher.
+    pub change_feed: change_feed::ChangeFeed,
+    /// True while the change feed pane is open (replaces preview pane area).
+    pub change_feed_mode: bool,
+    /// Root directory being watched recursively. Used to compute relative paths.
+    pub change_feed_root: PathBuf,
 }
 
 #[derive(Clone)]
@@ -403,6 +417,25 @@ impl App {
             Some(dir) => dir,
             None => std::env::current_dir()?,
         };
+
+        // Determine the recursive-watch root: git repo root, or cwd as fallback.
+        let feed_root = std::process::Command::new("git")
+            .args(["rev-parse", "--show-toplevel"])
+            .current_dir(&cwd)
+            .output()
+            .ok()
+            .and_then(|o| {
+                if o.status.success() {
+                    let s = String::from_utf8(o.stdout).ok()?;
+                    Some(PathBuf::from(s.trim()))
+                } else {
+                    None
+                }
+            })
+            .unwrap_or_else(|| cwd.clone());
+
+        let recursive_watcher = crate::watcher::RecursiveWatcher::new(&feed_root);
+
         let mut app = Self {
             cwd: cwd.clone(),
             entries: Vec::new(),
@@ -513,6 +546,10 @@ impl App {
             frecency_query: String::new(),
             last_click_time: None,
             last_click_pos: None,
+            recursive_watcher,
+            change_feed: change_feed::ChangeFeed::new(),
+            change_feed_mode: false,
+            change_feed_root: feed_root,
         };
         app.load_dir();
         Ok(app)
