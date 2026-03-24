@@ -393,4 +393,24 @@ impl App {
         self.load_dir();
         self.status_message = Some(format!("\u{2192} {} (mark '{}')", short, c));
     }
+
+    // --- Preview pane collapse (w) ---
+
+    /// Toggle the right preview pane between hidden and its saved width.
+    ///
+    /// When collapsing, `right_div` is saved to `preview_right_div` and set to
+    /// `1.0`, which causes the layout math to give the preview zero columns.
+    /// When expanding, `right_div` is restored from `preview_right_div`.
+    pub fn toggle_preview_pane(&mut self) {
+        if self.preview_collapsed {
+            self.right_div = self.preview_right_div;
+            self.preview_collapsed = false;
+            self.status_message = Some("Preview: shown".to_string());
+        } else {
+            self.preview_right_div = self.right_div;
+            self.right_div = 1.0;
+            self.preview_collapsed = true;
+            self.status_message = Some("Preview: hidden".to_string());
+        }
+    }
 }

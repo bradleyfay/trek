@@ -86,6 +86,7 @@ pub fn print_help() {
     println!("    i           Toggle gitignore filter (hide .gitignored files)");
     println!("    d           Toggle diff preview R           Refresh git status");
     println!("    H           Toggle hash preview (SHA-256 checksum)");
+    println!("    w           Toggle preview pane (hide/show right pane)");
     println!("    J           Extend selection down  K           Extend selection up");
     println!("    Space       Toggle file selection v          Select all files");
     println!("    *           Select files by glob pattern (e.g. *.rs, *.log, test_?)");

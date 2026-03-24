@@ -118,6 +118,12 @@ pub struct App {
     /// Fraction of width where the right divider sits.
     pub right_div: f64,
 
+    // --- Preview pane collapse (w) ---
+    /// True when the right preview pane is collapsed (hidden).
+    pub preview_collapsed: bool,
+    /// Saved `right_div` ratio restored when expanding the pane.
+    pub preview_right_div: f64,
+
     // --- Drag state ---
     pub drag: Option<DragTarget>,
 
@@ -367,6 +373,8 @@ impl App {
             term_width: 0,
             left_div: 0.20,
             right_div: 0.55,
+            preview_collapsed: false,
+            preview_right_div: 0.55,
             drag: None,
             left_div_col: 0,
             right_div_col: 0,
