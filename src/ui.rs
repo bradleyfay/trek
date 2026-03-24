@@ -809,7 +809,9 @@ fn draw_preview_pane(f: &mut Frame, app: &App, area: Rect) {
         .entries
         .get(app.selected)
         .map(|e| {
-            let mut t = if app.hex_view_mode {
+            let mut t = if app.du_preview_mode && e.is_dir {
+                format!("{} [du]", e.name)
+            } else if app.hex_view_mode {
                 format!("{} [hex]", e.name)
             } else if app.preview_is_diff {
                 format!("{} [diff]", e.name)
@@ -1966,7 +1968,7 @@ fn draw_yank_picker(f: &mut Frame, app: &App, size: Rect) {
 
 fn draw_help_overlay(f: &mut Frame, size: Rect) {
     let width = 60u16.min(size.width.saturating_sub(4));
-    let height = 94u16.min(size.height.saturating_sub(4));
+    let height = 96u16.min(size.height.saturating_sub(4));
     let x = (size.width.saturating_sub(width)) / 2;
     let y = (size.height.saturating_sub(height)) / 2;
     let area = Rect::new(x, y, width, height);
@@ -2013,6 +2015,7 @@ fn draw_help_overlay(f: &mut Frame, size: Rect) {
         key_line("i", "Toggle gitignore filter (hide ignored files)"),
         key_line("d", "Toggle git diff preview"),
         key_line("V", "Toggle git log preview (commit history)"),
+        key_line("D", "Toggle disk usage breakdown for directory"),
         key_line("f", "Compare two selected files (unified diff)"),
         key_line("m", "Toggle file metadata view"),
         key_line("H", "Toggle hash preview (SHA-256 checksum)"),

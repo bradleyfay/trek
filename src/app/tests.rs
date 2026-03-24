@@ -3427,3 +3427,69 @@ fn session_path_ends_with_trek_session() {
         assert!(p.ends_with("trek/session"), "got: {}", p.display());
     });
 }
+
+/// Given: a directory is selected
+/// When: toggle_du_preview is called
+/// Then: du_preview_mode becomes true
+#[test]
+fn toggle_du_preview_on_dir_enters_mode() {
+    let tmp = std::env::temp_dir().join(format!("trek_du_on_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::create_dir_all(tmp.join("sub")).unwrap();
+    let mut app = make_app_at(&tmp);
+    app.toggle_du_preview();
+    assert!(app.du_preview_mode);
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: a file is selected
+/// When: toggle_du_preview is called
+/// Then: du_preview_mode stays false and status_message is set
+#[test]
+fn toggle_du_preview_on_file_shows_status() {
+    let tmp = std::env::temp_dir().join(format!("trek_du_file_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("file.txt"), b"hello").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.toggle_du_preview();
+    assert!(!app.du_preview_mode);
+    assert!(app.status_message.is_some());
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: du_preview_mode is true
+/// When: toggle_du_preview is called again
+/// Then: du_preview_mode becomes false
+#[test]
+fn toggle_du_preview_second_press_exits_mode() {
+    let tmp = std::env::temp_dir().join(format!("trek_du_off_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::create_dir_all(tmp.join("sub")).unwrap();
+    let mut app = make_app_at(&tmp);
+    app.toggle_du_preview();
+    assert!(app.du_preview_mode);
+    app.toggle_du_preview();
+    assert!(!app.du_preview_mode);
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: du_preview_mode is active
+/// When: toggle_meta_preview is called
+/// Then: du_preview_mode is cleared (mutual exclusion)
+#[test]
+fn toggle_meta_clears_du_preview_mode() {
+    let tmp = std::env::temp_dir().join(format!("trek_du_meta_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::create_dir_all(tmp.join("sub")).unwrap();
+    let mut app = make_app_at(&tmp);
+    app.toggle_du_preview();
+    assert!(app.du_preview_mode);
+    // Navigate to a file so meta can toggle
+    std::fs::write(tmp.join("afile.txt"), b"x").unwrap();
+    // Reload to pick up file
+    app = make_app_at(&tmp);
+    app.toggle_du_preview();
+    app.toggle_meta_preview();
+    assert!(!app.du_preview_mode);
+    let _ = std::fs::remove_dir_all(&tmp);
+}

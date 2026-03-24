@@ -87,6 +87,7 @@ pub fn print_help() {
     println!("    i           Toggle gitignore filter (hide .gitignored files)");
     println!("    d           Toggle diff preview R           Refresh git status");
     println!("    V           Toggle git log preview (file/dir commit history)");
+    println!("    D           Toggle disk usage breakdown for selected directory");
     println!("    f           Compare two selected files (unified diff)");
     println!("    H           Toggle hash preview (SHA-256 checksum)");
     println!("    a           Toggle hex dump view (binary file inspection)");

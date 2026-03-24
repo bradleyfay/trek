@@ -60,6 +60,7 @@ pub enum ActionId {
     BeginSymlink,
     BeginExtract,
     ToggleGitLogPreview,
+    ToggleDuPreview,
     CompareFiles,
     ToggleHexView,
     InspectClipboard,
@@ -142,6 +143,11 @@ pub static PALETTE_ACTIONS: &[PaletteAction] = &[
         id: ActionId::ToggleGitLogPreview,
         name: "Toggle git log preview (file/dir commit history)",
         keys: "V",
+    },
+    PaletteAction {
+        id: ActionId::ToggleDuPreview,
+        name: "Toggle disk usage preview for directory",
+        keys: "D",
     },
     PaletteAction {
         id: ActionId::CompareFiles,
