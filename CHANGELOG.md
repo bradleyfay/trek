@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.30.0] - 2026-03-24
+
+### Added
+- **`L` — create symlink**: press `L` on any file or directory to open a `Symlink → <target> :` bar (LightBlue label) pre-filled with the entry's name; press Enter to create a symbolic link at `cwd/<name>` pointing to the selected entry's absolute path; the listing refreshes and the cursor selects the new symlink
+- Uses `symlink_metadata().is_ok()` (not just `.exists()`) to detect dangling symlinks that `.exists()` misses — prevents accidental overwrites of broken link names
+- `git_status` refreshed after creation so newly created symlinks appear with correct status indicators
+- Error cases: empty name → "Symlink name cannot be empty"; destination exists → "'<name>' already exists"; other OS error → "symlink failed: <message>"
+- `L` on empty directory is a no-op (bar does not open)
+- Non-Unix platforms: confirming shows "Symlink creation requires a Unix system" instead of panicking (`#[cfg(unix)]` guard)
+- Completes Trek's file-creation suite: `M` (directory), `t` (file), `W` (duplicate), `L` (symlink)
+- `L` registered in the command palette as "Create symlink to selected entry"
+- `L` documented in help overlay (`?`) under File Operations and in `--help` output
+- 7 new BDD-style unit tests; all 187 tests pass
+
 ## [0.29.0] - 2026-03-24
 
 ### Added

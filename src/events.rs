@@ -75,6 +75,14 @@ pub fn run(
                         KeyCode::Char(c) => app.dup_push_char(c),
                         _ => {}
                     }
+                } else if app.symlink_mode {
+                    match key.code {
+                        KeyCode::Esc => app.cancel_symlink(),
+                        KeyCode::Enter => app.confirm_symlink(),
+                        KeyCode::Backspace => app.symlink_pop_char(),
+                        KeyCode::Char(c) => app.symlink_push_char(c),
+                        _ => {}
+                    }
                 } else if app.content_search_mode {
                     match key.code {
                         KeyCode::Esc => app.cancel_content_search(),
@@ -277,6 +285,7 @@ pub fn run(
                         KeyCode::Char('M') => app.begin_mkdir(),
                         KeyCode::Char('t') => app.begin_touch(),
                         KeyCode::Char('W') => app.begin_dup(),
+                        KeyCode::Char('L') => app.begin_symlink(),
                         // Quick single-file rename
                         KeyCode::Char('n') | KeyCode::F(2) => app.begin_quick_rename(),
                         KeyCode::Char('u') => app.undo_trash(),
@@ -459,6 +468,7 @@ fn execute_palette_action(
         ActionId::PathJump => app.begin_path_jump(),
         ActionId::GlobSelect => app.begin_glob_select(),
         ActionId::BeginDup => app.begin_dup(),
+        ActionId::BeginSymlink => app.begin_symlink(),
         ActionId::ShowHelp => app.show_help = true,
         // Quit appears in the palette for discoverability but cannot break out
         // of the event loop from here — use q directly.

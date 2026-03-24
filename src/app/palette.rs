@@ -52,6 +52,7 @@ pub enum ActionId {
     PathJump,
     GlobSelect,
     BeginDup,
+    BeginSymlink,
     ShowHelp,
     Quit,
 }
@@ -295,6 +296,11 @@ pub static PALETTE_ACTIONS: &[PaletteAction] = &[
         id: ActionId::BeginDup,
         name: "Duplicate entry in place",
         keys: "W",
+    },
+    PaletteAction {
+        id: ActionId::BeginSymlink,
+        name: "Create symlink to selected entry",
+        keys: "L",
     },
     PaletteAction {
         id: ActionId::ShowHelp,
