@@ -1,0 +1,51 @@
+fail_fast = true
+
+# ── Built-in file hygiene ────────────────────────────────────────────────────
+
+[[repos]]
+repo = "builtin"
+
+[[repos.hooks]]
+id = "trailing-whitespace"
+exclude = "^(CHANGELOG\\.md)$"
+
+[[repos.hooks]]
+id = "end-of-file-fixer"
+
+[[repos.hooks]]
+id = "check-toml"
+
+[[repos.hooks]]
+id = "check-yaml"
+
+[[repos.hooks]]
+id = "check-merge-conflict"
+
+[[repos.hooks]]
+id = "check-added-large-files"
+args = ["--maxkb=500"]
+
+[[repos.hooks]]
+id = "detect-private-key"
+
+# ── Rust ─────────────────────────────────────────────────────────────────────
+
+[[repos]]
+repo = "local"
+
+[[repos.hooks]]
+id = "cargo-fmt"
+name = "cargo fmt"
+language = "system"
+entry = "cargo fmt --"
+files = "\\.rs$"
+priority = 1
+
+[[repos.hooks]]
+id = "cargo-clippy"
+name = "cargo clippy"
+language = "system"
+entry = "cargo clippy -- -D warnings"
+files = "\\.rs$"
+pass_filenames = false
+priority = 2
