@@ -10,6 +10,7 @@ mod icons;
 mod ops;
 mod rename;
 mod search;
+mod session;
 mod shell;
 mod trash;
 mod ui;

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.45.0] - 2026-03-24
+
+### Added
+- **Session persistence**: Trek now saves `cwd` and all marks to `~/.local/share/trek/session` (or `$XDG_DATA_HOME/trek/session`) on clean exit, and restores them on the next launch
+- Marks (`\`a`–`\`z`, `\`A`–`\`Z`) survive restarts — no need to re-navigate and re-set them
+- If Trek is launched with an explicit path argument, the saved cwd is ignored (explicit always wins)
+- Saved paths that no longer exist are silently skipped — Trek starts without them
+- Write failures on quit are non-fatal — Trek never crashes due to a failed session save
+- Follows the same XDG-aware, no-new-dependencies pattern as `src/bookmarks.rs`
+
 ## [0.44.0] - 2026-03-24
 
 ### Added
