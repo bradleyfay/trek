@@ -294,6 +294,21 @@ pub fn run(
                         KeyCode::Char(c) if c.is_alphabetic() => app.jump_to_mark(c),
                         _ => app.mark_jump_mode = false,
                     }
+                } else if app.session_summary_mode {
+                    match key.code {
+                        KeyCode::Esc => app.close_session_summary(),
+                        KeyCode::Char('s') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                            app.close_session_summary()
+                        }
+                        KeyCode::Up | KeyCode::Char('k') => app.session_summary_move_up(),
+                        KeyCode::Down | KeyCode::Char('j') => app.session_summary_move_down(),
+                        KeyCode::Right | KeyCode::Char('l') | KeyCode::Enter => {
+                            app.session_summary_jump_to_selected()
+                        }
+                        KeyCode::Char('C') => app.reset_session_snapshot(),
+                        KeyCode::Char('R') => app.refresh_session_summary(),
+                        _ => {}
+                    }
                 } else if app.archive_mode {
                     match key.code {
                         KeyCode::Esc | KeyCode::Char('q') => app.exit_archive(),
@@ -357,6 +372,9 @@ pub fn run(
                         KeyCode::Char('T') => app.toggle_timestamps(),
                         KeyCode::Char('t') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                             app.toggle_task_manager()
+                        }
+                        KeyCode::Char('s') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                            app.toggle_session_summary()
                         }
                         KeyCode::Char('U') => app.toggle_preview_wrap(),
                         KeyCode::Char('N') => app.toggle_dir_counts(),
@@ -598,6 +616,8 @@ fn execute_palette_action(
         ActionId::OpenFrecency => app.open_frecency(),
         ActionId::ToggleChangeFeed => app.toggle_change_feed(),
         ActionId::ToggleTaskManager => app.toggle_task_manager(),
+        ActionId::ToggleSessionSummary => app.toggle_session_summary(),
+        ActionId::ResetSessionCheckpoint => app.reset_session_snapshot(),
         ActionId::OpenInCmuxTab => app.open_in_cmux_tab(),
         ActionId::OpenToTheRight => app.open_to_the_right(),
         ActionId::ShowHelp => app.show_help = true,

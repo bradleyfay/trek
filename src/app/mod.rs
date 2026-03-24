@@ -30,6 +30,8 @@ mod preview;
 mod quick_rename;
 mod search;
 mod selection;
+pub mod session_snapshot;
+pub mod session_summary;
 mod sort;
 pub mod task_manager;
 mod task_ops;
@@ -427,6 +429,19 @@ pub struct App {
     pub archive_virt_dir: String,
     /// Flat list of all entry paths within the archive; populated on first load.
     pub archive_flat_paths: Vec<String>,
+
+    // --- Session change summary (S) ---
+    /// Filesystem snapshot taken when session summary mode was last reset, or on
+    /// first open if never explicitly reset. `None` until the first `S` press.
+    pub session_snapshot: Option<session_snapshot::SessionSnapshot>,
+    /// True while the session summary pane is open (replaces the center pane).
+    pub session_summary_mode: bool,
+    /// Cached diff result; `None` means stale and must be recomputed on next open.
+    pub session_summary_cache: Option<Vec<session_snapshot::ChangedFile>>,
+    /// Total number of changed files from the last diff (may exceed cache length).
+    pub session_summary_total: usize,
+    /// Cursor index within the session summary list.
+    pub session_summary_selected: usize,
 }
 
 #[derive(Clone)]
@@ -589,6 +604,11 @@ impl App {
             archive_path: None,
             archive_virt_dir: String::new(),
             archive_flat_paths: Vec::new(),
+            session_snapshot: None,
+            session_summary_mode: false,
+            session_summary_cache: None,
+            session_summary_total: 0,
+            session_summary_selected: 0,
         };
         app.load_dir();
         Ok(app)

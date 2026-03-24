@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.61.0] - 2026-03-24
+
+### Added
+- **Session change summary** (`Ctrl+S`) — answers "what changed during this conversation?" with a cross-file diff between a filesystem snapshot and the current state. The center pane shows all files grouped as **NEW**, **MODIFIED**, and **DELETED** since the checkpoint, with file sizes and byte deltas. The checkpoint is taken lazily on first open; press `C` inside the summary to reset it to now (e.g., at the start of a new AI session), or `R` to refresh without moving the baseline. `j`/`k` navigate the list; `l`/`Enter` exits summary mode and jumps directly to that file in the tree; `Esc` returns to normal navigation. Respects gitignore state and always includes hidden files so mid-session toggles don't create gaps. Capped at 200 entries for performance. Accessible from the command palette as "Session summary" and "Reset session checkpoint". The feature is implemented in a new, self-contained `session_snapshot` module.
+
 ## [0.60.0] - 2026-03-24
 
 ### Added
