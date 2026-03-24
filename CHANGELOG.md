@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.46.0] - 2026-03-24
+
+### Added
+- **`D` — disk usage preview**: press `D` on a directory to see its immediate children sorted largest-first with human-readable sizes and proportional Unicode block bars
+- Preview pane title shows `dirname [du]` when disk usage mode is active
+- Uses `du -k -d 1` (POSIX-compatible; works on macOS BSD `du` and Linux GNU `du`)
+- `D` on a file shows `"Disk usage view is for directories"` and does nothing
+- Empty directories show `"(empty directory)"`; graceful error if `du` is not found
+- Mutually exclusive with all other special preview modes (hash, hex, compare, meta, git log, diff)
+- `ToggleDuPreview` registered in the command palette (`D`) and `?` help overlay
+
 ## [0.45.0] - 2026-03-24
 
 ### Added

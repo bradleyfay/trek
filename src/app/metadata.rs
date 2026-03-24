@@ -55,6 +55,7 @@ impl App {
             self.git_log_mode = false; // mutually exclusive
             self.file_compare_mode = false; // mutually exclusive
             self.hex_view_mode = false; // mutually exclusive
+            self.du_preview_mode = false; // mutually exclusive
         }
         self.load_preview();
     }
@@ -153,6 +154,7 @@ impl App {
             self.git_log_mode = false; // mutually exclusive
             self.file_compare_mode = false; // mutually exclusive
             self.hex_view_mode = false; // mutually exclusive
+            self.du_preview_mode = false; // mutually exclusive
         }
         self.load_preview();
     }

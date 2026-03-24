@@ -63,6 +63,11 @@ impl App {
 
         if let Some(entry) = self.entries.get(self.selected).cloned() {
             if entry.is_dir {
+                // Disk usage breakdown replaces flat listing when active.
+                if self.du_preview_mode {
+                    self.preview_lines = Self::load_du_lines(&entry.path);
+                    return;
+                }
                 // Directories never show a diff preview.
                 if let Ok((children, _)) = Self::read_entries(
                     &entry.path,
@@ -180,6 +185,7 @@ impl App {
                 self.git_log_mode = false; // mutually exclusive
                 self.file_compare_mode = false; // mutually exclusive
                 self.hex_view_mode = false; // mutually exclusive
+                self.du_preview_mode = false; // mutually exclusive
             }
             self.load_preview();
         } else {
@@ -211,6 +217,7 @@ impl App {
             self.hash_preview_mode = false;
             self.git_log_mode = false;
             self.hex_view_mode = false;
+            self.du_preview_mode = false;
         }
         self.load_preview();
     }
@@ -233,6 +240,7 @@ impl App {
             self.diff_preview_mode = false;
             self.git_log_mode = false;
             self.file_compare_mode = false;
+            self.du_preview_mode = false;
         }
         self.load_preview();
     }
@@ -334,6 +342,7 @@ impl App {
             self.hash_preview_mode = false;
             self.file_compare_mode = false;
             self.hex_view_mode = false;
+            self.du_preview_mode = false;
         }
         self.load_preview();
     }
@@ -365,5 +374,110 @@ impl App {
             }
             _ => vec!["  (git log failed — not a git repository?)".to_string()],
         }
+    }
+
+    /// Toggle disk usage preview mode for the selected directory.
+    ///
+    /// No-op for files — shows a status message instead.
+    /// Mutually exclusive with all other special preview modes.
+    pub fn toggle_du_preview(&mut self) {
+        if let Some(entry) = self.entries.get(self.selected) {
+            if !entry.is_dir {
+                self.status_message = Some("Disk usage view is for directories".to_string());
+                return;
+            }
+        }
+        self.du_preview_mode = !self.du_preview_mode;
+        if self.du_preview_mode {
+            self.hash_preview_mode = false;
+            self.hex_view_mode = false;
+            self.file_compare_mode = false;
+            self.meta_preview_mode = false;
+            self.diff_preview_mode = false;
+            self.git_log_mode = false;
+        }
+        self.load_preview();
+    }
+
+    /// Build a disk-usage breakdown for `path` using `du -k -d 1`.
+    ///
+    /// Entries sorted largest-first with human-readable sizes and a
+    /// proportional 20-char Unicode block bar.
+    pub fn load_du_lines(path: &Path) -> Vec<String> {
+        let output = match Command::new("du")
+            .args(["-k", "-d", "1"])
+            .arg(path)
+            .output()
+        {
+            Ok(out) if out.status.success() => out,
+            Ok(out) => {
+                return vec![
+                    String::new(),
+                    format!(
+                        "  du failed: {}",
+                        String::from_utf8_lossy(&out.stderr).trim()
+                    ),
+                ]
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                return vec![
+                    String::new(),
+                    "  Disk usage requires 'du' (not found)".to_string(),
+                    String::new(),
+                    "  du is a POSIX standard tool — check your PATH".to_string(),
+                ]
+            }
+            Err(e) => return vec![String::new(), format!("  Failed to run du: {}", e)],
+        };
+
+        let text = String::from_utf8_lossy(&output.stdout);
+        let mut entries: Vec<(u64, String)> = text
+            .lines()
+            .filter_map(|line| {
+                let mut parts = line.splitn(2, '\t');
+                let kb: u64 = parts.next()?.trim().parse().ok()?;
+                let full_path = parts.next()?.trim();
+                let p = Path::new(full_path);
+                if p == path {
+                    return None;
+                }
+                let name = p
+                    .file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| full_path.to_string());
+                Some((kb, name))
+            })
+            .collect();
+
+        entries.sort_by(|a, b| b.0.cmp(&a.0));
+
+        if entries.is_empty() {
+            return vec![String::new(), "  (empty directory)".to_string()];
+        }
+
+        let max_kb = entries[0].0.max(1);
+        const BAR_WIDTH: usize = 20;
+        const BLOCK_CHARS: &[char] = &[' ', '▏', '▎', '▍', '▌', '▋', '▊', '▉', '█'];
+
+        let mut lines = vec![String::new()];
+        for (kb, name) in &entries {
+            let human = super::meta_human_size(*kb * 1024);
+            let filled_eighths = ((*kb as f64 / max_kb as f64) * BAR_WIDTH as f64 * 8.0) as usize;
+            let full_blocks = filled_eighths / 8;
+            let partial = filled_eighths % 8;
+            let mut bar = String::with_capacity(BAR_WIDTH + 4);
+            for _ in 0..full_blocks {
+                bar.push('█');
+            }
+            if partial > 0 && full_blocks < BAR_WIDTH {
+                bar.push(BLOCK_CHARS[partial]);
+            }
+            let remaining = BAR_WIDTH.saturating_sub(full_blocks + if partial > 0 { 1 } else { 0 });
+            for _ in 0..remaining {
+                bar.push('░');
+            }
+            lines.push(format!("  {:<30}  {:>10}  {}", name, human, bar));
+        }
+        lines
     }
 }

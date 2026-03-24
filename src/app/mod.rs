@@ -188,6 +188,10 @@ pub struct App {
     /// When true the preview pane shows a hex dump (xxd / hexdump -C).
     pub hex_view_mode: bool,
 
+    // --- Disk usage preview (D) ---
+    /// When true the preview pane shows a `du -k -d 1` breakdown of the selected directory.
+    pub du_preview_mode: bool,
+
     // --- chmod editor (P) ---
     /// True while the chmod input bar is open.
     pub chmod_mode: bool,
@@ -446,6 +450,7 @@ impl App {
             git_log_mode: false,
             file_compare_mode: false,
             hex_view_mode: false,
+            du_preview_mode: false,
             chmod_mode: false,
             chmod_input: String::new(),
             highlighter: Highlighter::new(),
