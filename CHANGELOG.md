@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-03-24
+
+### Added
+- **`*` — glob pattern selection**: opens an inline `Glob select:` input bar at the bottom (Magenta label); typing a glob pattern (e.g. `*.rs`, `*.log`, `test_?`) and pressing Enter adds all matching files in the current directory to the rename selection set (`rename_selected`); union semantics — multiple patterns can be chained without losing prior selections
+- `*` matches any sequence of characters (including empty); `?` matches exactly one character; all other characters (including `.`) are regex-escaped so `*.tar.gz` matches literal dots, not "any character"
+- Non-matching patterns display "No entries match: `<pattern>`" in the status bar; the bar closes regardless; directories are always excluded from matches
+- Empty pattern silently closes the bar (no-op); malformed patterns (invalid after glob→regex conversion) display "Invalid glob pattern: `<pattern>`"
+- Glob→regex conversion implemented as `glob_to_regex()` (private free function in `src/app/rename.rs`) using `regex::escape` for non-metacharacters — no new crate dependencies
+- `*` registered in the command palette as "Select files by glob pattern"
+- `*` documented in help overlay (`?`) under Selection & Rename and in `--help` output
+- 8 new unit tests: open bar, cancel without selecting, extension match, no-match message, union-add semantics, empty pattern noop, `?` single-char match, literal-dot handling
+
 ## [0.25.0] - 2026-03-24
 
 ### Added

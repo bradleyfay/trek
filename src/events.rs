@@ -148,6 +148,14 @@ pub fn run(
                         KeyCode::Char(c) => app.path_push_char(c),
                         _ => {}
                     }
+                } else if app.glob_mode {
+                    match key.code {
+                        KeyCode::Esc => app.cancel_glob_select(),
+                        KeyCode::Enter => app.confirm_glob_select(),
+                        KeyCode::Backspace => app.glob_pop_char(),
+                        KeyCode::Char(c) => app.glob_push_char(c),
+                        _ => {}
+                    }
                 } else if app.palette_mode {
                     match key.code {
                         KeyCode::Esc | KeyCode::Char(':') => app.close_palette(),
@@ -283,6 +291,8 @@ pub fn run(
                         KeyCode::Char('#') => app.toggle_line_numbers(),
                         // Path jump bar
                         KeyCode::Char('e') => app.begin_path_jump(),
+                        // Glob pattern selection
+                        KeyCode::Char('*') => app.begin_glob_select(),
                         // Open command palette
                         KeyCode::Char(':') => app.open_palette(),
                         // Open with system default (open on macOS, xdg-open on Linux)
@@ -400,6 +410,7 @@ fn execute_palette_action(
         ActionId::ScrollPreviewUp => app.scroll_preview_up(5),
         ActionId::ScrollPreviewDown => app.scroll_preview_down(5),
         ActionId::PathJump => app.begin_path_jump(),
+        ActionId::GlobSelect => app.begin_glob_select(),
         ActionId::ShowHelp => app.show_help = true,
         // Quit appears in the palette for discoverability but cannot break out
         // of the event loop from here — use q directly.

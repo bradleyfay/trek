@@ -101,6 +101,8 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         draw_quick_rename_bar(f, app, bottom_area);
     } else if app.path_mode {
         draw_path_jump_bar(f, app, bottom_area);
+    } else if app.glob_mode {
+        draw_glob_select_bar(f, app, bottom_area);
     } else if app.mkdir_mode {
         draw_mkdir_bar(f, app, bottom_area);
     } else if app.touch_mode {
@@ -451,6 +453,29 @@ fn draw_touch_bar(f: &mut Frame, app: &App, area: Rect) {
         Span::styled("\u{2588}", Style::default().fg(Color::White)),
         Span::styled(
             "  Enter: create   Esc: cancel",
+            Style::default().fg(Color::DarkGray),
+        ),
+    ]));
+    f.render_widget(para, area);
+}
+
+fn draw_glob_select_bar(f: &mut Frame, app: &App, area: Rect) {
+    let para = Paragraph::new(Line::from(vec![
+        Span::styled(
+            "Glob select: ",
+            Style::default()
+                .fg(Color::Magenta)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            &app.glob_input,
+            Style::default()
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled("\u{2588}", Style::default().fg(Color::White)),
+        Span::styled(
+            "  Enter: select   Esc: cancel  (e.g. *.rs  *.log  test_?)",
             Style::default().fg(Color::DarkGray),
         ),
     ]));
@@ -1505,7 +1530,7 @@ fn draw_palette_overlay(f: &mut Frame, app: &App, size: Rect) {
 
 fn draw_help_overlay(f: &mut Frame, size: Rect) {
     let width = 60u16.min(size.width.saturating_sub(4));
-    let height = 62u16.min(size.height.saturating_sub(4));
+    let height = 64u16.min(size.height.saturating_sub(4));
     let x = (size.width.saturating_sub(width)) / 2;
     let y = (size.height.saturating_sub(height)) / 2;
     let area = Rect::new(x, y, width, height);
@@ -1553,6 +1578,7 @@ fn draw_help_overlay(f: &mut Frame, size: Rect) {
         key_line("J / K", "Extend selection down / up (range select)"),
         key_line("Space", "Toggle file selection"),
         key_line("v", "Select all files"),
+        key_line("*", "Select files by glob pattern (e.g. *.rs)"),
         key_line("n / F2", "Quick rename (inline bar pre-filled)"),
         key_line("r", "Bulk rename selected files with regex"),
         key_line("Esc", "Clear filter (if active) or selections"),

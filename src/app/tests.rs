@@ -1583,3 +1583,198 @@ fn line_numbers_persist_across_navigation() {
     );
     let _ = std::fs::remove_dir_all(&tmp);
 }
+
+// ── glob pattern selection (*) tests ─────────────────────────────────────────
+
+/// Given: normal mode
+/// When: begin_glob_select() is called
+/// Then: glob_mode is true, glob_input is empty
+#[test]
+fn begin_glob_select_opens_bar() {
+    let tmp = std::env::temp_dir().join(format!("trek_glob_open_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let mut app = make_app_at(&tmp);
+    assert!(!app.glob_mode);
+    app.begin_glob_select();
+    assert!(app.glob_mode);
+    assert!(app.glob_input.is_empty());
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: glob mode open with pattern typed
+/// When: cancel_glob_select() is called
+/// Then: glob_mode is false, input cleared, selection unchanged
+#[test]
+fn cancel_glob_select_closes_without_selecting() {
+    let tmp = std::env::temp_dir().join(format!("trek_glob_cancel_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("a.rs"), b"").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.begin_glob_select();
+    app.glob_push_char('*');
+    app.glob_push_char('.');
+    app.glob_push_char('r');
+    app.glob_push_char('s');
+    app.cancel_glob_select();
+    assert!(!app.glob_mode);
+    assert!(app.glob_input.is_empty());
+    assert!(
+        app.rename_selected.is_empty(),
+        "selection should be unchanged"
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: directory with mixed files, pattern *.log
+/// When: confirm_glob_select() is called
+/// Then: only .log files are added to rename_selected
+#[test]
+fn confirm_glob_select_matches_extension() {
+    let tmp = std::env::temp_dir().join(format!("trek_glob_ext_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("build.log"), b"").unwrap();
+    std::fs::write(tmp.join("access.log"), b"").unwrap();
+    std::fs::write(tmp.join("main.rs"), b"").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.begin_glob_select();
+    for c in "*.log".chars() {
+        app.glob_push_char(c);
+    }
+    app.confirm_glob_select();
+    assert!(!app.glob_mode);
+    // Exactly 2 entries selected
+    assert_eq!(app.rename_selected.len(), 2);
+    // All selected entries are .log files
+    for &idx in &app.rename_selected {
+        let name = &app.entries[idx].name;
+        assert!(
+            name.ends_with(".log"),
+            "unexpected selected entry: {}",
+            name
+        );
+    }
+    // Status message mentions the count
+    let msg = app.status_message.as_deref().unwrap_or("");
+    assert!(msg.contains("2"), "status should report 2 matches: {}", msg);
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: a pattern that matches nothing
+/// When: confirm_glob_select() is called
+/// Then: rename_selected is empty, status message says no matches
+#[test]
+fn confirm_glob_select_no_match_shows_message() {
+    let tmp = std::env::temp_dir().join(format!("trek_glob_nomatch_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("main.rs"), b"").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.begin_glob_select();
+    for c in "*.xyz".chars() {
+        app.glob_push_char(c);
+    }
+    app.confirm_glob_select();
+    assert!(app.rename_selected.is_empty());
+    let msg = app.status_message.as_deref().unwrap_or("");
+    assert!(
+        msg.contains("No") || msg.contains("no"),
+        "status should say no matches: {}",
+        msg
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: some entries already selected
+/// When: confirm_glob_select() is called with a new pattern
+/// Then: new matches are ADDED to the existing selection (union)
+#[test]
+fn confirm_glob_select_adds_to_existing_selection() {
+    let tmp = std::env::temp_dir().join(format!("trek_glob_union_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("a.log"), b"").unwrap();
+    std::fs::write(tmp.join("b.rs"), b"").unwrap();
+    let mut app = make_app_at(&tmp);
+    // Pre-select the first entry
+    app.rename_selected.insert(0);
+    app.begin_glob_select();
+    // Pattern that matches the second entry only
+    for c in "*.rs".chars() {
+        app.glob_push_char(c);
+    }
+    app.confirm_glob_select();
+    // Both should now be selected
+    assert_eq!(
+        app.rename_selected.len(),
+        2,
+        "both entries should be selected"
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: an empty pattern
+/// When: confirm_glob_select() is called
+/// Then: selection is unchanged, bar closes silently
+#[test]
+fn confirm_glob_select_empty_pattern_is_noop() {
+    let tmp = std::env::temp_dir().join(format!("trek_glob_empty_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("file.txt"), b"").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.begin_glob_select();
+    app.confirm_glob_select(); // empty input
+    assert!(!app.glob_mode);
+    assert!(app.rename_selected.is_empty());
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// glob_to_regex tests (via confirm_glob_select behaviour)
+
+/// Given: pattern "test_?" (? = single char)
+/// When: confirm_glob_select() is called
+/// Then: "test_a" matches but "test_ab" does not
+#[test]
+fn glob_question_mark_matches_single_char() {
+    let tmp = std::env::temp_dir().join(format!("trek_glob_q_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("test_a"), b"").unwrap();
+    std::fs::write(tmp.join("test_ab"), b"").unwrap();
+    std::fs::write(tmp.join("other"), b"").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.begin_glob_select();
+    for c in "test_?".chars() {
+        app.glob_push_char(c);
+    }
+    app.confirm_glob_select();
+    assert_eq!(app.rename_selected.len(), 1, "only test_a should match");
+    let matched_name = app.entries[*app.rename_selected.iter().next().unwrap()]
+        .name
+        .clone();
+    assert_eq!(matched_name, "test_a");
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: pattern "*.tar.gz" (literal dots must not be regex wildcards)
+/// When: confirm_glob_select() is called
+/// Then: "archive.tar.gz" matches but "archiveXtarYgz" does not
+#[test]
+fn glob_dots_are_literal_not_regex_wildcards() {
+    let tmp = std::env::temp_dir().join(format!("trek_glob_dot_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("archive.tar.gz"), b"").unwrap();
+    std::fs::write(tmp.join("archiveXtarYgz"), b"").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.begin_glob_select();
+    for c in "*.tar.gz".chars() {
+        app.glob_push_char(c);
+    }
+    app.confirm_glob_select();
+    assert_eq!(
+        app.rename_selected.len(),
+        1,
+        "only archive.tar.gz should match"
+    );
+    let matched_name = app.entries[*app.rename_selected.iter().next().unwrap()]
+        .name
+        .clone();
+    assert_eq!(matched_name, "archive.tar.gz");
+    let _ = std::fs::remove_dir_all(&tmp);
+}
