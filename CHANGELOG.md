@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.47.0] - 2026-03-24
+
+### Added
+- **`I` — watch mode**: press `I` to toggle watch mode, which auto-refreshes the directory listing whenever the filesystem detects a change to the current directory
+- Uses `crossterm::event::poll` with a 500 ms timeout so the event loop yields frequently enough to catch directory mtime changes without busy-waiting
+- On toggle-on, records the current directory's mtime as a baseline; on toggle-off, clears it
+- On detecting a change, re-runs `load_dir()` and attempts to restore the previously selected entry by name so the cursor doesn't jump unexpectedly
+- Status bar shows `"Watch mode ON — listing auto-refreshes on changes"` / `"Watch mode OFF"` on toggle
+- Path bar gains a cyan `[watch]` badge when watch mode is active
+- `ToggleWatchMode` registered in the command palette (`I`) and `?` help overlay
+
 ## [0.46.0] - 2026-03-24
 
 ### Added

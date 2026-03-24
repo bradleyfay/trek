@@ -11,6 +11,7 @@ use crossterm::{
 use ratatui::{backend::CrosstermBackend, Terminal};
 use std::io;
 use std::path::PathBuf;
+use std::time::Duration;
 
 /// Install a panic hook that restores the terminal before the default hook
 /// prints the panic message.  This ensures the terminal is usable after a
@@ -41,7 +42,21 @@ pub fn run(
     loop {
         terminal.draw(|f| crate::ui::draw(f, &mut app))?;
 
-        match event::read()? {
+        // When watch mode is active, poll with a 500 ms timeout so the loop
+        // can detect directory changes even when the user is idle.
+        let maybe_event = if app.watch_mode {
+            if event::poll(Duration::from_millis(500))? {
+                Some(event::read()?)
+            } else {
+                app.poll_dir_changed();
+                None
+            }
+        } else {
+            Some(event::read()?)
+        };
+        let Some(ev) = maybe_event else { continue };
+
+        match ev {
             Event::Key(key) => {
                 // Clear status message on any keypress.
                 app.clear_status();
@@ -298,6 +313,7 @@ pub fn run(
                         KeyCode::Char('H') => app.toggle_hash_preview(),
                         KeyCode::Char('V') => app.toggle_git_log_preview(),
                         KeyCode::Char('D') => app.toggle_du_preview(),
+                        KeyCode::Char('I') => app.toggle_watch_mode(),
                         KeyCode::Char('f') => app.toggle_file_compare(),
                         KeyCode::Char('a') => app.toggle_hex_view(),
                         KeyCode::Char('w') => app.toggle_preview_pane(),
@@ -484,6 +500,7 @@ fn execute_palette_action(
         ActionId::ToggleHashPreview => app.toggle_hash_preview(),
         ActionId::ToggleGitLogPreview => app.toggle_git_log_preview(),
         ActionId::ToggleDuPreview => app.toggle_du_preview(),
+        ActionId::ToggleWatchMode => app.toggle_watch_mode(),
         ActionId::CompareFiles => app.toggle_file_compare(),
         ActionId::ToggleHexView => app.toggle_hex_view(),
         ActionId::TogglePreviewPane => app.toggle_preview_pane(),

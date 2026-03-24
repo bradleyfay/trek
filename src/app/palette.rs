@@ -61,6 +61,7 @@ pub enum ActionId {
     BeginExtract,
     ToggleGitLogPreview,
     ToggleDuPreview,
+    ToggleWatchMode,
     CompareFiles,
     ToggleHexView,
     InspectClipboard,
@@ -148,6 +149,11 @@ pub static PALETTE_ACTIONS: &[PaletteAction] = &[
         id: ActionId::ToggleDuPreview,
         name: "Toggle disk usage preview for directory",
         keys: "D",
+    },
+    PaletteAction {
+        id: ActionId::ToggleWatchMode,
+        name: "Toggle watch mode (auto-refresh listing on filesystem changes)",
+        keys: "I",
     },
     PaletteAction {
         id: ActionId::CompareFiles,

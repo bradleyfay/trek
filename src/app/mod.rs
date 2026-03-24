@@ -192,6 +192,12 @@ pub struct App {
     /// When true the preview pane shows a `du -k -d 1` breakdown of the selected directory.
     pub du_preview_mode: bool,
 
+    // --- Watch mode (I) ---
+    /// When true the event loop polls for directory changes every 500 ms.
+    pub watch_mode: bool,
+    /// Mtime of `cwd` at last load; used to detect changes in watch mode.
+    pub last_dir_mtime: Option<std::time::SystemTime>,
+
     // --- chmod editor (P) ---
     /// True while the chmod input bar is open.
     pub chmod_mode: bool,
@@ -451,6 +457,8 @@ impl App {
             file_compare_mode: false,
             hex_view_mode: false,
             du_preview_mode: false,
+            watch_mode: false,
+            last_dir_mtime: None,
             chmod_mode: false,
             chmod_input: String::new(),
             highlighter: Highlighter::new(),
@@ -592,6 +600,11 @@ impl App {
         // Refresh git status whenever we navigate to a new directory.
         self.git_status = GitStatus::load(&self.cwd);
         self.diff_preview_mode = false;
+
+        // Keep mtime baseline current so watch mode detects the *next* change.
+        if self.watch_mode {
+            self.last_dir_mtime = std::fs::metadata(&self.cwd).and_then(|m| m.modified()).ok();
+        }
 
         self.load_preview();
     }
