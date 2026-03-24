@@ -348,7 +348,7 @@ pub static PALETTE_ACTIONS: &[PaletteAction] = &[
     },
     PaletteAction {
         id: ActionId::PathJump,
-        name: "Jump to path (path jump bar)",
+        name: "Jump to path (Tab to complete, Enter to go)",
         keys: "e",
     },
     PaletteAction {
