@@ -26,6 +26,7 @@ Adds an `m` function to your shell that launches trek and `cd`s into whatever di
 
 - Three-pane layout: parent directory, current directory, file preview
 - File tree auto-refreshes when the filesystem changes (watch mode on by default)
+- Live change feed shows real-time filesystem events as they happen (`F`)
 - Git status shown inline — modified, staged, untracked, deleted
 - Full-text search across the project via ripgrep (`Ctrl+F`)
 - Fuzzy file name filtering (`/`)
@@ -91,6 +92,9 @@ If no config file exists, Trek falls back to:
 | `/` | Fuzzy file search |
 | `Ctrl+F` | Full-text search (ripgrep) |
 | `y` / `Y` | Yank relative / absolute path |
+| `F` | Toggle live change feed |
+| `F9` | Clipboard inspector |
+| `I` | Toggle watch mode (pauses change feed when off) |
 | `?` | Help overlay |
 | `:` | Command palette |
 | `q` | Quit |
