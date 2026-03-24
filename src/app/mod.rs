@@ -292,6 +292,10 @@ pub struct App {
     pub touch_mode: bool,
     /// Filename typed by the user in touch mode.
     pub touch_input: String,
+
+    // --- Preview line numbers (#) ---
+    /// When true, each preview line is prefixed with its 1-based line number.
+    pub show_line_numbers: bool,
 }
 
 #[derive(Clone)]
@@ -395,6 +399,7 @@ impl App {
             path_input: String::new(),
             touch_mode: false,
             touch_input: String::new(),
+            show_line_numbers: false,
         };
         app.load_dir();
         Ok(app)

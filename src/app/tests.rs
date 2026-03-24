@@ -1514,3 +1514,72 @@ fn touch_push_pop_char() {
     assert_eq!(app.touch_input, "ab");
     let _ = std::fs::remove_dir_all(&tmp);
 }
+
+// ── preview line numbers (#) tests ───────────────────────────────────────────
+
+/// Given: default state
+/// When: show_line_numbers is checked
+/// Then: it is false (off by default)
+#[test]
+fn line_numbers_default_off() {
+    let tmp = std::env::temp_dir().join(format!("trek_ln_default_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let app = make_app_at(&tmp);
+    assert!(
+        !app.show_line_numbers,
+        "line numbers should be off by default"
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: show_line_numbers is false
+/// When: toggle_line_numbers() is called
+/// Then: show_line_numbers is true and status message is set
+#[test]
+fn toggle_line_numbers_turns_on() {
+    let tmp = std::env::temp_dir().join(format!("trek_ln_on_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let mut app = make_app_at(&tmp);
+    app.toggle_line_numbers();
+    assert!(app.show_line_numbers);
+    assert!(app.status_message.is_some());
+    let msg = app.status_message.as_deref().unwrap_or("");
+    assert!(msg.contains("on"), "status should say 'on': {}", msg);
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: show_line_numbers is true
+/// When: toggle_line_numbers() is called again
+/// Then: show_line_numbers is false and status message reflects off
+#[test]
+fn toggle_line_numbers_turns_off() {
+    let tmp = std::env::temp_dir().join(format!("trek_ln_off_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let mut app = make_app_at(&tmp);
+    app.show_line_numbers = true;
+    app.toggle_line_numbers();
+    assert!(!app.show_line_numbers);
+    let msg = app.status_message.as_deref().unwrap_or("");
+    assert!(msg.contains("off"), "status should say 'off': {}", msg);
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: show_line_numbers persists across file navigation
+/// When: toggle then navigate to another file with j (move_down)
+/// Then: show_line_numbers is still true
+#[test]
+fn line_numbers_persist_across_navigation() {
+    let tmp = std::env::temp_dir().join(format!("trek_ln_nav_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("a.txt"), b"line1\n").unwrap();
+    std::fs::write(tmp.join("b.txt"), b"line1\nline2\n").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.toggle_line_numbers();
+    assert!(app.show_line_numbers);
+    app.move_down();
+    assert!(
+        app.show_line_numbers,
+        "show_line_numbers should persist after navigation"
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}

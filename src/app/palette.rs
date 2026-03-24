@@ -43,6 +43,7 @@ pub enum ActionId {
     ToggleSortOrder,
     YankRelativePath,
     YankAbsolutePath,
+    ToggleLineNumbers,
     ScrollPreviewUp,
     ScrollPreviewDown,
     PathJump,
@@ -244,6 +245,11 @@ pub static PALETTE_ACTIONS: &[PaletteAction] = &[
         id: ActionId::YankAbsolutePath,
         name: "Yank absolute path to clipboard",
         keys: "Y",
+    },
+    PaletteAction {
+        id: ActionId::ToggleLineNumbers,
+        name: "Toggle line numbers in preview pane",
+        keys: "#",
     },
     PaletteAction {
         id: ActionId::ScrollPreviewUp,
