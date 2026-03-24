@@ -205,6 +205,9 @@ mod tests {
     /// Given: entries loaded and the current pane positioned at (x=20, y=1)
     /// When: right-click lands on row 3 (inner_y=2, offset=1 → entry index 1)
     /// Then: app.selected is updated to 1
+    ///
+    /// The test targets a directory entry on purpose. `open_in_cmux_tab`
+    /// returns early for directories, so no subprocess is spawned.
     #[test]
     fn right_click_selects_entry_at_clicked_row() {
         // Use the project directory — it always has multiple entries.
@@ -222,11 +225,20 @@ mod tests {
             "project dir must have at least 2 entries"
         );
 
-        // Row 3 → inner_y = 2, offset = 1 → entry index 1.
-        app.on_mouse_right_down(30, 3);
+        // Entries are sorted dirs-first.  Find the first directory index (≥0)
+        // and click one row below the border to target it.
+        // open_in_cmux_tab no-ops on directories, so no external process fires.
+        let dir_idx = app
+            .entries
+            .iter()
+            .position(|e| e.is_dir)
+            .expect("project dir must contain at least one subdirectory");
+
+        let click_row = 2 + dir_idx as u16; // inner_y=2, offset=dir_idx
+        app.on_mouse_right_down(30, click_row);
 
         assert_eq!(
-            app.selected, 1,
+            app.selected, dir_idx,
             "right-click should select the entry at the clicked row"
         );
     }
