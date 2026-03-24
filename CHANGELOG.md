@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-03-23
+
+### Added
+- `rust-toolchain.toml` pinning the channel to `stable` for consistent builds across CI and contributors
+- MSRV (`rust-version = "1.80"`) in `Cargo.toml` so users get a clear error on outdated toolchains
+
 ## [0.2.1] - 2026-03-23
 
 ### Added
