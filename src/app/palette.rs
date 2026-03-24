@@ -64,6 +64,7 @@ pub enum ActionId {
     InspectClipboard,
     OpenFrecency,
     ToggleChangeFeed,
+    ToggleTaskManager,
     ShowHelp,
     OpenInCmuxTab,
     OpenToTheRight,
@@ -379,6 +380,11 @@ pub static PALETTE_ACTIONS: &[PaletteAction] = &[
         id: ActionId::OpenToTheRight,
         name: "Open file in new cmux pane to the right (double-click)",
         keys: "double-click",
+    },
+    PaletteAction {
+        id: ActionId::ToggleTaskManager,
+        name: "Toggle task manager (background file operations)",
+        keys: "Ctrl+T",
     },
     PaletteAction {
         id: ActionId::ShowHelp,

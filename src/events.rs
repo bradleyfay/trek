@@ -53,16 +53,19 @@ pub fn run(
     }
 
     loop {
-        // Deliver any completed async preview before drawing so the freshest
-        // data is always rendered on this frame.
+        // Deliver any completed async preview and background file-op results
+        // before drawing so the freshest data is always rendered on this frame.
         app.check_preview_rx();
+        app.check_task_rx();
 
         terminal.draw(|f| crate::ui::draw(f, &mut app))?;
 
         // Use a short poll timeout whenever background work is in flight so
         // the loop can process watcher events and preview results promptly.
-        let has_background_work =
-            app.watcher.is_some() || app.recursive_watcher.is_some() || app.preview_rx.is_some();
+        let has_background_work = app.watcher.is_some()
+            || app.recursive_watcher.is_some()
+            || app.preview_rx.is_some()
+            || !app.task_pending.is_empty();
         let maybe_event = if has_background_work {
             if event::poll(Duration::from_millis(150))? {
                 Some(event::read()?)
@@ -84,6 +87,14 @@ pub fn run(
                 if app.show_help {
                     // Any key closes help overlay.
                     app.show_help = false;
+                } else if app.task_manager_mode {
+                    match key.code {
+                        KeyCode::Esc | KeyCode::Char('q') => app.toggle_task_manager(),
+                        KeyCode::Char('j') | KeyCode::Down => app.task_manager_move_down(),
+                        KeyCode::Char('k') | KeyCode::Up => app.task_manager_move_up(),
+                        KeyCode::Char('c') => app.task_manager_clear_done(),
+                        _ => {}
+                    }
                 } else if !app.pending_delete.is_empty() {
                     // t/y → trash (recoverable); D → permanent delete; anything else → cancel.
                     match key.code {
@@ -96,7 +107,7 @@ pub fn run(
                 } else if app.pending_extract.is_some() {
                     match key.code {
                         KeyCode::Char('y') | KeyCode::Char('Y') | KeyCode::Enter => {
-                            app.confirm_extract()
+                            app.confirm_extract_async()
                         }
                         _ => app.cancel_extract(),
                     }
@@ -258,7 +269,7 @@ pub fn run(
                         }
                         KeyCode::Char('p') => {
                             app.close_clipboard_inspect();
-                            app.paste_clipboard();
+                            app.paste_clipboard_async();
                         }
                         _ => {}
                     }
@@ -331,6 +342,9 @@ pub fn run(
                         KeyCode::Char('a') => app.toggle_hex_view(),
                         KeyCode::Char('w') => app.toggle_preview_pane(),
                         KeyCode::Char('T') => app.toggle_timestamps(),
+                        KeyCode::Char('t') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                            app.toggle_task_manager()
+                        }
                         KeyCode::Char('U') => app.toggle_preview_wrap(),
                         KeyCode::Char('N') => app.toggle_dir_counts(),
                         KeyCode::Char('F') => app.toggle_change_feed(),
@@ -354,7 +368,7 @@ pub fn run(
                         KeyCode::Char('C') => app.clipboard_copy_selected(),
                         KeyCode::Char('x') => app.clipboard_cut_current(),
                         KeyCode::Char('p') if !key.modifiers.contains(KeyModifiers::CONTROL) => {
-                            app.paste_clipboard()
+                            app.paste_clipboard_async()
                         }
                         KeyCode::Delete => app.begin_delete_current(),
                         KeyCode::Char('X') => app.begin_delete_selected(),
@@ -537,7 +551,7 @@ fn execute_palette_action(
         ActionId::ClipboardCopyCurrent => app.clipboard_copy_current(),
         ActionId::ClipboardCopySelected => app.clipboard_copy_selected(),
         ActionId::ClipboardCutCurrent => app.clipboard_cut_current(),
-        ActionId::PasteClipboard => app.paste_clipboard(),
+        ActionId::PasteClipboard => app.paste_clipboard_async(),
         ActionId::BeginDeleteCurrent => app.begin_delete_current(),
         ActionId::BeginDeleteSelected => app.begin_delete_selected(),
         ActionId::BeginMkdir => app.begin_mkdir(),
@@ -570,6 +584,7 @@ fn execute_palette_action(
         ActionId::InspectClipboard => app.open_clipboard_inspect(),
         ActionId::OpenFrecency => app.open_frecency(),
         ActionId::ToggleChangeFeed => app.toggle_change_feed(),
+        ActionId::ToggleTaskManager => app.toggle_task_manager(),
         ActionId::OpenInCmuxTab => app.open_in_cmux_tab(),
         ActionId::OpenToTheRight => app.open_to_the_right(),
         ActionId::ShowHelp => app.show_help = true,

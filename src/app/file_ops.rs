@@ -71,69 +71,6 @@ impl App {
         }
     }
 
-    /// Paste clipboard contents into the current directory.
-    ///
-    /// Conflicting names (already exist in cwd) are skipped with a warning.
-    pub fn paste_clipboard(&mut self) {
-        let Some(clip) = self.clipboard.take() else {
-            self.status_message = Some("Nothing in clipboard".to_string());
-            return;
-        };
-        let mut done = 0usize;
-        let mut skipped = 0usize;
-        let mut errors: Vec<String> = Vec::new();
-
-        for src in &clip.paths {
-            let file_name = match src.file_name() {
-                Some(n) => n,
-                None => continue,
-            };
-            let dst = self.cwd.join(file_name);
-
-            // Skip if destination already exists (conflict).
-            if dst.exists() && &dst != src {
-                skipped += 1;
-                continue;
-            }
-            // Skip trivial no-op (cut to same directory).
-            if clip.op == ClipboardOp::Cut && dst == *src {
-                continue;
-            }
-
-            let result = match clip.op {
-                ClipboardOp::Copy => ops::copy_path(src, &dst),
-                ClipboardOp::Cut => ops::move_path(src, &dst),
-            };
-            match result {
-                Ok(()) => done += 1,
-                Err(e) => errors.push(e.to_string()),
-            }
-        }
-
-        // For Cut, the clipboard is consumed. For Copy, keep it for repeated pastes.
-        if clip.op == ClipboardOp::Copy {
-            self.clipboard = Some(Clipboard {
-                op: ClipboardOp::Copy,
-                paths: clip.paths,
-            });
-        }
-
-        let verb = match clip.op {
-            ClipboardOp::Copy => "Copied",
-            ClipboardOp::Cut => "Moved",
-        };
-        let mut msg = format!("{} {} item{}", verb, done, if done == 1 { "" } else { "s" });
-        if skipped > 0 {
-            msg.push_str(&format!(" ({} skipped — already exists)", skipped));
-        }
-        if let Some(err) = errors.first() {
-            msg = format!("Error: {}", err);
-        }
-        self.status_message = Some(msg);
-        self.load_dir();
-        self.git_status = crate::git::GitStatus::load(&self.cwd);
-    }
-
     /// Begin a delete confirmation for the currently selected entry.
     pub fn begin_delete_current(&mut self) {
         if let Some(entry) = self.entries.get(self.selected) {
@@ -526,28 +463,6 @@ impl App {
                 self.pending_extract = Some(entry.path.clone());
             } else {
                 self.status_message = Some("Not an archive".to_string());
-            }
-        }
-    }
-
-    /// Run the extraction after the user confirms with y/Enter.
-    pub fn confirm_extract(&mut self) {
-        let path = match self.pending_extract.take() {
-            Some(p) => p,
-            None => return,
-        };
-        let name = path
-            .file_name()
-            .map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or_else(|| path.to_string_lossy().into_owned());
-        match crate::archive::extract_archive(&path, &self.cwd) {
-            Ok(()) => {
-                self.status_message = Some(format!("Extracted: {}", name));
-                self.load_dir();
-                self.git_status = crate::git::GitStatus::load(&self.cwd);
-            }
-            Err(e) => {
-                self.status_message = Some(format!("Extract failed: {}", e));
             }
         }
     }
