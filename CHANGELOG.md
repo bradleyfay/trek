@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.51.0] - 2026-03-24
+
+### Added
+- **Always-on filesystem watcher**: Trek now automatically watches the current directory for changes using OS-native events (FSEvents on macOS, inotify on Linux) via the `notify` crate — no keypress required
+- The listing refreshes automatically within ~150 ms of any file creation, deletion, rename, or modification in the current directory
+- `I` still toggles the watcher off/on for users who prefer manual refresh; the `[watch]` badge in the path bar reflects the active state
+- Watcher updates automatically when navigating to a new directory
+- Graceful degradation: if the OS watcher fails to start (e.g. inotify limit, read-only filesystem), Trek continues working exactly as before with manual `R` refresh
+- Debounce window of 150 ms coalesces rapid bursts (e.g. `git checkout` touching many files) into a single reload
+
+### Changed
+- Watch mode is now **on by default** — previously required pressing `I` to activate
+- The event loop polls with a 150 ms timeout (down from 500 ms) when the watcher is active, driven by OS events rather than mtime polling
+
 ## [0.50.0] - 2026-03-24
 
 ### Added

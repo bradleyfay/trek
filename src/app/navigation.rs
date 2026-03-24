@@ -653,37 +653,42 @@ impl App {
         }
     }
 
-    // --- Watch mode (I) ---
+    // --- Filesystem watcher (I toggles off/on) ---
 
-    /// Toggle watch mode (auto-refresh listing on directory mtime change).
+    /// Toggle the filesystem watcher off or on.
+    ///
+    /// The watcher starts automatically on launch; `I` lets users opt out.
+    /// Toggling back on restarts the watcher for the current directory.
     pub fn toggle_watch_mode(&mut self) {
-        self.watch_mode = !self.watch_mode;
-        if self.watch_mode {
-            self.last_dir_mtime = std::fs::metadata(&self.cwd).and_then(|m| m.modified()).ok();
+        if self.watcher.is_some() {
+            // Turn off — drop the watcher (cancels the OS watch automatically).
+            self.watcher = None;
+            self.status_message = Some("Watch mode OFF".to_string());
+        } else {
+            // Turn on — start a fresh watcher for the current directory.
+            self.watcher = crate::watcher::DirWatcher::new(&self.cwd);
             self.status_message =
                 Some("Watch mode ON — listing auto-refreshes on changes".to_string());
-        } else {
-            self.last_dir_mtime = None;
-            self.status_message = Some("Watch mode OFF".to_string());
         }
     }
 
-    /// Check whether the current directory has been modified since the last
-    /// load. Called on each poll timeout when watch mode is active.
+    /// Drain any pending filesystem events and reload the listing if changes
+    /// were detected. Called in the event loop via a non-blocking `try_recv`.
     ///
-    /// Reloads the listing if the mtime changed, preserving the selection by name.
-    pub fn poll_dir_changed(&mut self) {
-        if !self.watch_mode {
-            return;
-        }
-        let current_mtime = std::fs::metadata(&self.cwd).and_then(|m| m.modified()).ok();
-        let changed = match (current_mtime, self.last_dir_mtime) {
-            (Some(current), Some(last)) => current != last,
-            _ => false,
+    /// Preserves the current selection by name across the reload.
+    pub fn check_watcher(&mut self) {
+        let has_events = if let Some(ref w) = self.watcher {
+            // Drain all pending events; the debouncer already coalesced bursts.
+            let mut got_event = false;
+            while w.rx.try_recv().is_ok() {
+                got_event = true;
+            }
+            got_event
+        } else {
+            false
         };
-        if changed {
-            // Update baseline before load_dir() to avoid re-trigger.
-            self.last_dir_mtime = current_mtime;
+
+        if has_events {
             let selected_name = self.entries.get(self.selected).map(|e| e.name.clone());
             self.load_dir();
             if let Some(name) = selected_name {
@@ -692,6 +697,7 @@ impl App {
                     self.load_preview();
                 }
             }
+            self.status_message = Some("Refreshed".to_string());
         }
     }
 }

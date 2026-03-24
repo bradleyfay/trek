@@ -55,13 +55,15 @@ pub fn run(
     loop {
         terminal.draw(|f| crate::ui::draw(f, &mut app))?;
 
-        // When watch mode is active, poll with a 500 ms timeout so the loop
-        // can detect directory changes even when the user is idle.
-        let maybe_event = if app.watch_mode {
-            if event::poll(Duration::from_millis(500))? {
+        // When the filesystem watcher is active, poll with a short timeout so
+        // the loop can process OS-native directory events even when idle.
+        // try_recv() is non-blocking — zero cost on the hot path when nothing
+        // has changed.
+        let maybe_event = if app.watcher.is_some() {
+            if event::poll(Duration::from_millis(150))? {
                 Some(event::read()?)
             } else {
-                app.poll_dir_changed();
+                app.check_watcher();
                 None
             }
         } else {

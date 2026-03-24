@@ -282,8 +282,8 @@ fn draw_path_bar(f: &mut Frame, app: &App, area: Rect) {
         ));
     }
 
-    // Watch mode indicator.
-    if app.watch_mode {
+    // Watcher indicator — shown when the filesystem watcher is active.
+    if app.watcher.is_some() {
         spans.push(Span::styled(
             "  [watch]",
             Style::default()
