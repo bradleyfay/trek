@@ -1,27 +1,143 @@
-use super::App;
+use super::{App, SortMode, SortOrder};
 use crate::icons::icon_for_entry;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::mpsc;
 
-impl App {
-    pub fn load_preview(&mut self) {
-        self.preview_scroll = 0;
-        self.preview_lines.clear();
-        self.preview_is_diff = false;
+/// The result of an async preview computation.
+pub struct PreviewResult {
+    pub lines: Vec<String>,
+    pub is_diff: bool,
+}
 
-        // Hex dump view — first priority.
-        if self.hex_view_mode {
-            if let Some(entry) = self.entries.get(self.selected).cloned() {
-                if !entry.is_dir {
-                    self.preview_lines = Self::load_hex_lines(&entry.path);
+/// Describes what a preview thread should compute.
+///
+/// Built synchronously from app state in `build_preview_job`, then executed
+/// on a background thread so navigation is never blocked.
+enum PreviewJob {
+    Empty,
+    HexDump {
+        path: PathBuf,
+    },
+    FileDiff {
+        left: PathBuf,
+        right: PathBuf,
+    },
+    Meta {
+        path: PathBuf,
+    },
+    GitLog {
+        path: PathBuf,
+    },
+    DiskUsage {
+        path: PathBuf,
+    },
+    GitDiff {
+        path: PathBuf,
+        has_change: bool,
+    },
+    FileContent {
+        path: PathBuf,
+    },
+    DirectoryListing {
+        path: PathBuf,
+        show_hidden: bool,
+        sort_mode: SortMode,
+        sort_order: SortOrder,
+    },
+}
+
+impl PreviewJob {
+    fn execute(self) -> PreviewResult {
+        match self {
+            PreviewJob::Empty => PreviewResult {
+                lines: Vec::new(),
+                is_diff: false,
+            },
+            PreviewJob::HexDump { path } => PreviewResult {
+                lines: App::load_hex_lines(&path),
+                is_diff: false,
+            },
+            PreviewJob::FileDiff { left, right } => PreviewResult {
+                lines: App::load_file_diff_static(&left, &right),
+                is_diff: true,
+            },
+            PreviewJob::Meta { path } => PreviewResult {
+                lines: App::load_meta_lines(&path),
+                is_diff: false,
+            },
+            PreviewJob::GitLog { path } => PreviewResult {
+                lines: App::load_git_log_static(&path),
+                is_diff: false,
+            },
+            PreviewJob::DiskUsage { path } => PreviewResult {
+                lines: App::load_du_lines(&path),
+                is_diff: false,
+            },
+            PreviewJob::GitDiff { path, has_change } => {
+                if has_change {
+                    let diff = App::load_git_diff_static(&path);
+                    if !diff.is_empty() {
+                        return PreviewResult {
+                            lines: diff,
+                            is_diff: true,
+                        };
+                    }
+                }
+                // No diff — fall through to raw content.
+                PreviewResult {
+                    lines: App::read_file_preview(&path),
+                    is_diff: false,
                 }
             }
-            return;
+            PreviewJob::FileContent { path } => PreviewResult {
+                lines: App::read_file_preview(&path),
+                is_diff: false,
+            },
+            PreviewJob::DirectoryListing {
+                path,
+                show_hidden,
+                sort_mode,
+                sort_order,
+            } => {
+                let lines = App::read_entries(&path, show_hidden, sort_mode, sort_order)
+                    .map(|(children, _)| {
+                        children
+                            .iter()
+                            .map(|c| {
+                                let icon = icon_for_entry(&c.name, c.is_dir);
+                                format!("{} {}", icon, c.name)
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                PreviewResult {
+                    lines,
+                    is_diff: false,
+                }
+            }
+        }
+    }
+}
+
+impl App {
+    /// Build the preview job for the current app state without doing any I/O.
+    fn build_preview_job(&self) -> PreviewJob {
+        // Hex dump — first priority.
+        if self.hex_view_mode {
+            if let Some(entry) = self.entries.get(self.selected) {
+                if !entry.is_dir {
+                    return PreviewJob::HexDump {
+                        path: entry.path.clone(),
+                    };
+                }
+            }
+            return PreviewJob::Empty;
         }
 
-        // File compare — third priority, requires exactly 2 files selected.
+        // File compare — requires exactly 2 non-directory files selected.
         if self.file_compare_mode {
-            let paths: Vec<_> = self
+            let paths: Vec<PathBuf> = self
                 .rename_selected
                 .iter()
                 .filter_map(|&i| self.entries.get(i))
@@ -29,75 +145,117 @@ impl App {
                 .map(|e| e.path.clone())
                 .collect();
             if paths.len() == 2 {
-                self.preview_lines = Self::load_file_diff(&paths[0], &paths[1]);
-                self.preview_is_diff = true;
+                return PreviewJob::FileDiff {
+                    left: paths[0].clone(),
+                    right: paths[1].clone(),
+                };
             }
-            return;
+            return PreviewJob::Empty;
         }
 
-        // Metadata card takes priority over content/diff views.
+        // Metadata card.
         if self.meta_preview_mode {
-            if let Some(entry) = self.entries.get(self.selected).cloned() {
-                self.preview_lines = Self::load_meta_lines(&entry.path);
+            if let Some(entry) = self.entries.get(self.selected) {
+                return PreviewJob::Meta {
+                    path: entry.path.clone(),
+                };
             }
-            return;
+            return PreviewJob::Empty;
         }
 
-        // Git log — third priority.
+        // Git log.
         if self.git_log_mode {
-            if let Some(entry) = self.entries.get(self.selected).cloned() {
-                self.preview_lines = Self::load_git_log(&entry.path);
+            if let Some(entry) = self.entries.get(self.selected) {
+                return PreviewJob::GitLog {
+                    path: entry.path.clone(),
+                };
             }
-            return;
+            return PreviewJob::Empty;
         }
 
-        if let Some(entry) = self.entries.get(self.selected).cloned() {
+        if let Some(entry) = self.entries.get(self.selected) {
             if entry.is_dir {
-                // Disk usage breakdown replaces flat listing when active.
                 if self.du_preview_mode {
-                    self.preview_lines = Self::load_du_lines(&entry.path);
-                    return;
+                    return PreviewJob::DiskUsage {
+                        path: entry.path.clone(),
+                    };
                 }
-                // Directories never show a diff preview.
-                if let Ok((children, _)) = Self::read_entries(
-                    &entry.path,
-                    self.show_hidden,
-                    self.sort_mode,
-                    self.sort_order,
-                ) {
-                    self.preview_lines = children
-                        .iter()
-                        .map(|c| {
-                            let icon = icon_for_entry(&c.name, c.is_dir);
-                            format!("{} {}", icon, c.name)
-                        })
-                        .collect();
-                }
+                return PreviewJob::DirectoryListing {
+                    path: entry.path.clone(),
+                    show_hidden: self.show_hidden,
+                    sort_mode: self.sort_mode,
+                    sort_order: self.sort_order,
+                };
             } else if self.diff_preview_mode {
-                // Show git diff if the file has changes; fall back to raw preview.
-                let has_git_change = self
+                let has_change = self
                     .git_status
                     .as_ref()
                     .and_then(|g| g.for_path(&entry.path))
                     .is_some();
-                if has_git_change {
-                    let diff = Self::load_git_diff(&entry.path);
-                    if !diff.is_empty() {
-                        self.preview_lines = diff;
-                        self.preview_is_diff = true;
-                        return;
-                    }
-                }
-                // No diff available — fall back to raw content.
-                self.preview_lines = Self::read_file_preview(&entry.path);
+                return PreviewJob::GitDiff {
+                    path: entry.path.clone(),
+                    has_change,
+                };
             } else {
-                self.preview_lines = Self::read_file_preview(&entry.path);
+                return PreviewJob::FileContent {
+                    path: entry.path.clone(),
+                };
             }
+        }
+
+        PreviewJob::Empty
+    }
+
+    /// Kick off an async preview render for the currently selected entry.
+    ///
+    /// Returns immediately — the UI renders a "Loading…" placeholder until
+    /// the background thread delivers the result via [`check_preview_rx`].
+    ///
+    /// Any in-flight render from a previous call is cancelled implicitly: when
+    /// the old [`Receiver`] is dropped the background thread's next `tx.send()`
+    /// returns `SendError` and the thread exits.
+    pub fn load_preview(&mut self) {
+        // Drop old receiver → cancels any in-flight thread.
+        self.preview_rx = None;
+        self.preview_scroll = 0;
+        self.preview_lines.clear();
+        self.preview_is_diff = false;
+
+        let job = self.build_preview_job();
+        if matches!(job, PreviewJob::Empty) {
+            self.preview_loading = false;
+            return;
+        }
+
+        self.preview_loading = true;
+        let (tx, rx) = mpsc::channel::<PreviewResult>();
+        self.preview_rx = Some(rx);
+
+        std::thread::spawn(move || {
+            let result = job.execute();
+            // Ignore SendError — means the caller already moved to another file.
+            let _ = tx.send(result);
+        });
+    }
+
+    /// Poll the async preview channel and apply any pending result.
+    ///
+    /// Must be called on every event-loop iteration so the UI stays live.
+    pub fn check_preview_rx(&mut self) {
+        let result = match self.preview_rx.as_ref() {
+            Some(rx) => rx.try_recv().ok(),
+            None => return,
+        };
+        if let Some(result) = result {
+            self.preview_lines = result.lines;
+            self.preview_is_diff = result.is_diff;
+            self.preview_loading = false;
+            self.preview_rx = None;
         }
     }
 
     /// Load `git diff` (unstaged, then staged) for `path` as a list of lines.
-    fn load_git_diff(path: &Path) -> Vec<String> {
+    pub(super) fn load_git_diff_static(path: &Path) -> Vec<String> {
         let parent = match path.parent() {
             Some(p) => p,
             None => return Vec::new(),
@@ -296,7 +454,7 @@ impl App {
     /// Produce a unified diff between `a` and `b` as preview lines.
     ///
     /// Uses `diff -u` (POSIX); falls back to an informational message on error.
-    fn load_file_diff(a: &Path, b: &Path) -> Vec<String> {
+    pub(super) fn load_file_diff_static(a: &Path, b: &Path) -> Vec<String> {
         match Command::new("diff").arg("-u").arg(a).arg(b).output() {
             Ok(out) => {
                 let text = String::from_utf8_lossy(&out.stdout);
@@ -337,7 +495,7 @@ impl App {
     ///
     /// Works for both files and directories. Returns an explanatory message
     /// on failure or when there are no commits for the path.
-    fn load_git_log(path: &Path) -> Vec<String> {
+    pub(super) fn load_git_log_static(path: &Path) -> Vec<String> {
         let parent = match path.parent() {
             Some(p) if p.as_os_str().is_empty() => Path::new("."),
             Some(p) => p,

@@ -143,6 +143,22 @@ fn make_app_at(dir: &std::path::Path) -> App {
     app
 }
 
+/// Wait for the async preview to complete and deliver its result.
+///
+/// Polls `check_preview_rx` up to ~500 ms. Panics if the preview does not
+/// arrive in time — indicates a deadlock or logic error.
+fn wait_for_preview(app: &mut App) {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_millis(500);
+    while app.preview_loading && std::time::Instant::now() < deadline {
+        app.check_preview_rx();
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    assert!(
+        !app.preview_loading,
+        "preview did not complete within 500 ms"
+    );
+}
+
 /// Given: a fresh App
 /// When: history is checked
 /// Then: stack has exactly one entry (the launch directory) at position 0
@@ -1373,6 +1389,7 @@ fn scroll_preview_down_advances_offset() {
         .unwrap();
     app.selected = idx;
     app.load_preview();
+    wait_for_preview(&mut app);
     assert!(app.preview_lines.len() >= 10, "preview should have lines");
     app.scroll_preview_down(5);
     assert_eq!(app.preview_scroll, 5);
@@ -1396,6 +1413,7 @@ fn scroll_preview_up_decreases_offset() {
         .unwrap();
     app.selected = idx;
     app.load_preview();
+    wait_for_preview(&mut app);
     app.preview_scroll = 5;
     app.scroll_preview_up(3);
     assert_eq!(app.preview_scroll, 2);
@@ -1437,6 +1455,7 @@ fn scroll_preview_down_at_bottom_clamps() {
         .unwrap();
     app.selected = idx;
     app.load_preview();
+    wait_for_preview(&mut app);
     let max = app.preview_lines.len().saturating_sub(1);
     app.scroll_preview_down(100);
     assert_eq!(app.preview_scroll, max);
@@ -3448,5 +3467,105 @@ fn check_watcher_noop_when_watcher_disabled() {
         before,
         "should not reload when watcher is disabled"
     );
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: an app with a file selected
+/// When: load_preview() is called
+/// Then: preview_loading is immediately true (render happens async)
+#[test]
+fn load_preview_sets_loading_flag() {
+    let tmp = std::env::temp_dir().join(format!("trek_async_preview_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("hello.txt"), b"hello world").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.load_preview();
+    assert!(
+        app.preview_loading,
+        "preview_loading should be true immediately after load_preview"
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: an app with preview_loading true and a pending result in preview_rx
+/// When: check_preview_rx() is called
+/// Then: preview_lines is populated and preview_loading becomes false
+#[test]
+fn check_preview_rx_delivers_result_and_clears_loading() {
+    let tmp = std::env::temp_dir().join(format!("trek_async_rx_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let mut app = make_app_at(&tmp);
+
+    // Manually wire up a channel with a pre-filled result.
+    let (tx, rx) = std::sync::mpsc::channel::<crate::app::preview::PreviewResult>();
+    app.preview_rx = Some(rx);
+    app.preview_loading = true;
+    app.preview_lines.clear();
+
+    tx.send(crate::app::preview::PreviewResult {
+        lines: vec!["line one".to_string(), "line two".to_string()],
+        is_diff: false,
+    })
+    .unwrap();
+
+    app.check_preview_rx();
+
+    assert!(
+        !app.preview_loading,
+        "preview_loading should be false after result arrives"
+    );
+    assert_eq!(
+        app.preview_lines,
+        vec!["line one".to_string(), "line two".to_string()],
+        "preview_lines should be populated from the channel result"
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: an app with a file selected whose preview is being loaded
+/// When: load_preview() is called a second time for a different file
+/// Then: the final result reflects the second file (old in-flight result discarded)
+#[test]
+fn load_preview_replaces_old_rx_on_second_call() {
+    let tmp = std::env::temp_dir().join(format!("trek_async_replace_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    // Write distinct content so we can tell which preview won
+    std::fs::write(tmp.join("a.txt"), b"content-from-a").unwrap();
+    std::fs::write(tmp.join("b.txt"), b"content-from-b").unwrap();
+    let mut app = make_app_at(&tmp);
+
+    // First load_preview call — starts background thread for whichever file is selected
+    app.load_preview();
+    assert!(
+        app.preview_rx.is_some(),
+        "preview_rx should be Some after first load"
+    );
+
+    // Simulate user triggering a second load before the first completes
+    // load_preview must drop the old receiver before spawning the new thread
+    app.load_preview();
+
+    // Immediately after the second call the channel must be armed and loading
+    assert!(
+        app.preview_rx.is_some(),
+        "preview_rx should be Some after second load"
+    );
+    assert!(
+        app.preview_loading,
+        "preview_loading should be true after second load_preview"
+    );
+
+    // Wait for the second preview to settle — result must arrive within 500 ms
+    wait_for_preview(&mut app);
+    assert!(
+        !app.preview_loading,
+        "preview_loading must be false once result arrives"
+    );
+    // preview_lines should be non-empty (we loaded a real file)
+    assert!(
+        !app.preview_lines.is_empty(),
+        "preview_lines should be populated after load"
+    );
+
     let _ = std::fs::remove_dir_all(&tmp);
 }

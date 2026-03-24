@@ -334,6 +334,14 @@ pub struct App {
     /// When true, the listing shows last-modified dates instead of file sizes.
     pub show_timestamps: bool,
 
+    // --- Async preview ---
+    /// True while a background thread is rendering the preview.
+    /// The UI shows a "Loading…" placeholder until the result arrives.
+    pub preview_loading: bool,
+    /// Receive end of the async preview channel. `None` when no render is in
+    /// flight. Dropping this receiver cancels the background thread implicitly.
+    pub preview_rx: Option<std::sync::mpsc::Receiver<crate::app::preview::PreviewResult>>,
+
     // --- Clipboard inspector (F) ---
     /// True while the clipboard contents overlay is open.
     pub clipboard_inspect_mode: bool,
@@ -546,6 +554,8 @@ impl App {
             frecency_query: String::new(),
             last_click_time: None,
             last_click_pos: None,
+            preview_loading: false,
+            preview_rx: None,
             recursive_watcher,
             change_feed: change_feed::ChangeFeed::new(),
             change_feed_mode: false,

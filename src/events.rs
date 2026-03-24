@@ -53,13 +53,17 @@ pub fn run(
     }
 
     loop {
+        // Deliver any completed async preview before drawing so the freshest
+        // data is always rendered on this frame.
+        app.check_preview_rx();
+
         terminal.draw(|f| crate::ui::draw(f, &mut app))?;
 
-        // When the filesystem watcher is active, poll with a short timeout so
-        // the loop can process OS-native directory events even when idle.
-        // try_recv() is non-blocking — zero cost on the hot path when nothing
-        // has changed.
-        let maybe_event = if app.watcher.is_some() || app.recursive_watcher.is_some() {
+        // Use a short poll timeout whenever background work is in flight so
+        // the loop can process watcher events and preview results promptly.
+        let has_background_work =
+            app.watcher.is_some() || app.recursive_watcher.is_some() || app.preview_rx.is_some();
+        let maybe_event = if has_background_work {
             if event::poll(Duration::from_millis(150))? {
                 Some(event::read()?)
             } else {
