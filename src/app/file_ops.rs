@@ -39,12 +39,25 @@ impl App {
             return;
         }
         let count = paths.len();
+        // Compute total size of selected files before clearing rename_selected.
+        let total_bytes: u64 = self
+            .rename_selected
+            .iter()
+            .filter_map(|&i| self.entries.get(i))
+            .filter(|e| !e.is_dir)
+            .map(|e| e.size)
+            .sum();
         self.clipboard = Some(Clipboard {
             op: ClipboardOp::Copy,
             paths,
         });
         self.rename_selected.clear();
-        self.status_message = Some(format!("[copy] {} files", count));
+        let size_str = if total_bytes > 0 {
+            format!(" ({})", crate::app::format_size(total_bytes))
+        } else {
+            String::new()
+        };
+        self.status_message = Some(format!("[copy] {} files{}", count, size_str));
     }
 
     /// Mark the currently selected entry for cut.

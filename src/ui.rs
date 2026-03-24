@@ -133,9 +133,21 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         f.render_widget(para, bottom_area);
     } else if !app.rename_selected.is_empty() {
         let count = app.rename_selected.len();
+        let total_bytes: u64 = app
+            .rename_selected
+            .iter()
+            .filter_map(|&i| app.entries.get(i))
+            .filter(|e| !e.is_dir)
+            .map(|e| e.size)
+            .sum();
+        let size_label = if total_bytes > 0 {
+            format!("  ({})", format_size(total_bytes))
+        } else {
+            String::new()
+        };
         let para = Paragraph::new(Line::from(vec![
             Span::styled(
-                format!(" {} selected", count),
+                format!(" {} selected{}", count, size_label),
                 Style::default()
                     .fg(Color::Magenta)
                     .add_modifier(Modifier::BOLD),
