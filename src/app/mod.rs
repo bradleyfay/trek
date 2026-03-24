@@ -4,6 +4,7 @@ use crate::ops::Clipboard;
 use crate::rename::{RenameField, RenamePreviewRow};
 use crate::search::SearchResultGroup;
 use anyhow::Result;
+use frecency::FrecencyEntry;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -13,6 +14,7 @@ mod content;
 mod file_ops;
 mod filter;
 mod find;
+pub mod frecency;
 mod gitignore;
 mod layout;
 mod metadata;
@@ -357,6 +359,18 @@ pub struct App {
     pub dup_input: String,
     /// Source path being duplicated; set when dup_mode is entered.
     pub dup_src: Option<PathBuf>,
+
+    // --- Frecency jump (z) ---
+    /// True while the frecency overlay is open.
+    pub frecency_mode: bool,
+    /// All recorded frecency entries (unsorted, session-scoped).
+    pub frecency_list: Vec<FrecencyEntry>,
+    /// Indices into `frecency_list` after filter + sort, for display.
+    pub frecency_filtered: Vec<usize>,
+    /// Cursor row in the frecency overlay.
+    pub frecency_selected: usize,
+    /// Current filter query typed in the overlay.
+    pub frecency_query: String,
 }
 
 #[derive(Clone)]
@@ -483,6 +497,11 @@ impl App {
             dup_input: String::new(),
             dup_src: None,
             clipboard_inspect_mode: false,
+            frecency_mode: false,
+            frecency_list: Vec::new(),
+            frecency_filtered: Vec::new(),
+            frecency_selected: 0,
+            frecency_query: String::new(),
         };
         app.load_dir();
         Ok(app)

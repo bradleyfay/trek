@@ -59,6 +59,7 @@ pub enum ActionId {
     BeginDup,
     BeginSymlink,
     InspectClipboard,
+    OpenFrecency,
     ShowHelp,
     Quit,
 }
@@ -337,6 +338,11 @@ pub static PALETTE_ACTIONS: &[PaletteAction] = &[
         id: ActionId::InspectClipboard,
         name: "Inspect clipboard contents",
         keys: "F",
+    },
+    PaletteAction {
+        id: ActionId::OpenFrecency,
+        name: "Open frecency jump list (auto-ranked recent dirs)",
+        keys: "z",
     },
     PaletteAction {
         id: ActionId::ShowHelp,

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.39.0] - 2026-03-24
+
+### Added
+- **`z` — frecency jump list**: press `z` to open a session-scoped overlay listing recently visited directories ranked by frecency (frequency × recency)
+- Overlay auto-populates as you navigate; no manual setup required
+- Score = `visits × recency_weight` where weight is 4× (< 1 hr), 2× (< 24 hr), 1× (< 1 week), 0.5× (older)
+- Type to filter by directory name; `Enter` jumps, `Esc`/`z` closes
+- Yellow border and highlight to distinguish from bookmarks (cyan)
+- Stale entries (directory deleted) show an error message rather than crashing
+- `OpenFrecency` registered in the command palette and `?` help overlay
+
 ## [0.38.0] - 2026-03-24
 
 ### Added
