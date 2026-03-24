@@ -15,6 +15,7 @@ mod session;
 mod shell;
 mod trash;
 mod ui;
+mod watcher;
 
 use anyhow::Result;
 use crossterm::{
