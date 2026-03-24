@@ -39,6 +39,12 @@ enum PreviewJob {
     FileContent {
         path: PathBuf,
     },
+    ImagePreview {
+        path: PathBuf,
+    },
+    PdfPreview {
+        path: PathBuf,
+    },
     DirectoryListing {
         path: PathBuf,
         show_hidden: bool,
@@ -92,6 +98,14 @@ impl PreviewJob {
             }
             PreviewJob::FileContent { path } => PreviewResult {
                 lines: App::read_file_preview(&path),
+                is_diff: false,
+            },
+            PreviewJob::ImagePreview { path } => PreviewResult {
+                lines: build_image_preview_lines(&path),
+                is_diff: false,
+            },
+            PreviewJob::PdfPreview { path } => PreviewResult {
+                lines: build_pdf_preview_lines(&path),
                 is_diff: false,
             },
             PreviewJob::DirectoryListing {
@@ -195,6 +209,14 @@ impl App {
                 return PreviewJob::GitDiff {
                     path: entry.path.clone(),
                     has_change,
+                };
+            } else if is_image_path(&entry.path) {
+                return PreviewJob::ImagePreview {
+                    path: entry.path.clone(),
+                };
+            } else if is_pdf_path(&entry.path) {
+                return PreviewJob::PdfPreview {
+                    path: entry.path.clone(),
                 };
             } else {
                 return PreviewJob::FileContent {
@@ -622,5 +644,252 @@ impl App {
             lines.push(format!("  {:<30}  {:>10}  {}", name, human, bar));
         }
         lines
+    }
+}
+
+// ── Image / PDF preview helpers ───────────────────────────────────────────
+
+/// Returns `true` when `path` has a binary raster image extension.
+///
+/// SVG is intentionally excluded — it is plain-text XML and previews fine
+/// through the normal text path.
+fn is_image_path(path: &Path) -> bool {
+    matches!(
+        path.extension()
+            .and_then(|e| e.to_str())
+            .map(|e| e.to_ascii_lowercase())
+            .as_deref(),
+        Some("png" | "jpg" | "jpeg" | "gif" | "bmp" | "ico" | "webp" | "avif" | "tiff" | "tif")
+    )
+}
+
+/// Returns `true` when `path` has the `.pdf` extension.
+fn is_pdf_path(path: &Path) -> bool {
+    path.extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.eq_ignore_ascii_case("pdf"))
+        .unwrap_or(false)
+}
+
+/// Build preview lines for a raster image file.
+///
+/// Shows format, pixel dimensions (via `imagesize`), file size, and — when
+/// `chafa` is available on `$PATH` — a Unicode/sixel art rendering of the
+/// image at the preview pane's approximate width (72 columns).
+fn build_image_preview_lines(path: &Path) -> Vec<String> {
+    let mut lines: Vec<String> = Vec::new();
+
+    // Format label from extension.
+    let fmt = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("image")
+        .to_ascii_uppercase();
+
+    // File size.
+    let size_str = std::fs::metadata(path)
+        .map(|m| human_bytes(m.len()))
+        .unwrap_or_else(|_| "?".to_string());
+
+    // Pixel dimensions via imagesize (reads just the header, not the whole file).
+    let dim_str = match imagesize::size(path) {
+        Ok(dim) => format!("{} × {}", dim.width, dim.height),
+        Err(_) => "unknown dimensions".to_string(),
+    };
+
+    lines.push(format!("  Format    {}", fmt));
+    lines.push(format!("  Size      {}", size_str));
+    lines.push(format!("  Dimensions  {}", dim_str));
+    lines.push(String::new());
+
+    // Try chafa for a visual text rendering. Graceful no-op if not installed.
+    let chafa_out = std::process::Command::new("chafa")
+        .args([
+            "--size=72x36",
+            "--colors=256",
+            "--",
+            &path.to_string_lossy(),
+        ])
+        .output();
+    if let Ok(out) = chafa_out {
+        if out.status.success() && !out.stdout.is_empty() {
+            let rendered = String::from_utf8_lossy(&out.stdout);
+            lines.extend(rendered.lines().map(|l| l.to_string()));
+            return lines;
+        }
+    }
+
+    // No chafa — show a hint.
+    lines.push("  [install chafa for inline image preview]".to_string());
+    lines
+}
+
+/// Build preview lines for a PDF file.
+///
+/// Shows file size and PDF version from the header.  When `pdfinfo` (from
+/// poppler-utils) is available it is used for richer metadata; otherwise a
+/// concise header-only summary is returned.
+fn build_pdf_preview_lines(path: &Path) -> Vec<String> {
+    let mut lines: Vec<String> = Vec::new();
+
+    let size_str = std::fs::metadata(path)
+        .map(|m| human_bytes(m.len()))
+        .unwrap_or_else(|_| "?".to_string());
+
+    // Read PDF version from the `%PDF-x.y` header (first 16 bytes).
+    let version = std::fs::File::open(path)
+        .ok()
+        .and_then(|mut f| {
+            use std::io::Read;
+            let mut buf = [0u8; 16];
+            f.read_exact(&mut buf).ok()?;
+            let header = std::str::from_utf8(&buf).ok()?;
+            let v = header.strip_prefix("%PDF-")?;
+            Some(v.split_whitespace().next().unwrap_or("").to_string())
+        })
+        .unwrap_or_default();
+
+    lines.push("  Format    PDF".to_string());
+    if !version.is_empty() {
+        lines.push(format!("  Version   {}", version));
+    }
+    lines.push(format!("  Size      {}", size_str));
+    lines.push(String::new());
+
+    // Try pdfinfo for rich metadata.
+    let pdfinfo = std::process::Command::new("pdfinfo")
+        .arg(path.to_string_lossy().as_ref())
+        .output();
+    if let Ok(out) = pdfinfo {
+        if out.status.success() && !out.stdout.is_empty() {
+            let info = String::from_utf8_lossy(&out.stdout);
+            lines.extend(info.lines().map(|l| format!("  {}", l)));
+            return lines;
+        }
+    }
+
+    lines.push("  [install pdfinfo (poppler-utils) for detailed metadata]".to_string());
+    lines
+}
+
+/// Format a byte count as a human-readable string (e.g. "1.2 MB").
+fn human_bytes(n: u64) -> String {
+    const KB: u64 = 1024;
+    const MB: u64 = 1024 * KB;
+    const GB: u64 = 1024 * MB;
+    if n >= GB {
+        format!("{:.1} GB", n as f64 / GB as f64)
+    } else if n >= MB {
+        format!("{:.1} MB", n as f64 / MB as f64)
+    } else if n >= KB {
+        format!("{:.1} KB", n as f64 / KB as f64)
+    } else {
+        format!("{} B", n)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    /// Given: a path with a .png extension
+    /// When: is_image_path is called
+    /// Then: returns true
+    #[test]
+    fn is_image_path_recognises_png() {
+        assert!(is_image_path(&PathBuf::from("photo.png")));
+    }
+
+    /// Given: a path with a .jpg extension
+    /// When: is_image_path is called
+    /// Then: returns true
+    #[test]
+    fn is_image_path_recognises_jpg() {
+        assert!(is_image_path(&PathBuf::from("photo.jpg")));
+    }
+
+    /// Given: a path with a .svg extension
+    /// When: is_image_path is called
+    /// Then: returns false (SVG is text)
+    #[test]
+    fn is_image_path_excludes_svg() {
+        assert!(!is_image_path(&PathBuf::from("icon.svg")));
+    }
+
+    /// Given: a path with a .pdf extension
+    /// When: is_pdf_path is called
+    /// Then: returns true
+    #[test]
+    fn is_pdf_path_recognises_pdf() {
+        assert!(is_pdf_path(&PathBuf::from("doc.pdf")));
+    }
+
+    /// Given: a path with a .txt extension
+    /// When: is_pdf_path is called
+    /// Then: returns false
+    #[test]
+    fn is_pdf_path_rejects_txt() {
+        assert!(!is_pdf_path(&PathBuf::from("readme.txt")));
+    }
+
+    /// Given: a valid PDF header in a temp file
+    /// When: build_pdf_preview_lines is called
+    /// Then: lines mention "PDF" and do not contain "[binary file]"
+    #[test]
+    fn build_pdf_preview_lines_shows_pdf_format() {
+        let tmp = std::env::temp_dir().join(format!("trek_pdftest_{}", std::process::id()));
+        std::fs::write(&tmp, b"%PDF-1.4\n%%EOF\n").unwrap();
+        let lines = build_pdf_preview_lines(&tmp);
+        let joined = lines.join("\n");
+        assert!(joined.contains("PDF"), "expected PDF in: {joined}");
+        assert!(
+            !joined.contains("[binary file]"),
+            "unexpected binary placeholder: {joined}"
+        );
+        let _ = std::fs::remove_file(&tmp);
+    }
+
+    /// Given: a PNG file with a valid header
+    /// When: build_image_preview_lines is called
+    /// Then: lines mention "PNG" and do not contain "[binary file]"
+    #[test]
+    fn build_image_preview_lines_shows_png_format() {
+        let tmp = std::env::temp_dir().join(format!("trek_pngtest_{}", std::process::id()));
+        // Minimal PNG header (signature + partial IHDR — enough for imagesize)
+        let png_bytes: &[u8] = &[
+            0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48,
+            0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x02, 0x00, 0x00,
+            0x00, 0x90, 0x77, 0x53,
+        ];
+        // Write with .png extension so is_image_path works
+        let png_path = tmp.with_extension("png");
+        std::fs::write(&png_path, png_bytes).unwrap();
+        let lines = build_image_preview_lines(&png_path);
+        let joined = lines.join("\n");
+        assert!(joined.contains("PNG"), "expected PNG in: {joined}");
+        assert!(
+            !joined.contains("[binary file]"),
+            "unexpected binary placeholder: {joined}"
+        );
+        let _ = std::fs::remove_file(&png_path);
+    }
+
+    /// Given: a byte count in the GB range
+    /// When: human_bytes is called
+    /// Then: returns a GB-suffixed string
+    #[test]
+    fn human_bytes_gb() {
+        let s = human_bytes(2 * 1024 * 1024 * 1024);
+        assert!(s.ends_with(" GB"), "expected GB suffix, got: {s}");
+    }
+
+    /// Given: a byte count in the KB range
+    /// When: human_bytes is called
+    /// Then: returns a KB-suffixed string
+    #[test]
+    fn human_bytes_kb() {
+        let s = human_bytes(2048);
+        assert!(s.ends_with(" KB"), "expected KB suffix, got: {s}");
     }
 }
