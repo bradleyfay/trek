@@ -30,6 +30,8 @@ mod quick_rename;
 mod search;
 mod selection;
 mod sort;
+pub mod task_manager;
+mod task_ops;
 mod yank;
 
 /// Maximum directory entries loaded in a single pane.
@@ -405,6 +407,14 @@ pub struct App {
     pub change_feed_mode: bool,
     /// Root directory being watched recursively. Used to compute relative paths.
     pub change_feed_root: PathBuf,
+
+    // --- Background file-operation task manager (Ctrl+T) ---
+    /// Tracks all background file operation tasks (copy, move, extract).
+    pub task_manager: task_manager::TaskManager,
+    /// True while the task manager overlay is visible.
+    pub task_manager_mode: bool,
+    /// In-flight background tasks awaiting results via their channels.
+    pub(super) task_pending: Vec<task_manager::PendingTask>,
 }
 
 #[derive(Clone)]
@@ -560,6 +570,9 @@ impl App {
             change_feed: change_feed::ChangeFeed::new(),
             change_feed_mode: false,
             change_feed_root: feed_root,
+            task_manager: task_manager::TaskManager::new(),
+            task_manager_mode: false,
+            task_pending: Vec::new(),
         };
         app.load_dir();
         Ok(app)

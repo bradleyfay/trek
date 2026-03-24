@@ -3663,3 +3663,118 @@ fn jpeg_preview_shows_metadata() {
     );
     let _ = std::fs::remove_dir_all(&tmp);
 }
+
+// ── Task manager tests ────────────────────────────────────────────────────
+
+/// Given: an app with a copied file on clipboard, pasted asynchronously
+/// When: paste_clipboard_async is called and the task completes
+/// Then: the destination file exists and status message reflects success
+#[test]
+fn paste_clipboard_async_copies_file_in_background() {
+    let tmp = std::env::temp_dir().join(format!("trek_paste_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let src_dir = tmp.join("src");
+    let dst_dir = tmp.join("dst");
+    let _ = std::fs::create_dir_all(&src_dir);
+    let _ = std::fs::create_dir_all(&dst_dir);
+    std::fs::write(src_dir.join("hello.txt"), b"hello").unwrap();
+
+    let mut app = make_app_at(&src_dir);
+    // Yank the file
+    app.clipboard_copy_current();
+    // Navigate to destination directory
+    app.cwd = dst_dir.clone();
+    app.load_dir();
+
+    app.paste_clipboard_async();
+
+    // The task should be running immediately after the call
+    assert!(
+        !app.task_pending.is_empty() || app.task_manager.tasks.len() > 0,
+        "task should be queued after paste_clipboard_async"
+    );
+
+    // Wait for the background task to complete (poll up to 1s)
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(1);
+    while !app.task_pending.is_empty() && std::time::Instant::now() < deadline {
+        app.check_task_rx();
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+
+    assert!(
+        dst_dir.join("hello.txt").exists(),
+        "destination file should exist after async copy completes"
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: an app with task_manager_mode false
+/// When: toggle_task_manager is called
+/// Then: task_manager_mode becomes true
+#[test]
+fn toggle_task_manager_opens_panel() {
+    let dir = std::env::temp_dir();
+    let mut app = make_app_at(&dir);
+    assert!(!app.task_manager_mode);
+    app.toggle_task_manager();
+    assert!(app.task_manager_mode);
+    app.toggle_task_manager();
+    assert!(!app.task_manager_mode);
+}
+
+/// Given: an app with a completed (done) task in the task manager
+/// When: task_manager_clear_done is called
+/// Then: the completed task is removed from the list
+#[test]
+fn task_manager_clear_done_removes_completed_tasks() {
+    let dir = std::env::temp_dir();
+    let mut app = make_app_at(&dir);
+    use crate::app::task_manager::{TaskKind, TaskStatus};
+    let id = app
+        .task_manager
+        .push(TaskKind::Copy, "file.txt".to_string());
+    app.task_manager.update(
+        id,
+        TaskStatus::Done {
+            summary: "Copied 1 item".to_string(),
+        },
+    );
+    assert_eq!(app.task_manager.tasks.len(), 1);
+    app.task_manager_clear_done();
+    assert_eq!(app.task_manager.tasks.len(), 0);
+}
+
+/// Given: a task result sent via mpsc channel
+/// When: check_task_rx is called
+/// Then: the task status is updated and the channel is drained
+#[test]
+fn check_task_rx_delivers_result_and_drains_channel() {
+    let dir = std::env::temp_dir();
+    let mut app = make_app_at(&dir);
+    use crate::app::task_manager::{PendingTask, TaskKind, TaskResult, TaskStatus};
+    use std::sync::mpsc;
+
+    let task_id = app
+        .task_manager
+        .push(TaskKind::Copy, "file.txt".to_string());
+    let (tx, rx) = mpsc::channel::<TaskResult>();
+    app.task_pending.push(PendingTask { rx });
+
+    tx.send(TaskResult {
+        task_id,
+        status: TaskStatus::Done {
+            summary: "Copied 1 item".to_string(),
+        },
+        refresh_dir: false,
+    })
+    .unwrap();
+
+    app.check_task_rx();
+
+    assert!(app.task_pending.is_empty(), "channel should be drained");
+    let task = app.task_manager.tasks.front().unwrap();
+    assert!(
+        matches!(task.status, TaskStatus::Done { .. }),
+        "task status should be Done"
+    );
+}

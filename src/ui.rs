@@ -86,6 +86,8 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     if !app.preview_collapsed {
         if app.change_feed_mode {
             draw_change_feed_pane(f, app, pane_chunks[2]);
+        } else if app.task_manager_mode {
+            draw_task_manager_pane(f, app, pane_chunks[2]);
         } else {
             draw_preview_pane(f, app, pane_chunks[2]);
         }
@@ -2148,5 +2150,157 @@ mod tests {
         let result = truncate_with_ellipsis("café world", 5);
         assert!(result.chars().count() <= 5);
         assert!(result.ends_with('…'));
+    }
+}
+
+/// Render the background task manager panel in the preview pane area.
+///
+/// Shows all recent file operations (copy, move, extract) with their status.
+/// Active operations show a spinner-style indicator; completed ones show a
+/// summary or error. Press `c` to clear completed tasks, `j`/`k` to navigate,
+/// `Esc`/`q` to close.
+fn draw_task_manager_pane(f: &mut Frame, app: &App, area: Rect) {
+    use crate::app::task_manager::TaskStatus;
+
+    let has_running = app.task_manager.has_running();
+    let title = if has_running {
+        " Task Manager [running] "
+    } else {
+        " Task Manager "
+    };
+
+    let block = Block::default()
+        .title(title)
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::Yellow));
+
+    let inner = block.inner(area);
+    f.render_widget(block, area);
+
+    if app.task_manager.tasks.is_empty() {
+        let msg = Paragraph::new(Line::from(Span::styled(
+            "No background tasks",
+            Style::default().fg(Color::DarkGray),
+        )))
+        .alignment(ratatui::layout::Alignment::Center);
+        f.render_widget(msg, inner);
+
+        // Footer hint
+        let hint = Paragraph::new(Line::from(Span::styled(
+            "  Ctrl+T or q to close",
+            Style::default().fg(Color::DarkGray),
+        )));
+        if inner.height >= 3 {
+            let hint_area = Rect {
+                y: inner.y + inner.height - 1,
+                height: 1,
+                ..inner
+            };
+            f.render_widget(hint, hint_area);
+        }
+        return;
+    }
+
+    let height = inner.height as usize;
+    let total = app.task_manager.tasks.len();
+    let selected = app.task_manager.selected;
+
+    let scroll_offset = if selected < height {
+        0
+    } else {
+        selected - height + 1
+    };
+
+    let mut rows: Vec<Line> = Vec::with_capacity(height);
+    for (i, task) in app
+        .task_manager
+        .tasks
+        .iter()
+        .enumerate()
+        .skip(scroll_offset)
+        .take(height.saturating_sub(1))
+    {
+        let is_selected = i == selected;
+
+        let (status_sym, status_style) = match &task.status {
+            TaskStatus::Running => ("⟳", Style::default().fg(Color::Cyan)),
+            TaskStatus::Done { .. } => ("✓", Style::default().fg(Color::Green)),
+            TaskStatus::Failed { .. } => ("✗", Style::default().fg(Color::Red)),
+        };
+
+        let kind_label = task.kind.label();
+
+        let detail = match &task.status {
+            TaskStatus::Running => task.label.clone(),
+            TaskStatus::Done { summary } => summary.clone(),
+            TaskStatus::Failed { error } => format!("Error: {}", error),
+        };
+
+        let elapsed = {
+            let secs = task.started_at.elapsed().as_secs();
+            if secs < 60 {
+                format!("{}s", secs)
+            } else {
+                format!("{}m{}s", secs / 60, secs % 60)
+            }
+        };
+
+        let row_style = if is_selected {
+            Style::default().bg(Color::DarkGray)
+        } else {
+            Style::default()
+        };
+
+        let width = inner.width as usize;
+        let prefix = format!("  {} {:8}  ", status_sym, kind_label);
+        let suffix = format!("  {}", elapsed);
+        let available = width.saturating_sub(prefix.len() + suffix.len());
+        let detail_trunc = truncate_with_ellipsis(&detail, available);
+
+        let line = Line::from(vec![
+            Span::styled("  ", row_style),
+            Span::styled(status_sym.to_string(), status_style.patch(row_style)),
+            Span::styled(format!(" {:8}  ", kind_label), row_style),
+            Span::styled(detail_trunc, row_style),
+            Span::styled(
+                format!("  {}", elapsed),
+                Style::default().fg(Color::DarkGray).patch(row_style),
+            ),
+        ]);
+        rows.push(line);
+    }
+
+    // Footer: scroll indicator + keybinding hints.
+    let footer_text = if total > height.saturating_sub(1) {
+        format!(
+            "  {}/{} tasks  │  j/k navigate  c clear done  q close",
+            selected + 1,
+            total
+        )
+    } else {
+        "  j/k navigate  c clear done  q close".to_string()
+    };
+    let footer = Line::from(Span::styled(
+        footer_text,
+        Style::default().fg(Color::DarkGray),
+    ));
+
+    let content_height = inner.height.saturating_sub(1) as usize;
+    for (row_idx, line) in rows.into_iter().take(content_height).enumerate() {
+        let row_area = Rect {
+            y: inner.y + row_idx as u16,
+            height: 1,
+            ..inner
+        };
+        f.render_widget(Paragraph::new(line), row_area);
+    }
+
+    if inner.height >= 2 {
+        let footer_area = Rect {
+            y: inner.y + inner.height - 1,
+            height: 1,
+            ..inner
+        };
+        f.render_widget(Paragraph::new(footer), footer_area);
     }
 }

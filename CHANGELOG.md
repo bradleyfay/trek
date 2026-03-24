@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.59.0] - 2026-03-24
+
+### Added
+- **Background file operations with task manager** — copy, move, and archive extraction now run on background threads so Trek remains fully interactive during large transfers. A task manager panel (`Ctrl+T`, also accessible via the command palette) lists all active and recently completed operations with their status (⟳ running / ✓ done / ✗ failed), operation type, label, and elapsed time. Press `j`/`k` to navigate, `c` to clear completed tasks, and `Esc`/`q` to close. The panel is also shown in the preview pane area (replaces the preview while open). Status-bar messages now include a `(Ctrl+T to monitor)` hint when a background op is in flight.
+
+### Removed
+- The previously blocking synchronous `paste_clipboard` and `confirm_extract` methods have been replaced by their asynchronous equivalents and removed. All paste/extract actions are now non-blocking.
+
 ## [0.58.0] - 2026-03-24
 
 ### Added
