@@ -162,14 +162,30 @@ pub fn draw(f: &mut Frame, app: &mut App) {
 }
 
 fn draw_path_bar(f: &mut Frame, app: &App, area: Rect) {
+    // Smart path truncation: keep last 3 components when path is wide.
+    let available = area.width.saturating_sub(4) as usize; // rough margin
     let path_str = app.cwd.to_string_lossy();
-    let hidden_indicator = if app.show_hidden { " [H]" } else { "" };
+    let display_path = if path_str.chars().count() > available && available > 4 {
+        // Keep last 3 path components with …/ prefix.
+        let components: Vec<&str> = path_str.split('/').filter(|c| !c.is_empty()).collect();
+        let keep = components.len().min(3);
+        let tail: Vec<&str> = components[components.len() - keep..].to_vec();
+        format!("…/{}", tail.join("/"))
+    } else {
+        path_str.into_owned()
+    };
+
     let mut spans = vec![Span::styled(
-        format!(" {}{}", path_str, hidden_indicator),
+        format!(" {}", display_path),
         Style::default()
-            .fg(Color::Cyan)
+            .fg(Color::White)
             .add_modifier(Modifier::BOLD),
     )];
+
+    // Hidden files indicator as a separate, dimmed span.
+    if app.show_hidden {
+        spans.push(Span::styled("  [H]", Style::default().fg(Color::DarkGray)));
+    }
 
     if let Some(branch) = app.git_status.as_ref().and_then(|g| g.branch.as_ref()) {
         spans.push(Span::styled(
@@ -279,7 +295,8 @@ fn draw_parent_pane(f: &mut Frame, app: &App, area: Rect) {
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_else(|| "/".to_string());
 
-    let visible_height = area.height.saturating_sub(1) as usize; // 1 for top title line (no bottom border)
+    let inner_width = area.width.saturating_sub(2) as usize; // account for right border
+    let visible_height = area.height.saturating_sub(1) as usize;
     let items: Vec<ListItem> = app
         .parent_entries
         .iter()
@@ -289,27 +306,28 @@ fn draw_parent_pane(f: &mut Frame, app: &App, area: Rect) {
         .map(|(i, entry)| {
             let style = if i == app.parent_selected {
                 Style::default()
-                    .fg(Color::Black)
+                    .fg(Color::White)
                     .bg(Color::Blue)
                     .add_modifier(Modifier::BOLD)
             } else if entry.is_dir {
                 Style::default()
-                    .fg(Color::Blue)
+                    .fg(Color::Cyan)
                     .add_modifier(Modifier::BOLD)
             } else {
                 Style::default()
             };
             let icon = icon_for_entry(&entry.name, entry.is_dir);
-            let name = format!("{} {}", icon, entry.name);
+            let raw_name = format!("{} {}", icon, entry.name);
+            let name = truncate_with_ellipsis(&raw_name, inner_width.saturating_sub(1));
             ListItem::new(Span::styled(name, style))
         })
         .collect();
 
     let list = List::new(items).block(
         Block::default()
-            .borders(Borders::TOP)
+            .borders(Borders::TOP | Borders::RIGHT)
             .border_style(Style::default().fg(Color::DarkGray))
-            .title(title),
+            .title(Span::styled(title, Style::default().fg(Color::DarkGray))),
     );
     f.render_widget(list, area);
 }
@@ -322,9 +340,9 @@ fn draw_current_pane(f: &mut Frame, app: &App, area: Rect) {
         .unwrap_or_else(|| app.cwd.to_string_lossy().into_owned());
 
     let is_searching = app.search_mode && !app.search_query.is_empty();
+    // 2-char prefix always reserved so layout doesn't shift when selection changes.
+    let sel_prefix_width: usize = 2;
     let has_selection = !app.rename_selected.is_empty();
-    // 2 chars for "✓ " / "  " prefix when any file is selected.
-    let sel_prefix_width: usize = if has_selection { 2 } else { 0 };
 
     let inner_width = area.width.saturating_sub(1) as usize; // 1 col for right border
     let visible_height = area.height.saturating_sub(2) as usize; // top title + bottom info
@@ -340,8 +358,8 @@ fn draw_current_pane(f: &mut Frame, app: &App, area: Rect) {
             let is_match = !is_searching || app.filtered_set.contains(&i);
             let style = if is_cursor {
                 Style::default()
-                    .fg(Color::Black)
-                    .bg(Color::LightYellow)
+                    .fg(Color::White)
+                    .bg(Color::Blue)
                     .add_modifier(Modifier::BOLD)
             } else if is_marked {
                 Style::default()
@@ -351,7 +369,7 @@ fn draw_current_pane(f: &mut Frame, app: &App, area: Rect) {
                 Style::default().fg(Color::DarkGray)
             } else if entry.is_dir {
                 Style::default()
-                    .fg(Color::Blue)
+                    .fg(Color::Cyan)
                     .add_modifier(Modifier::BOLD)
             } else {
                 Style::default()
@@ -361,7 +379,7 @@ fn draw_current_pane(f: &mut Frame, app: &App, area: Rect) {
             let git_indicator: Option<(char, Color)> = app.git_status.as_ref().and_then(|git| {
                 if entry.is_dir {
                     if git.subtree_dirty(&entry.path) {
-                        Some(('~', Color::Yellow))
+                        Some(('\u{25cf}', Color::Yellow)) // ● dimmed for dirty dir
                     } else {
                         None
                     }
@@ -378,9 +396,15 @@ fn draw_current_pane(f: &mut Frame, app: &App, area: Rect) {
             };
 
             // Layout: "[✓ ]{icon} {name}{padding}[indicator ]{size_str}"
-            let left_part = format!("{} {}", icon, entry.name);
             let indicator_width: usize = if git_indicator.is_some() { 2 } else { 0 };
-            let total_fixed = sel_prefix_width + left_part.len() + size_str.len() + indicator_width;
+            let size_width = size_str.len();
+            // Available space for icon+name after fixed columns.
+            let max_name_width =
+                inner_width.saturating_sub(sel_prefix_width + size_width + indicator_width + 1);
+            let left_part_raw = format!("{} {}", icon, entry.name);
+            let left_part = truncate_with_ellipsis(&left_part_raw, max_name_width);
+            let total_fixed =
+                sel_prefix_width + left_part.chars().count() + size_width + indicator_width;
             let padding = if inner_width > total_fixed {
                 inner_width - total_fixed
             } else {
@@ -389,20 +413,19 @@ fn draw_current_pane(f: &mut Frame, app: &App, area: Rect) {
 
             let mut spans: Vec<Span> = Vec::new();
 
-            // Selection checkmark prefix (shown when any file is selected).
-            if has_selection {
-                let (mark, mark_style) = if is_marked {
-                    (
-                        "✓ ",
-                        Style::default()
-                            .fg(Color::Green)
-                            .add_modifier(Modifier::BOLD),
-                    )
-                } else {
-                    ("  ", Style::default())
-                };
-                spans.push(Span::styled(mark, mark_style));
-            }
+            // Selection prefix always rendered (2 chars) to prevent layout shift.
+            let (mark, mark_style) = if is_marked {
+                (
+                    "✓ ",
+                    Style::default()
+                        .fg(Color::Green)
+                        .add_modifier(Modifier::BOLD),
+                )
+            } else {
+                ("  ", Style::default())
+            };
+            let _ = has_selection; // prefix always shown; variable retained for clarity
+            spans.push(Span::styled(mark, mark_style));
 
             // Icon + name + padding.
             spans.push(Span::styled(
@@ -415,7 +438,7 @@ fn draw_current_pane(f: &mut Frame, app: &App, area: Rect) {
                 let ind_style = if is_cursor {
                     Style::default()
                         .fg(color)
-                        .bg(Color::LightYellow)
+                        .bg(Color::Blue)
                         .add_modifier(Modifier::BOLD)
                 } else {
                     Style::default().fg(color).add_modifier(Modifier::BOLD)
@@ -424,8 +447,14 @@ fn draw_current_pane(f: &mut Frame, app: &App, area: Rect) {
                 spans.push(Span::styled(" ", style));
             }
 
+            // Size rendered in dimmer style to visually separate it from the name.
             if !size_str.is_empty() {
-                spans.push(Span::styled(size_str, style));
+                let size_style = if is_cursor {
+                    Style::default().fg(Color::Gray).bg(Color::Blue)
+                } else {
+                    Style::default().fg(Color::DarkGray)
+                };
+                spans.push(Span::styled(size_str, size_style));
             }
 
             ListItem::new(Line::from(spans))
@@ -439,10 +468,18 @@ fn draw_current_pane(f: &mut Frame, app: &App, area: Rect) {
     };
     let list = List::new(items).block(
         Block::default()
-            .borders(Borders::TOP | Borders::BOTTOM | Borders::RIGHT)
-            .border_style(Style::default().fg(Color::DarkGray))
-            .title(title)
-            .title_bottom(Line::from(info).right_aligned()),
+            .borders(Borders::TOP | Borders::RIGHT)
+            .border_style(Style::default().fg(Color::Cyan))
+            .title(Span::styled(
+                title,
+                Style::default()
+                    .fg(Color::White)
+                    .add_modifier(Modifier::BOLD),
+            ))
+            .title_bottom(
+                Line::from(Span::styled(info, Style::default().fg(Color::DarkGray)))
+                    .right_aligned(),
+            ),
     );
     f.render_widget(list, area);
 }
@@ -513,18 +550,24 @@ fn draw_preview_pane(f: &mut Frame, app: &App, area: Rect) {
     let content_area = Rect::new(area.x, area.y, area.width.saturating_sub(1), area.height);
     let para = Paragraph::new(lines).block(
         Block::default()
-            .borders(Borders::ALL)
+            .borders(Borders::TOP)
             .border_style(Style::default().fg(Color::DarkGray))
-            .title(title)
-            .title_bottom(Line::from(scroll_info).right_aligned()),
+            .title(Span::styled(title, Style::default().fg(Color::DarkGray)))
+            .title_bottom(
+                Line::from(Span::styled(
+                    scroll_info,
+                    Style::default().fg(Color::DarkGray),
+                ))
+                .right_aligned(),
+            ),
     );
     f.render_widget(para, content_area);
 
-    // Draw scrollbar in the rightmost column.
+    // Draw scrollbar in the rightmost column (always show track when content overflows).
     if total > visible_height && visible_height > 0 {
         let scrollbar_col = area.x + area.width - 1;
         let bar_top = area.y + 1; // skip top border
-        let bar_height = area.height.saturating_sub(2) as usize; // skip borders
+        let bar_height = area.height.saturating_sub(1) as usize; // only skip top border
 
         if bar_height > 0 {
             // Calculate thumb position and size.
@@ -548,9 +591,9 @@ fn draw_preview_pane(f: &mut Frame, app: &App, area: Rect) {
                 };
                 let r = Rect::new(scrollbar_col, bar_top + row_offset as u16, 1, 1);
                 let style = if row_offset >= thumb_pos && row_offset < thumb_pos + thumb_size {
-                    Style::default().fg(Color::DarkGray)
+                    Style::default().fg(Color::Gray)
                 } else {
-                    Style::default().fg(Color::Rgb(40, 40, 40))
+                    Style::default().fg(Color::Rgb(60, 60, 60))
                 };
                 f.render_widget(Paragraph::new(Line::from(Span::styled(ch, style))), r);
             }
@@ -753,7 +796,7 @@ fn draw_content_search_pane(f: &mut Frame, app: &App, area: Rect) {
             RowKind::Header(text) => ListItem::new(Line::from(Span::styled(
                 text.clone(),
                 Style::default()
-                    .fg(Color::Blue)
+                    .fg(Color::Cyan)
                     .add_modifier(Modifier::BOLD),
             ))),
             RowKind::Match {
@@ -764,8 +807,8 @@ fn draw_content_search_pane(f: &mut Frame, app: &App, area: Rect) {
                 let is_selected = *fi == app.content_search_selected;
                 let style = if is_selected {
                     Style::default()
-                        .fg(Color::Black)
-                        .bg(Color::LightYellow)
+                        .fg(Color::White)
+                        .bg(Color::Blue)
                         .add_modifier(Modifier::BOLD)
                 } else {
                     Style::default()
@@ -827,11 +870,21 @@ fn draw_content_search_bar(f: &mut Frame, app: &App, area: Rect) {
 /// Map a `FileStatus` to a display character and colour.
 fn file_status_indicator(status: FileStatus) -> (char, Color) {
     match status {
-        FileStatus::Conflict => ('!', Color::Red),
-        FileStatus::Deleted => ('D', Color::Red),
-        FileStatus::Staged | FileStatus::StagedModified => ('S', Color::Green),
-        FileStatus::Modified => ('M', Color::Yellow),
-        FileStatus::Untracked => ('?', Color::Cyan),
+        FileStatus::Conflict => ('\u{2716}', Color::Red), // ✖
+        FileStatus::Deleted => ('\u{2716}', Color::Red),  // ✖
+        FileStatus::Staged | FileStatus::StagedModified => ('\u{271a}', Color::Green), // ✚
+        FileStatus::Modified => ('\u{25cf}', Color::Yellow), // ●
+        FileStatus::Untracked => ('+', Color::Cyan),
+    }
+}
+
+/// Truncate `s` to `max_chars` characters, appending `…` when truncated.
+fn truncate_with_ellipsis(s: &str, max_chars: usize) -> String {
+    if s.chars().count() <= max_chars {
+        s.to_string()
+    } else {
+        let truncated: String = s.chars().take(max_chars.saturating_sub(1)).collect();
+        format!("{}…", truncated)
     }
 }
 
@@ -855,9 +908,25 @@ fn colorize_diff_line(line: &str) -> Line<'_> {
     Line::from(Span::styled(line, style))
 }
 
+fn section_header(label: &'static str) -> Line<'static> {
+    Line::from(Span::styled(
+        format!("  {}", label),
+        Style::default()
+            .fg(Color::Yellow)
+            .add_modifier(Modifier::BOLD),
+    ))
+}
+
+fn key_line(key: &'static str, desc: &'static str) -> Line<'static> {
+    Line::from(vec![
+        Span::styled(format!("  {:<10}", key), Style::default().fg(Color::Cyan)),
+        Span::raw(desc),
+    ])
+}
+
 fn draw_help_overlay(f: &mut Frame, size: Rect) {
-    let width = 50u16.min(size.width.saturating_sub(4));
-    let height = 42u16.min(size.height.saturating_sub(4));
+    let width = 60u16.min(size.width.saturating_sub(4));
+    let height = 46u16.min(size.height.saturating_sub(4));
     let x = (size.width.saturating_sub(width)) / 2;
     let y = (size.height.saturating_sub(height)) / 2;
     let area = Rect::new(x, y, width, height);
@@ -865,163 +934,124 @@ fn draw_help_overlay(f: &mut Frame, size: Rect) {
     f.render_widget(Clear, area);
 
     let help_lines = vec![
-        Line::from(Span::styled(
-            " Keybindings",
-            Style::default()
-                .fg(Color::Yellow)
-                .add_modifier(Modifier::BOLD),
-        )),
+        // ── Navigation ──────────────────────────────────────────────────────
+        section_header("Navigation"),
+        key_line("j/Down", "Move down"),
+        key_line("k/Up", "Move up"),
+        key_line("l/Right", "Enter dir / yank file path"),
+        key_line("h/Left", "Go to parent"),
+        key_line("Enter", "Enter dir / yank file path"),
+        key_line("g / G", "Go to top / bottom"),
+        key_line("~", "Go to home directory"),
+        key_line(".", "Toggle hidden files"),
+        key_line("Ctrl+O", "Go back in directory history"),
+        key_line("Ctrl+I", "Go forward in directory history"),
         Line::from(""),
-        Line::from(vec![
-            Span::styled("  j/Down    ", Style::default().fg(Color::Cyan)),
-            Span::raw("Move down"),
-        ]),
-        Line::from(vec![
-            Span::styled("  k/Up      ", Style::default().fg(Color::Cyan)),
-            Span::raw("Move up"),
-        ]),
-        Line::from(vec![
-            Span::styled("  l/Right   ", Style::default().fg(Color::Cyan)),
-            Span::raw("Enter dir / yank file path"),
-        ]),
-        Line::from(vec![
-            Span::styled("  h/Left    ", Style::default().fg(Color::Cyan)),
-            Span::raw("Go to parent"),
-        ]),
-        Line::from(vec![
-            Span::styled("  Enter     ", Style::default().fg(Color::Cyan)),
-            Span::raw("Enter dir / yank file path"),
-        ]),
-        Line::from(vec![
-            Span::styled("  g         ", Style::default().fg(Color::Cyan)),
-            Span::raw("Go to top"),
-        ]),
-        Line::from(vec![
-            Span::styled("  G         ", Style::default().fg(Color::Cyan)),
-            Span::raw("Go to bottom"),
-        ]),
-        Line::from(vec![
-            Span::styled("  ~         ", Style::default().fg(Color::Cyan)),
-            Span::raw("Go to home directory"),
-        ]),
-        Line::from(vec![
-            Span::styled("  .         ", Style::default().fg(Color::Cyan)),
-            Span::raw("Toggle hidden files"),
-        ]),
-        Line::from(vec![
-            Span::styled("  /         ", Style::default().fg(Color::Cyan)),
-            Span::raw("Fuzzy search"),
-        ]),
-        Line::from(vec![
-            Span::styled("  Ctrl+F    ", Style::default().fg(Color::Cyan)),
-            Span::raw("Content search (ripgrep)"),
-        ]),
-        Line::from(vec![
-            Span::styled("  Ctrl+O    ", Style::default().fg(Color::Cyan)),
-            Span::raw("Go back in directory history"),
-        ]),
-        Line::from(vec![
-            Span::styled("  Ctrl+I    ", Style::default().fg(Color::Cyan)),
-            Span::raw("Go forward in directory history"),
-        ]),
-        Line::from(vec![
-            Span::styled("  y         ", Style::default().fg(Color::Cyan)),
-            Span::raw("Yank relative path"),
-        ]),
-        Line::from(vec![
-            Span::styled("  Y         ", Style::default().fg(Color::Cyan)),
-            Span::raw("Yank absolute path"),
-        ]),
-        Line::from(vec![
-            Span::styled("  d         ", Style::default().fg(Color::Cyan)),
-            Span::raw("Toggle git diff preview"),
-        ]),
-        Line::from(vec![
-            Span::styled("  R         ", Style::default().fg(Color::Cyan)),
-            Span::raw("Refresh git status"),
-        ]),
-        Line::from(vec![
-            Span::styled("  Space     ", Style::default().fg(Color::Cyan)),
-            Span::raw("Toggle file selection"),
-        ]),
-        Line::from(vec![
-            Span::styled("  v         ", Style::default().fg(Color::Cyan)),
-            Span::raw("Select all files"),
-        ]),
-        Line::from(vec![
-            Span::styled("  r         ", Style::default().fg(Color::Cyan)),
-            Span::raw("Rename selected files"),
-        ]),
-        Line::from(vec![
-            Span::styled("  Esc       ", Style::default().fg(Color::Cyan)),
-            Span::raw("Clear selections"),
-        ]),
+        // ── Search ──────────────────────────────────────────────────────────
+        section_header("Search"),
+        key_line("/", "Fuzzy search"),
+        key_line("Ctrl+F", "Content search (ripgrep)"),
         Line::from(""),
-        Line::from(vec![
-            Span::styled("  c         ", Style::default().fg(Color::Cyan)),
-            Span::raw("Copy current to clipboard"),
-        ]),
-        Line::from(vec![
-            Span::styled("  C         ", Style::default().fg(Color::Cyan)),
-            Span::raw("Copy selected to clipboard"),
-        ]),
-        Line::from(vec![
-            Span::styled("  x         ", Style::default().fg(Color::Cyan)),
-            Span::raw("Cut current to clipboard"),
-        ]),
-        Line::from(vec![
-            Span::styled("  X         ", Style::default().fg(Color::Cyan)),
-            Span::raw("Cut selected to clipboard"),
-        ]),
-        Line::from(vec![
-            Span::styled("  p         ", Style::default().fg(Color::Cyan)),
-            Span::raw("Paste clipboard into current dir"),
-        ]),
-        Line::from(vec![
-            Span::styled("  Delete    ", Style::default().fg(Color::Cyan)),
-            Span::raw("Delete current file/dir"),
-        ]),
-        Line::from(vec![
-            Span::styled("  M         ", Style::default().fg(Color::Cyan)),
-            Span::raw("Make new directory"),
-        ]),
+        // ── View ────────────────────────────────────────────────────────────
+        section_header("View"),
+        key_line("d", "Toggle git diff preview"),
+        key_line("R", "Refresh git status"),
+        key_line("S", "Cycle sort: Name/Size/Modified/Ext"),
+        key_line("s", "Toggle sort order ↑↓"),
         Line::from(""),
-        Line::from(vec![
-            Span::styled("  S         ", Style::default().fg(Color::Cyan)),
-            Span::raw("Cycle sort: Name / Size / Modified / Extension"),
-        ]),
-        Line::from(vec![
-            Span::styled("  s         ", Style::default().fg(Color::Cyan)),
-            Span::raw("Toggle sort order (ascending / descending)"),
-        ]),
-        Line::from(vec![
-            Span::styled("  Q         ", Style::default().fg(Color::Cyan)),
-            Span::raw("Quit"),
-        ]),
-        Line::from(vec![
-            Span::styled("  ?         ", Style::default().fg(Color::Cyan)),
-            Span::raw("Toggle this help"),
-        ]),
+        // ── Selection & Rename ──────────────────────────────────────────────
+        section_header("Selection & Rename"),
+        key_line("Space", "Toggle file selection"),
+        key_line("v", "Select all files"),
+        key_line("r", "Rename selected files"),
+        key_line("Esc", "Clear selections / cancel mode"),
+        Line::from(""),
+        // ── File Operations ─────────────────────────────────────────────────
+        section_header("File Operations"),
+        key_line("c / C", "Copy current / selected"),
+        key_line("x", "Cut current to clipboard"),
+        key_line("p", "Paste clipboard into current dir"),
+        key_line("Delete / X", "Delete current / selected"),
+        key_line("M", "Make new directory"),
+        Line::from(""),
+        // ── Yank & Misc ─────────────────────────────────────────────────────
+        section_header("Yank & Misc"),
+        key_line("y / Y", "Yank relative / absolute path"),
+        key_line("Q", "Quit"),
+        key_line("?", "Toggle this help"),
         Line::from(""),
         Line::from(Span::styled(
-            " Drag dividers with the mouse to resize panes",
+            "  Drag dividers to resize · scroll wheel on all panes",
             Style::default().fg(Color::DarkGray),
         )),
         Line::from(Span::styled(
-            " Scroll wheel works on all panes",
+            "  Any key to close",
             Style::default().fg(Color::DarkGray),
         )),
     ];
 
     let block = Block::default()
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::Yellow))
-        .title(" Help ")
-        .title_style(
+        .border_style(Style::default().fg(Color::Cyan))
+        .title(Span::styled(
+            " Help ",
             Style::default()
-                .fg(Color::Yellow)
+                .fg(Color::White)
                 .add_modifier(Modifier::BOLD),
-        );
+        ));
     let para = Paragraph::new(help_lines).block(block);
     f.render_widget(para, area);
+}
+
+// ── Tests ──────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Given: a string shorter than max_chars
+    /// When: truncate_with_ellipsis is called
+    /// Then: the original string is returned unchanged
+    #[test]
+    fn truncate_short_string_unchanged() {
+        assert_eq!(truncate_with_ellipsis("hello", 10), "hello");
+    }
+
+    /// Given: a string exactly equal to max_chars
+    /// When: truncate_with_ellipsis is called
+    /// Then: the original string is returned (no ellipsis)
+    #[test]
+    fn truncate_at_limit_unchanged() {
+        assert_eq!(truncate_with_ellipsis("hello", 5), "hello");
+    }
+
+    /// Given: a string longer than max_chars
+    /// When: truncate_with_ellipsis is called
+    /// Then: the result ends with '…' and is at most max_chars chars long
+    #[test]
+    fn truncate_long_string_appends_ellipsis() {
+        let result = truncate_with_ellipsis("hello world", 8);
+        assert!(result.ends_with('…'), "expected ellipsis: {result}");
+        assert!(result.chars().count() <= 8, "expected <= 8 chars: {result}");
+    }
+
+    /// Given: max_chars = 1
+    /// When: truncate_with_ellipsis is called on a longer string
+    /// Then: result is just '…'
+    #[test]
+    fn truncate_min_width_returns_ellipsis_only() {
+        let result = truncate_with_ellipsis("hello", 1);
+        assert_eq!(result, "…");
+    }
+
+    /// Given: a string with multi-byte Unicode characters
+    /// When: truncate_with_ellipsis is called
+    /// Then: truncation is based on char count, not byte count
+    #[test]
+    fn truncate_respects_unicode_chars() {
+        // "café" = 4 chars but 5 bytes (UTF-8)
+        let result = truncate_with_ellipsis("café world", 5);
+        assert!(result.chars().count() <= 5);
+        assert!(result.ends_with('…'));
+    }
 }

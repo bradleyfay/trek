@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-03-23
+
+### Changed
+- **Consistent pane borders**: parent pane now uses `TOP | RIGHT`, current pane uses `TOP | RIGHT`, preview pane uses `TOP` only — eliminates the double-border artifact between panes
+- **Unified selection highlight**: `bg: Blue, fg: White` used everywhere (current pane cursor, content search selected), replacing the inconsistent `LightYellow`; directory entries now use `Cyan` (not `Blue`) to avoid colliding with the selection background
+- **Active pane emphasis**: current pane border and title rendered in `Cyan`/`White+Bold`; parent and preview pane borders/titles remain `DarkGray` — gives immediate spatial orientation
+- **Styled pane titles**: current pane title `White+Bold` (active); parent and preview titles `DarkGray` (context)
+- **Dimmed file sizes**: size column always rendered in `DarkGray` (or `Gray` on cursor row) to visually separate it from filenames
+- **Long filename truncation**: names wider than available column space are truncated with `…` instead of a hard cut; applied in both parent and current panes
+- **Symbolic git status glyphs**: `M`→`●`, staged→`✚`, conflict/deleted→`✖`, untracked→`+`, dirty dir→`●` — more universally recognizable than bare letters
+- **Smart path bar truncation**: when path is wider than the terminal, shows last 3 components with `…/` prefix; hidden-files `[H]` rendered as a separate dimmed span
+- **Improved scrollbar**: track uses `Color::Rgb(60,60,60)` (visible on dark terminals), thumb uses `Color::Gray`; track is always shown when content overflows
+- **Content search**: file group headers use `Cyan` (was `Blue`)
+- **Permanent selection prefix**: 2-char selection prefix space is always reserved, eliminating layout shift when entering/leaving selection mode
+- **Help overlay**: keybindings grouped into labeled sections (Navigation, Search, View, Selection & Rename, File Operations, Yank & Misc); overlay widened to 60 columns; "Any key to close" hint added at the bottom; border color changed to `Cyan` for consistency
+- **Path bar color**: path text now uses `White+Bold` for better readability
+- 5 unit tests for `truncate_with_ellipsis` covering normal, at-limit, truncation, min-width, and Unicode cases
+
 ## [0.10.0] - 2026-03-23
 
 ### Added
