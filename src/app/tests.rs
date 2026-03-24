@@ -3849,6 +3849,69 @@ fn confirm_archive_create_tar_gz_creates_file() {
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
+// ── cmux tab open tests (issue #98) ──────────────────────────────────────────
+
+/// Given: a directory containing a file and a subdirectory
+/// When: enter_selected is called on a file
+/// Then: status_message does NOT start with "Yanked:" (old yank behavior removed)
+#[test]
+fn enter_selected_on_file_does_not_yank() {
+    let tmp = std::env::temp_dir().join(format!("trek_cmux_noyank_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("readme.txt"), b"hello").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.status_message = None;
+    // Select the file
+    app.selected = app
+        .entries
+        .iter()
+        .position(|e| e.name == "readme.txt")
+        .unwrap_or(0);
+    app.enter_selected();
+    let msg = app.status_message.as_deref().unwrap_or("");
+    assert!(
+        !msg.starts_with("Yanked:"),
+        "enter_selected on file should no longer yank path, got: {msg}"
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: a directory containing only subdirectories
+/// When: open_in_cmux_tab is called with a directory selected
+/// Then: status_message is unchanged (noop — dirs are not opened)
+#[test]
+fn open_in_cmux_tab_on_dir_is_noop() {
+    let tmp = std::env::temp_dir().join(format!("trek_cmux_dir_{}", std::process::id()));
+    let sub = tmp.join("subdir");
+    let _ = std::fs::create_dir_all(&sub);
+    let mut app = make_app_at(&tmp);
+    app.status_message = None;
+    app.selected = app.entries.iter().position(|e| e.is_dir).unwrap_or(0);
+    app.open_in_cmux_tab();
+    assert_eq!(
+        app.status_message, None,
+        "open_in_cmux_tab on a dir should be a noop"
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: an empty directory (no entries)
+/// When: open_in_cmux_tab is called
+/// Then: no panic and status_message is unchanged
+#[test]
+fn open_in_cmux_tab_on_empty_dir_is_noop() {
+    let tmp = std::env::temp_dir().join(format!("trek_cmux_empty_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let mut app = make_app_at(&tmp);
+    app.status_message = None;
+    app.open_in_cmux_tab();
+    assert_eq!(
+        app.status_message, None,
+        "open_in_cmux_tab on empty dir should be a noop"
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
 /// Given: the watcher is disabled (user toggled off)
 /// When: check_watcher is called
 /// Then: listing does NOT reload (no channel to poll)

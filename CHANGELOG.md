@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.52.0] - 2026-03-24
+
+### Added
+- **cmux tab open**: pressing `l`, `→`, or `Enter` on a file now opens it in a new cmux tab instead of yanking its path to the clipboard
+- File type routing: HTML/images/PDFs open with the system default opener; all other text/code files open in `$EDITOR` inside a new terminal surface
+- Falls back gracefully with a status-bar hint when Trek is not running inside cmux
+- `Open file in new cmux tab` action added to the command palette (`l / Right / Enter`)
+
+### Changed
+- `enter_selected` on a file now calls `open_in_cmux_tab` — consistent with the "right means go deeper / act on this" navigation model
+- `l`, `→`, and `Enter` on a file no longer silently yank the relative path; use `y` to yank
+
 ## [0.51.0] - 2026-03-24
 
 ### Added

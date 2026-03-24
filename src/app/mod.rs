@@ -10,6 +10,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 mod bookmarks;
+mod cmux;
 mod content;
 mod file_ops;
 mod filter;

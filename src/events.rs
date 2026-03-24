@@ -583,6 +583,7 @@ fn execute_palette_action(
         ActionId::BeginArchiveCreate => app.begin_archive_create(),
         ActionId::InspectClipboard => app.open_clipboard_inspect(),
         ActionId::OpenFrecency => app.open_frecency(),
+        ActionId::OpenInCmuxTab => app.open_in_cmux_tab(),
         ActionId::ShowHelp => app.show_help = true,
         // Quit appears in the palette for discoverability but cannot break out
         // of the event loop from here — use q directly.

@@ -68,6 +68,7 @@ pub enum ActionId {
     OpenFrecency,
     BeginArchiveCreate,
     ShowHelp,
+    OpenInCmuxTab,
     Quit,
 }
 
@@ -385,6 +386,11 @@ pub static PALETTE_ACTIONS: &[PaletteAction] = &[
         id: ActionId::BeginArchiveCreate,
         name: "Create archive from selected files (tar.gz, zip, …)",
         keys: "E",
+    },
+    PaletteAction {
+        id: ActionId::OpenInCmuxTab,
+        name: "Open file in new cmux tab (l / Right / Enter on file)",
+        keys: "l / Right / Enter",
     },
     PaletteAction {
         id: ActionId::ShowHelp,
