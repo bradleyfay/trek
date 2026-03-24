@@ -12,6 +12,10 @@ Terminal file browser that runs as a persistent pane inside [cmux](https://githu
 
 ## File Routing
 
+Routing is user-configurable via `~/.config/trek/opener.conf` (or `$XDG_CONFIG_HOME/trek/opener.conf`). Rules use `ext <exts>` or `glob <pattern>` matchers; `{}` is the file path placeholder; first match wins. See the README "Opening files" section for config format and examples.
+
+When no config file exists, built-in defaults apply:
+
 | File type | Opens in |
 |---|---|
 | Markdown (`.md`) | cmux markdown viewer |
