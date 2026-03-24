@@ -292,7 +292,7 @@ impl App {
     }
 
     /// Load `git diff` (unstaged, then staged) for `path` as a list of lines.
-    fn load_git_diff(path: &PathBuf) -> Vec<String> {
+    fn load_git_diff(path: &Path) -> Vec<String> {
         let parent = match path.parent() {
             Some(p) => p,
             None => return Vec::new(),
@@ -553,6 +553,7 @@ impl App {
 
     /// Store computed layout values needed for mouse hit-testing.
     /// Called once per frame by `ui::draw` after it calculates pane geometry.
+    #[allow(clippy::too_many_arguments)]
     pub fn apply_layout(
         &mut self,
         term_width: u16,

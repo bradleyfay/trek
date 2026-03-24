@@ -517,7 +517,10 @@ fn draw_rename_bar(f: &mut Frame, app: &App, area: Rect) {
     f.render_widget(
         Paragraph::new(Line::from(vec![
             Span::styled("Pattern  : ", label_style),
-            Span::styled(app.rename_pattern.clone(), Style::default().fg(Color::White)),
+            Span::styled(
+                app.rename_pattern.clone(),
+                Style::default().fg(Color::White),
+            ),
             Span::styled(pat_cursor, Style::default().fg(Color::White)),
         ])),
         pat_area,

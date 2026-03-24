@@ -100,10 +100,8 @@ pub fn compute_preview(
 
     // Count how many entries in this batch would produce each proposed name.
     let mut batch_count: HashMap<&str, usize> = HashMap::new();
-    for p in &proposals {
-        if let Some(ref name) = p {
-            *batch_count.entry(name.as_str()).or_insert(0) += 1;
-        }
+    for name in proposals.iter().flatten() {
+        *batch_count.entry(name.as_str()).or_insert(0) += 1;
     }
 
     let mut rows = Vec::with_capacity(selected.len());
