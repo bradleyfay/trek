@@ -105,6 +105,8 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         draw_content_search_bar(f, app, bottom_area);
     } else if app.find_mode {
         draw_find_bar(f, app, bottom_area);
+    } else if app.filter_mode {
+        draw_filter_bar(f, app, bottom_area);
     } else if app.search_mode {
         draw_search_bar(f, app, bottom_area);
     } else if let Some(ref msg) = app.status_message {
@@ -251,6 +253,27 @@ fn draw_search_bar(f: &mut Frame, app: &App, area: Rect) {
     f.render_widget(para, area);
 }
 
+fn draw_filter_bar(f: &mut Frame, app: &App, area: Rect) {
+    let para = Paragraph::new(Line::from(vec![
+        Span::styled(
+            " Filter: ",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            format!("{}_", app.filter_input),
+            Style::default().fg(Color::White),
+        ),
+        Span::styled(
+            "  Esc=clear  Enter=freeze",
+            Style::default().fg(Color::DarkGray),
+        ),
+    ]))
+    .block(Block::default().borders(Borders::TOP));
+    f.render_widget(para, area);
+}
+
 fn draw_delete_confirm_bar(f: &mut Frame, app: &App, area: Rect) {
     let count = app.pending_delete.len();
     let subject = if count == 1 {
@@ -390,11 +413,18 @@ fn draw_parent_pane(f: &mut Frame, app: &App, area: Rect) {
 }
 
 fn draw_current_pane(f: &mut Frame, app: &App, area: Rect) {
-    let title = app
+    let base_title = app
         .cwd
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_else(|| app.cwd.to_string_lossy().into_owned());
+
+    // Show [~pattern] when filter is frozen (active but bar is closed).
+    let title = if !app.filter_input.is_empty() && !app.filter_mode {
+        format!("{} [~{}]", base_title, app.filter_input)
+    } else {
+        base_title
+    };
 
     let is_searching = app.search_mode && !app.search_query.is_empty();
     // 2-char prefix always reserved so layout doesn't shift when selection changes.
@@ -1242,6 +1272,7 @@ fn draw_help_overlay(f: &mut Frame, size: Rect) {
         // ── Search ──────────────────────────────────────────────────────────
         section_header("Search"),
         key_line("/", "Fuzzy search"),
+        key_line("|", "Filter/narrow listing (case-insensitive)"),
         key_line("Ctrl+F", "Content search (ripgrep)"),
         key_line("Ctrl+P", "Recursive filename find"),
         key_line("b", "Bookmark current directory"),
@@ -1261,7 +1292,7 @@ fn draw_help_overlay(f: &mut Frame, size: Rect) {
         key_line("Space", "Toggle file selection"),
         key_line("v", "Select all files"),
         key_line("r", "Rename selected files"),
-        key_line("Esc", "Clear selections / cancel mode"),
+        key_line("Esc", "Clear filter (if active) or selections"),
         Line::from(""),
         // ── File Operations ─────────────────────────────────────────────────
         section_header("File Operations"),
