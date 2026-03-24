@@ -3280,3 +3280,53 @@ fn toggle_meta_preview_clears_hex_view() {
     assert!(!app.hex_view_mode);
     let _ = std::fs::remove_dir_all(&tmp);
 }
+
+/// Given: the selected entry is a .tar.gz archive
+/// When: begin_extract is called
+/// Then: pending_extract is set to the archive path
+#[test]
+fn begin_extract_on_archive_sets_pending() {
+    let tmp = std::env::temp_dir().join(format!("trek_ex_arc_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("data.tar.gz"), b"fake").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.begin_extract();
+    assert!(app.pending_extract.is_some());
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: the selected entry is a plain .rs file
+/// When: begin_extract is called
+/// Then: pending_extract remains None and status_message is set
+#[test]
+fn begin_extract_on_non_archive_shows_status() {
+    let tmp = std::env::temp_dir().join(format!("trek_ex_non_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("main.rs"), b"fn main() {}").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.begin_extract();
+    assert!(app.pending_extract.is_none());
+    assert!(app.status_message.is_some());
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: pending_extract is set
+/// When: cancel_extract is called
+/// Then: pending_extract is None and status_message mentions cancel
+#[test]
+fn cancel_extract_clears_pending() {
+    let tmp = std::env::temp_dir().join(format!("trek_ex_can_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("data.tar.gz"), b"fake").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.begin_extract();
+    assert!(app.pending_extract.is_some());
+    app.cancel_extract();
+    assert!(app.pending_extract.is_none());
+    let msg = app.status_message.clone().unwrap_or_default();
+    assert!(
+        msg.to_lowercase().contains("cancel"),
+        "expected cancel message: {msg}"
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}

@@ -51,6 +51,13 @@ pub fn run(
                         KeyCode::Char('D') => app.confirm_permanent_delete(),
                         _ => app.cancel_delete(),
                     }
+                } else if app.pending_extract.is_some() {
+                    match key.code {
+                        KeyCode::Char('y') | KeyCode::Char('Y') | KeyCode::Enter => {
+                            app.confirm_extract()
+                        }
+                        _ => app.cancel_extract(),
+                    }
                 } else if app.mkdir_mode {
                     match key.code {
                         KeyCode::Esc => app.cancel_mkdir(),
@@ -318,6 +325,7 @@ pub fn run(
                         KeyCode::Char('t') => app.begin_touch(),
                         KeyCode::Char('W') => app.begin_dup(),
                         KeyCode::Char('L') => app.begin_symlink(),
+                        KeyCode::Char('Z') => app.begin_extract(),
                         // Quick single-file rename
                         KeyCode::Char('n') | KeyCode::F(2) => app.begin_quick_rename(),
                         KeyCode::Char('u') => app.undo_trash(),
@@ -509,6 +517,7 @@ fn execute_palette_action(
         ActionId::GlobSelect => app.begin_glob_select(),
         ActionId::BeginDup => app.begin_dup(),
         ActionId::BeginSymlink => app.begin_symlink(),
+        ActionId::BeginExtract => app.begin_extract(),
         ActionId::InspectClipboard => app.open_clipboard_inspect(),
         ActionId::OpenFrecency => app.open_frecency(),
         ActionId::ShowHelp => app.show_help = true,

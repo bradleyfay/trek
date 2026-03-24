@@ -99,6 +99,8 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         draw_rename_bar(f, app, bottom_area);
     } else if !app.pending_delete.is_empty() {
         draw_delete_confirm_bar(f, app, bottom_area);
+    } else if let Some(ref path) = app.pending_extract {
+        draw_extract_bar(f, bottom_area, path);
     } else if app.quick_rename_mode {
         draw_quick_rename_bar(f, app, bottom_area);
     } else if app.path_mode {
@@ -327,6 +329,28 @@ fn draw_filter_bar(f: &mut Frame, app: &App, area: Rect) {
         ),
     ]))
     .block(Block::default().borders(Borders::TOP));
+    f.render_widget(para, area);
+}
+
+fn draw_extract_bar(f: &mut Frame, area: Rect, path: &std::path::Path) {
+    let name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| path.to_string_lossy().into_owned());
+    let para = Paragraph::new(Line::from(vec![
+        Span::styled(
+            " Extract ",
+            Style::default()
+                .fg(Color::Black)
+                .bg(Color::LightGreen)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::raw(format!("  \"{}\" → ./   ", name)),
+        Span::styled("[y/Enter]", Style::default().fg(Color::Green)),
+        Span::raw("confirm  "),
+        Span::styled("[Esc]", Style::default().fg(Color::DarkGray)),
+        Span::styled("cancel", Style::default().fg(Color::DarkGray)),
+    ]));
     f.render_widget(para, area);
 }
 
@@ -1942,7 +1966,7 @@ fn draw_yank_picker(f: &mut Frame, app: &App, size: Rect) {
 
 fn draw_help_overlay(f: &mut Frame, size: Rect) {
     let width = 60u16.min(size.width.saturating_sub(4));
-    let height = 92u16.min(size.height.saturating_sub(4));
+    let height = 94u16.min(size.height.saturating_sub(4));
     let x = (size.width.saturating_sub(width)) / 2;
     let y = (size.height.saturating_sub(height)) / 2;
     let area = Rect::new(x, y, width, height);
@@ -2025,6 +2049,7 @@ fn draw_help_overlay(f: &mut Frame, size: Rect) {
         key_line("t", "New file (touch — create empty file)"),
         key_line("W", "Duplicate selected entry in place"),
         key_line("L", "Create symlink to selected entry"),
+        key_line("Z", "Extract archive to current directory"),
         key_line("M", "Make new directory"),
         Line::from(""),
         // ── Yank & Misc ─────────────────────────────────────────────────────

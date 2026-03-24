@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.44.0] - 2026-03-24
+
+### Added
+- **`Z` — archive extraction**: press `Z` on any recognized archive to extract it into the current directory
+- Supported formats: `.tar`, `.tar.gz`/`.tgz`, `.tar.bz2`/`.tbz2`, `.tar.xz`/`.txz`, `.tar.zst`/`.tzst`, `.zip`/`.jar`/`.war`/`.ear`, `.gz`, `.7z`
+- A confirmation bar shows `[ Extract ] "filename" → ./ [y/Enter · Esc to cancel]` before acting
+- On success: listing refreshes and status bar shows `"Extracted: <name>"`
+- On failure: status bar shows `"Extract failed: <first stderr line>"`
+- `Z` on a non-archive file shows `"Not an archive"` and does nothing
+- Graceful error messages when `unzip` or `7z` are not installed
+- `BeginExtract` registered in the command palette (`Z`) and `?` help overlay
+
 ## [0.43.0] - 2026-03-24
 
 ### Added
