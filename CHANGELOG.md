@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-03-24
+
+### Added
+- **`i` — gitignore-aware listing**: toggles hiding of gitignored files and directories from the current listing; uses `git ls-files --others --ignored --exclude-standard --directory` scoped to the current directory so ignored directories are collapsed to a single entry rather than expanded; persists across directory navigation for the session (like `.` for hidden files)
+- `[ignore]` badge appears in the path bar (yellow, bold) next to the git branch indicator when the filter is active
+- Pressing `i` outside a git repository shows `"Not in a git repository"` and does nothing; git not on PATH degrades silently with no crash
+- Filter is automatically re-applied on every `load_dir()` call (file operations, sort change, hidden-files toggle), consistent with `filter_input` behaviour
+- New `src/app/gitignore.rs` module: `toggle_gitignored()`
+- New `pub fn load_ignored(dir: &Path) -> HashSet<String>` in `src/git.rs`
+- `i` registered in the command palette as `"Toggle gitignore filter (hide ignored files)"`
+- `i` documented in help overlay (`?`) under View and in `--help` output
+- 5 new unit tests: default-off, no-repo error message, `load_ignored` with real git repo, `load_ignored` outside repo returns empty, field toggle
+
 ## [0.19.0] - 2026-03-24
 
 ### Added

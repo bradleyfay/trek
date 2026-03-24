@@ -127,6 +127,40 @@ fn classify(idx: char, wt: char) -> FileStatus {
     }
 }
 
+/// Return the set of entry names (not full paths) in `dir` that are gitignored.
+///
+/// Uses `git ls-files --others --ignored --exclude-standard --directory`
+/// scoped to `dir`. Returns an empty set if `dir` is not in a git repo,
+/// has no ignored entries, or git is unavailable (silent degradation).
+///
+/// The `--directory` flag makes git report ignored directories as a single
+/// `dirname/` entry rather than listing every file inside, which is exactly
+/// what is needed for filtering the directory listing.
+pub fn load_ignored(dir: &Path) -> HashSet<String> {
+    let out = Command::new("git")
+        .args([
+            "ls-files",
+            "--others",
+            "--ignored",
+            "--exclude-standard",
+            "--directory",
+        ])
+        .current_dir(dir)
+        .output();
+
+    let out = match out {
+        Ok(o) if o.status.success() => o,
+        _ => return HashSet::new(),
+    };
+
+    String::from_utf8_lossy(&out.stdout)
+        .lines()
+        // git appends '/' to directory entries; strip it for name comparison.
+        .map(|line| line.trim_end_matches('/').to_string())
+        .filter(|s| !s.is_empty())
+        .collect()
+}
+
 /// Run a git command with `-C <dir>` and return stdout on success.
 fn run_git(dir: &Path, args: &[&str]) -> Option<String> {
     let out = Command::new("git")

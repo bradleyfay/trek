@@ -176,6 +176,11 @@ pub fn run(
                         KeyCode::Char('G') => app.go_bottom(),
                         KeyCode::Char('~') => app.go_home(),
                         KeyCode::Char('.') => app.toggle_hidden(),
+                        KeyCode::Char('i')
+                            if !key.modifiers.contains(KeyModifiers::CONTROL) =>
+                        {
+                            app.toggle_gitignored()
+                        }
                         KeyCode::Char('/') => app.start_search(),
                         KeyCode::Char('|') => app.start_filter(),
                         KeyCode::Char('y') => app.yank_relative_path(),
@@ -334,6 +339,7 @@ fn execute_palette_action(
         ActionId::HistoryBack => app.history_back(),
         ActionId::HistoryForward => app.history_forward(),
         ActionId::ToggleHidden => app.toggle_hidden(),
+        ActionId::ToggleGitignored => app.toggle_gitignored(),
         ActionId::ToggleDiffPreview => app.toggle_diff_preview(),
         ActionId::ToggleMetaPreview => app.toggle_meta_preview(),
         ActionId::RefreshGitStatus => app.refresh_git_status(),
