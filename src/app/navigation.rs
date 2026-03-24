@@ -217,6 +217,97 @@ impl App {
         self.history_pos
     }
 
+    // --- Path jump bar (e) ---
+
+    /// Open the path jump input bar with an empty input.
+    pub fn begin_path_jump(&mut self) {
+        self.path_mode = true;
+        self.path_input.clear();
+    }
+
+    /// Close the path jump bar without navigating.
+    pub fn cancel_path_jump(&mut self) {
+        self.path_mode = false;
+        self.path_input.clear();
+    }
+
+    /// Confirm the path typed in the jump bar and navigate to it.
+    ///
+    /// - Empty input → silently close the bar.
+    /// - `~` prefix → expand to home directory.
+    /// - Existing directory → navigate there.
+    /// - Existing file → navigate to its parent and select the file.
+    /// - Non-existent path → show an error and keep the bar open.
+    pub fn confirm_path_jump(&mut self) {
+        if self.path_input.is_empty() {
+            self.path_mode = false;
+            return;
+        }
+
+        let raw = self.path_input.clone();
+        let expanded = if raw.starts_with('~') {
+            match dirs_home() {
+                Some(home) => {
+                    let rest = raw.trim_start_matches('~').trim_start_matches('/');
+                    if rest.is_empty() {
+                        home
+                    } else {
+                        home.join(rest)
+                    }
+                }
+                None => std::path::PathBuf::from(&raw),
+            }
+        } else {
+            std::path::PathBuf::from(&raw)
+        };
+
+        if expanded.is_dir() {
+            self.path_mode = false;
+            self.path_input.clear();
+            self.filter_input.clear();
+            self.filter_mode = false;
+            self.push_history(expanded.clone());
+            self.cwd = expanded;
+            self.selected = 0;
+            self.current_scroll = 0;
+            self.load_dir();
+        } else if expanded.is_file() {
+            if let Some(parent) = expanded.parent().map(|p| p.to_path_buf()) {
+                let file_name = expanded
+                    .file_name()
+                    .map(|n| n.to_string_lossy().into_owned());
+                self.path_mode = false;
+                self.path_input.clear();
+                self.filter_input.clear();
+                self.filter_mode = false;
+                self.push_history(parent.clone());
+                self.cwd = parent;
+                self.selected = 0;
+                self.current_scroll = 0;
+                self.load_dir();
+                if let Some(name) = file_name {
+                    if let Some(idx) = self.entries.iter().position(|e| e.name == name) {
+                        self.selected = idx;
+                        self.load_preview();
+                    }
+                }
+            }
+        } else {
+            self.status_message = Some(format!("Path not found: {}", expanded.display()));
+            // Keep bar open so user can correct the path.
+        }
+    }
+
+    /// Append a character to the path jump input.
+    pub fn path_push_char(&mut self, c: char) {
+        self.path_input.push(c);
+    }
+
+    /// Remove the last character from the path jump input.
+    pub fn path_pop_char(&mut self) {
+        self.path_input.pop();
+    }
+
     /// Returns the path of the currently selected file (not directory), or None.
     /// Used by the open-in-editor (`o`) handler which should not act on directories.
     pub fn selected_file_path(&self) -> Option<PathBuf> {

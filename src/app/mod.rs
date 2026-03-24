@@ -280,6 +280,12 @@ pub struct App {
     /// Cached set of gitignored entry names for the current directory.
     /// Populated by load_dir() when hide_gitignored is true.
     pub gitignored_names: std::collections::HashSet<String>,
+
+    // --- Path jump bar (e) ---
+    /// True while the path jump input bar is open.
+    pub path_mode: bool,
+    /// The path string the user is typing in the path jump bar.
+    pub path_input: String,
 }
 
 #[derive(Clone)]
@@ -379,6 +385,8 @@ impl App {
             quick_rename_input: String::new(),
             hide_gitignored: false,
             gitignored_names: std::collections::HashSet::new(),
+            path_mode: false,
+            path_input: String::new(),
         };
         app.load_dir();
         Ok(app)

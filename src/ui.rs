@@ -99,6 +99,8 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         draw_delete_confirm_bar(f, app, bottom_area);
     } else if app.quick_rename_mode {
         draw_quick_rename_bar(f, app, bottom_area);
+    } else if app.path_mode {
+        draw_path_jump_bar(f, app, bottom_area);
     } else if app.mkdir_mode {
         draw_mkdir_bar(f, app, bottom_area);
     } else if app.chmod_mode {
@@ -378,6 +380,29 @@ fn draw_quick_rename_bar(f: &mut Frame, app: &App, area: Rect) {
         Span::styled("\u{2588}", Style::default().fg(Color::White)),
         Span::styled(
             "  Enter=confirm  Esc=cancel",
+            Style::default().fg(Color::DarkGray),
+        ),
+    ]));
+    f.render_widget(para, area);
+}
+
+fn draw_path_jump_bar(f: &mut Frame, app: &App, area: Rect) {
+    let para = Paragraph::new(Line::from(vec![
+        Span::styled(
+            " Jump to: ",
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            app.path_input.as_str(),
+            Style::default()
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled("\u{2588}", Style::default().fg(Color::White)),
+        Span::styled(
+            "  Enter=go  Esc=cancel",
             Style::default().fg(Color::DarkGray),
         ),
     ]));
@@ -1426,7 +1451,7 @@ fn draw_palette_overlay(f: &mut Frame, app: &App, size: Rect) {
 
 fn draw_help_overlay(f: &mut Frame, size: Rect) {
     let width = 60u16.min(size.width.saturating_sub(4));
-    let height = 52u16.min(size.height.saturating_sub(4));
+    let height = 54u16.min(size.height.saturating_sub(4));
     let x = (size.width.saturating_sub(width)) / 2;
     let y = (size.height.saturating_sub(height)) / 2;
     let area = Rect::new(x, y, width, height);
@@ -1444,6 +1469,7 @@ fn draw_help_overlay(f: &mut Frame, size: Rect) {
         key_line("g / G", "Go to top / bottom"),
         key_line("~", "Go to home directory"),
         key_line(".", "Toggle hidden files"),
+        key_line("e", "Jump to path (type any absolute/relative path)"),
         key_line("Ctrl+O", "Go back in directory history"),
         key_line("Ctrl+I", "Go forward in directory history"),
         Line::from(""),

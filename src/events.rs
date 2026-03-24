@@ -132,6 +132,14 @@ pub fn run(
                         KeyCode::Char(c) => app.filter_push_char(c),
                         _ => {}
                     }
+                } else if app.path_mode {
+                    match key.code {
+                        KeyCode::Esc => app.cancel_path_jump(),
+                        KeyCode::Enter => app.confirm_path_jump(),
+                        KeyCode::Backspace => app.path_pop_char(),
+                        KeyCode::Char(c) => app.path_push_char(c),
+                        _ => {}
+                    }
                 } else if app.palette_mode {
                     match key.code {
                         KeyCode::Esc | KeyCode::Char(':') => app.close_palette(),
@@ -258,6 +266,8 @@ pub fn run(
                                 }
                             }
                         }
+                        // Path jump bar
+                        KeyCode::Char('e') => app.begin_path_jump(),
                         // Open command palette
                         KeyCode::Char(':') => app.open_palette(),
                         // Open with system default (open on macOS, xdg-open on Linux)
@@ -368,6 +378,7 @@ fn execute_palette_action(
         ActionId::ToggleSortOrder => app.toggle_sort_order(),
         ActionId::YankRelativePath => app.yank_relative_path(),
         ActionId::YankAbsolutePath => app.yank_absolute_path(),
+        ActionId::PathJump => app.begin_path_jump(),
         ActionId::ShowHelp => app.show_help = true,
         // Quit appears in the palette for discoverability but cannot break out
         // of the event loop from here — use q directly.
