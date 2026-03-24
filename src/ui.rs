@@ -7,7 +7,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Clear, List, ListItem, Paragraph},
+    widgets::{Block, Borders, Clear, List, ListItem, Paragraph, Wrap},
     Frame,
 };
 
@@ -757,13 +757,19 @@ fn draw_preview_pane(f: &mut Frame, app: &App, area: Rect) {
         .entries
         .get(app.selected)
         .map(|e| {
-            if app.preview_is_diff {
+            let mut t = if app.preview_is_diff {
                 format!("{} [diff]", e.name)
+            } else if app.hash_preview_mode {
+                format!("{} [hash]", e.name)
             } else if app.meta_preview_mode {
                 format!("{} [meta]", e.name)
             } else {
                 e.name.clone()
+            };
+            if app.preview_wrap {
+                t.push_str(" [wrap]");
             }
+            t
         })
         .unwrap_or_default();
 
@@ -802,11 +808,18 @@ fn draw_preview_pane(f: &mut Frame, app: &App, area: Rect) {
         0
     };
 
+    // In wrap mode take more lines so ratatui has content to fold into the visible area.
+    let take_count = if app.preview_wrap {
+        visible_height * 5
+    } else {
+        visible_height
+    };
+
     let lines: Vec<Line> = if let Some(hl) = highlighted {
         hl.into_iter()
             .skip(app.preview_scroll)
             .enumerate()
-            .take(visible_height)
+            .take(take_count)
             .map(|(i, line)| {
                 if app.show_line_numbers {
                     let abs_line = app.preview_scroll + i + 1;
@@ -825,7 +838,7 @@ fn draw_preview_pane(f: &mut Frame, app: &App, area: Rect) {
             .iter()
             .enumerate()
             .skip(app.preview_scroll)
-            .take(visible_height)
+            .take(take_count)
             .map(|(i, l)| {
                 let content_line = if app.preview_is_diff {
                     colorize_diff_line(l)
@@ -847,19 +860,24 @@ fn draw_preview_pane(f: &mut Frame, app: &App, area: Rect) {
 
     // Draw main content (leave 1 col for scrollbar).
     let content_area = Rect::new(area.x, area.y, area.width.saturating_sub(1), area.height);
-    let para = Paragraph::new(lines).block(
-        Block::default()
-            .borders(Borders::TOP)
-            .border_style(Style::default().fg(Color::DarkGray))
-            .title(Span::styled(title, Style::default().fg(Color::DarkGray)))
-            .title_bottom(
-                Line::from(Span::styled(
-                    scroll_info,
-                    Style::default().fg(Color::DarkGray),
-                ))
-                .right_aligned(),
-            ),
-    );
+    let block = Block::default()
+        .borders(Borders::TOP)
+        .border_style(Style::default().fg(Color::DarkGray))
+        .title(Span::styled(title, Style::default().fg(Color::DarkGray)))
+        .title_bottom(
+            Line::from(Span::styled(
+                scroll_info,
+                Style::default().fg(Color::DarkGray),
+            ))
+            .right_aligned(),
+        );
+    let para = if app.preview_wrap {
+        Paragraph::new(lines)
+            .wrap(Wrap { trim: false })
+            .block(block)
+    } else {
+        Paragraph::new(lines).block(block)
+    };
     f.render_widget(para, content_area);
 
     // Draw scrollbar in the rightmost column (always show track when content overflows).
@@ -1668,7 +1686,7 @@ fn draw_yank_picker(f: &mut Frame, app: &App, size: Rect) {
 
 fn draw_help_overlay(f: &mut Frame, size: Rect) {
     let width = 60u16.min(size.width.saturating_sub(4));
-    let height = 78u16.min(size.height.saturating_sub(4));
+    let height = 80u16.min(size.height.saturating_sub(4));
     let x = (size.width.saturating_sub(width)) / 2;
     let y = (size.height.saturating_sub(height)) / 2;
     let area = Rect::new(x, y, width, height);
@@ -1717,6 +1735,7 @@ fn draw_help_overlay(f: &mut Frame, size: Rect) {
         key_line("H", "Toggle hash preview (SHA-256 checksum)"),
         key_line("w", "Toggle preview pane (hide/show)"),
         key_line("T", "Toggle timestamps / sizes in listing"),
+        key_line("U", "Toggle preview word wrap"),
         key_line("P", "Edit file permissions (chmod)"),
         key_line("R", "Refresh git status"),
         key_line("S", "Cycle sort: Name/Size/Modified/Ext"),
