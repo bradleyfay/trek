@@ -2733,3 +2733,50 @@ fn read_entries_populates_child_count_for_dir() {
     );
     let _ = std::fs::remove_dir_all(&parent);
 }
+
+// ── Clipboard inspector tests (issue #70) ────────────────────────────────────
+
+/// Given: clipboard_inspect_mode is false
+/// When: open_clipboard_inspect is called
+/// Then: clipboard_inspect_mode becomes true
+#[test]
+fn open_clipboard_inspect_enters_mode() {
+    let tmp = std::env::temp_dir().join(format!("trek_ci_open_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("f.txt"), b"hi").unwrap();
+    let mut app = make_app_at(&tmp);
+    assert!(!app.clipboard_inspect_mode);
+    app.open_clipboard_inspect();
+    assert!(app.clipboard_inspect_mode);
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: clipboard_inspect_mode is true
+/// When: close_clipboard_inspect is called
+/// Then: clipboard_inspect_mode becomes false
+#[test]
+fn close_clipboard_inspect_exits_mode() {
+    let tmp = std::env::temp_dir().join(format!("trek_ci_close_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("f.txt"), b"hi").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.open_clipboard_inspect();
+    app.close_clipboard_inspect();
+    assert!(!app.clipboard_inspect_mode);
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: clipboard is None (empty)
+/// When: open_clipboard_inspect is called
+/// Then: overlay opens without panicking
+#[test]
+fn open_clipboard_inspect_with_empty_clipboard() {
+    let tmp = std::env::temp_dir().join(format!("trek_ci_empty_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("f.txt"), b"hi").unwrap();
+    let mut app = make_app_at(&tmp);
+    assert!(app.clipboard.is_none());
+    app.open_clipboard_inspect(); // must not panic
+    assert!(app.clipboard_inspect_mode);
+    let _ = std::fs::remove_dir_all(&tmp);
+}

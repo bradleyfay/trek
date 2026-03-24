@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.36.0] - 2026-03-24
+
+### Added
+- **`F` — clipboard inspector**: press `F` to open an overlay showing the current clipboard contents (paths queued for copy or cut)
+- Overlay title and border are green for copy operations, yellow for cut operations, and grey when clipboard is empty
+- Press `p` inside the inspector to close and immediately paste; press `Esc` or `F` to close without action
+- `InspectClipboard` registered in the command palette as "Inspect clipboard contents" and in the `?` help overlay
+
 ## [0.35.0] - 2026-03-24
 
 ### Added

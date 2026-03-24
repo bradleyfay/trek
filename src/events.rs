@@ -208,6 +208,17 @@ pub fn run(
                         }
                         _ => {}
                     }
+                } else if app.clipboard_inspect_mode {
+                    match key.code {
+                        KeyCode::Esc | KeyCode::Char('F') | KeyCode::Char('q') => {
+                            app.close_clipboard_inspect()
+                        }
+                        KeyCode::Char('p') => {
+                            app.close_clipboard_inspect();
+                            app.paste_clipboard();
+                        }
+                        _ => {}
+                    }
                 } else if app.mark_set_mode {
                     match key.code {
                         KeyCode::Char(c) if c.is_alphabetic() => app.set_mark(c),
@@ -264,6 +275,7 @@ pub fn run(
                         KeyCode::Char('T') => app.toggle_timestamps(),
                         KeyCode::Char('U') => app.toggle_preview_wrap(),
                         KeyCode::Char('N') => app.toggle_dir_counts(),
+                        KeyCode::Char('F') => app.open_clipboard_inspect(),
                         KeyCode::Char('P') => app.begin_chmod(),
                         KeyCode::Char('R') => app.refresh_git_status(),
                         KeyCode::Char('?') => app.show_help = true,
@@ -479,6 +491,7 @@ fn execute_palette_action(
         ActionId::GlobSelect => app.begin_glob_select(),
         ActionId::BeginDup => app.begin_dup(),
         ActionId::BeginSymlink => app.begin_symlink(),
+        ActionId::InspectClipboard => app.open_clipboard_inspect(),
         ActionId::ShowHelp => app.show_help = true,
         // Quit appears in the palette for discoverability but cannot break out
         // of the event loop from here — use q directly.
