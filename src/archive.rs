@@ -153,6 +153,60 @@ fn truncate_if_needed(mut lines: Vec<String>) -> Vec<String> {
 
 // ── Public API ─────────────────────────────────────────────────────────────────
 
+/// Returns `true` if `path` has a recognized archive extension.
+pub fn is_archive(path: &Path) -> bool {
+    archive_ext(path).is_some()
+}
+
+/// Extract the archive at `path` into `dest_dir`.
+///
+/// Returns `Ok(())` on success or `Err(message)` with a human-readable
+/// description of what went wrong.
+pub fn extract_archive(path: &Path, dest_dir: &Path) -> Result<(), String> {
+    let ext = archive_ext(path).ok_or_else(|| "not a recognized archive format".to_string())?;
+    let path_str = path
+        .to_str()
+        .ok_or_else(|| "path is not valid UTF-8".to_string())?;
+    let dest_str = dest_dir
+        .to_str()
+        .ok_or_else(|| "destination path is not valid UTF-8".to_string())?;
+
+    match ext {
+        ArchiveExt::Tar => run_extract("tar", &["-xf", path_str, "-C", dest_str]),
+        ArchiveExt::TarGz => run_extract("tar", &["-xzf", path_str, "-C", dest_str]),
+        ArchiveExt::TarBz2 => run_extract("tar", &["-xjf", path_str, "-C", dest_str]),
+        ArchiveExt::TarXz => run_extract("tar", &["-xJf", path_str, "-C", dest_str]),
+        ArchiveExt::TarZst => run_extract("tar", &["-x", "--zstd", "-f", path_str, "-C", dest_str]),
+        ArchiveExt::Zip => {
+            if !command_exists("unzip") {
+                return Err("unzip not found — install it to extract .zip files".to_string());
+            }
+            run_extract("unzip", &["-n", path_str, "-d", dest_str])
+        }
+        ArchiveExt::Gz => run_extract("gunzip", &["-k", "-f", path_str]),
+        ArchiveExt::SevenZip => {
+            if !command_exists("7z") {
+                return Err("7z not found — install p7zip to extract .7z files".to_string());
+            }
+            run_extract("7z", &["x", path_str, &format!("-o{}", dest_str), "-y"])
+        }
+    }
+}
+
+/// Run an extraction command; returns `Ok(())` on success or `Err(first stderr line)`.
+fn run_extract(bin: &str, args: &[&str]) -> Result<(), String> {
+    let output = Command::new(bin)
+        .args(args)
+        .output()
+        .map_err(|e| format!("{} not found: {}", bin, e))?;
+    if output.status.success() {
+        Ok(())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        Err(stderr.lines().next().unwrap_or("unknown error").to_string())
+    }
+}
+
 /// Returns `Some(lines)` if `path` is a recognized archive and the listing
 /// tool is available. Returns `None` to signal "fall back to normal preview."
 pub fn try_list_archive(path: &Path) -> Option<Vec<String>> {

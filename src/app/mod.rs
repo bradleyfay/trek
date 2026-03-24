@@ -202,6 +202,8 @@ pub struct App {
     pub clipboard: Option<Clipboard>,
     /// Paths pending deletion (non-empty while confirmation prompt is shown).
     pub pending_delete: Vec<PathBuf>,
+    /// Archive path awaiting extraction confirmation (Some while prompt is shown).
+    pub pending_extract: Option<PathBuf>,
     /// The most recent group of trashed items, available for undo with `u`.
     pub last_trashed: Vec<crate::trash::TrashedEntry>,
     /// True while the mkdir name input bar is open.
@@ -449,6 +451,7 @@ impl App {
             highlighter: Highlighter::new(),
             clipboard: None,
             pending_delete: Vec::new(),
+            pending_extract: None,
             last_trashed: Vec::new(),
             mkdir_mode: false,
             mkdir_input: String::new(),

@@ -58,6 +58,7 @@ pub enum ActionId {
     GlobSelect,
     BeginDup,
     BeginSymlink,
+    BeginExtract,
     ToggleGitLogPreview,
     CompareFiles,
     ToggleHexView,
@@ -351,6 +352,11 @@ pub static PALETTE_ACTIONS: &[PaletteAction] = &[
         id: ActionId::BeginSymlink,
         name: "Create symlink to selected entry",
         keys: "L",
+    },
+    PaletteAction {
+        id: ActionId::BeginExtract,
+        name: "Extract archive to current directory",
+        keys: "Z",
     },
     PaletteAction {
         id: ActionId::InspectClipboard,

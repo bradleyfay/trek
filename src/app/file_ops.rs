@@ -514,4 +514,47 @@ impl App {
     pub fn close_clipboard_inspect(&mut self) {
         self.clipboard_inspect_mode = false;
     }
+
+    // --- Archive extraction (Z) ---
+
+    /// Begin an extraction confirmation for the currently selected entry.
+    ///
+    /// Shows `"Not an archive"` if the entry is not a recognized archive type.
+    pub fn begin_extract(&mut self) {
+        if let Some(entry) = self.entries.get(self.selected) {
+            if crate::archive::is_archive(&entry.path) {
+                self.pending_extract = Some(entry.path.clone());
+            } else {
+                self.status_message = Some("Not an archive".to_string());
+            }
+        }
+    }
+
+    /// Run the extraction after the user confirms with y/Enter.
+    pub fn confirm_extract(&mut self) {
+        let path = match self.pending_extract.take() {
+            Some(p) => p,
+            None => return,
+        };
+        let name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_else(|| path.to_string_lossy().into_owned());
+        match crate::archive::extract_archive(&path, &self.cwd) {
+            Ok(()) => {
+                self.status_message = Some(format!("Extracted: {}", name));
+                self.load_dir();
+                self.git_status = crate::git::GitStatus::load(&self.cwd);
+            }
+            Err(e) => {
+                self.status_message = Some(format!("Extract failed: {}", e));
+            }
+        }
+    }
+
+    /// Cancel the extraction without touching the filesystem.
+    pub fn cancel_extract(&mut self) {
+        self.pending_extract = None;
+        self.status_message = Some("Extract cancelled".to_string());
+    }
 }
