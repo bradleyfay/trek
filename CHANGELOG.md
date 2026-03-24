@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-03-24
+
+### Added
+- **`W` — duplicate entry in place**: press `W` on any file or directory to open a `Duplicate:` bar (Cyan label) pre-filled with a suggested name; edit the name and press Enter to copy the entry to `cwd/<name>`; the listing refreshes and the cursor moves to the new entry
+- Name suggestion algorithm uses the first dot to preserve compound extensions: `archive.tar.gz` → `archive_copy.tar.gz`; `config.toml` → `config_copy.toml`; `Makefile` → `Makefile_copy`
+- Destination already existing shows `'<name>' already exists` without touching the filesystem; empty name shows "Name cannot be empty"
+- Directories are duplicated recursively via the existing `ops::copy_path` (which already handles recursive directory copy)
+- Success message: `Duplicated → "<name>"`; after success the new entry is selected in the refreshed listing
+- `W` registered in the command palette as "Duplicate entry in place"
+- `W` documented in help overlay (`?`) under File Operations and in `--help` output
+- 8 new BDD-style unit tests covering: open bar with suggested name, cancel, file copy success, existing-name error, empty-name error, compound extension, no-extension, empty-directory noop
+
 ## [0.26.0] - 2026-03-24
 
 ### Added

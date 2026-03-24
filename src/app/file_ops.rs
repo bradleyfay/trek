@@ -2,6 +2,23 @@ use super::App;
 use crate::ops::{self, Clipboard, ClipboardOp};
 use std::path::PathBuf;
 
+/// Suggest a duplicate name for `name` by inserting `_copy` before the last extension.
+///
+/// Examples:
+///   "config.toml"    → "config_copy.toml"
+///   "archive.tar.gz" → "archive_copy.tar.gz"  (preserves compound extension)
+///   "Makefile"       → "Makefile_copy"
+fn suggest_dup_name(name: &str) -> String {
+    if let Some(dot) = name.find('.') {
+        if dot > 0 {
+            let stem = &name[..dot];
+            let ext = &name[dot..]; // includes the leading dot and any compound extension
+            return format!("{}_copy{}", stem, ext);
+        }
+    }
+    format!("{}_copy", name)
+}
+
 impl App {
     /// Yank (copy) the currently selected entry to the clipboard.
     pub fn clipboard_copy_current(&mut self) {
@@ -324,5 +341,73 @@ impl App {
             .filter_map(|&i| self.entries.get(i))
             .map(|e| e.path.clone())
             .collect()
+    }
+
+    // --- File duplication (W) ---
+
+    /// Open the duplicate name bar for the currently selected entry.
+    ///
+    /// Pre-fills the input with a suggested name derived from the source name.
+    /// Does nothing if the directory is empty.
+    pub fn begin_dup(&mut self) {
+        if let Some(entry) = self.entries.get(self.selected) {
+            self.dup_src = Some(entry.path.clone());
+            self.dup_input = suggest_dup_name(&entry.name);
+            self.dup_mode = true;
+        }
+    }
+
+    /// Cancel the duplication without touching the filesystem.
+    pub fn cancel_dup(&mut self) {
+        self.dup_mode = false;
+        self.dup_input.clear();
+        self.dup_src = None;
+    }
+
+    /// Execute the duplication with the current input name.
+    ///
+    /// - Empty name → error message, bar closed.
+    /// - Destination already exists → error message, no overwrite.
+    /// - Success → copy created, listing refreshed, new entry selected.
+    pub fn confirm_dup(&mut self) {
+        let name = self.dup_input.trim().to_string();
+        self.dup_mode = false;
+        self.dup_input.clear();
+        let src = match self.dup_src.take() {
+            Some(p) => p,
+            None => return,
+        };
+        if name.is_empty() {
+            self.status_message = Some("Name cannot be empty".to_string());
+            return;
+        }
+        let dst = self.cwd.join(&name);
+        if dst.exists() {
+            self.status_message = Some(format!("'{}' already exists", name));
+            return;
+        }
+        match ops::copy_path(&src, &dst) {
+            Ok(()) => {
+                self.load_dir();
+                if let Some(idx) = self.entries.iter().position(|e| e.name == name) {
+                    self.selected = idx;
+                    self.load_preview();
+                }
+                self.status_message = Some(format!("Duplicated \u{2192} \"{}\"", name));
+            }
+            Err(e) => {
+                self.status_message = Some(format!("Duplicate failed: {}", e));
+            }
+        }
+    }
+
+    /// Append a character to the duplicate name input.
+    pub fn dup_push_char(&mut self, c: char) {
+        self.dup_input.push(c);
+    }
+
+    /// Remove the last character from the duplicate name input.
+    pub fn dup_pop_char(&mut self) {
+        self.dup_input.pop();
     }
 }

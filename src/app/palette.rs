@@ -48,6 +48,7 @@ pub enum ActionId {
     ScrollPreviewDown,
     PathJump,
     GlobSelect,
+    BeginDup,
     ShowHelp,
     Quit,
 }
@@ -271,6 +272,11 @@ pub static PALETTE_ACTIONS: &[PaletteAction] = &[
         id: ActionId::GlobSelect,
         name: "Select files by glob pattern",
         keys: "*",
+    },
+    PaletteAction {
+        id: ActionId::BeginDup,
+        name: "Duplicate entry in place",
+        keys: "W",
     },
     PaletteAction {
         id: ActionId::ShowHelp,

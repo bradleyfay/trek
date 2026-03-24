@@ -302,6 +302,14 @@ pub struct App {
     pub glob_mode: bool,
     /// Glob pattern typed by the user.
     pub glob_input: String,
+
+    // --- File duplication (W) ---
+    /// True while the duplicate name input bar is open.
+    pub dup_mode: bool,
+    /// Name typed by the user (pre-filled with the suggested name).
+    pub dup_input: String,
+    /// Source path being duplicated; set when dup_mode is entered.
+    pub dup_src: Option<PathBuf>,
 }
 
 #[derive(Clone)]
@@ -408,6 +416,9 @@ impl App {
             show_line_numbers: false,
             glob_mode: false,
             glob_input: String::new(),
+            dup_mode: false,
+            dup_input: String::new(),
+            dup_src: None,
         };
         app.load_dir();
         Ok(app)
