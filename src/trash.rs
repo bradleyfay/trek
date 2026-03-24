@@ -170,49 +170,11 @@ fn write_trashinfo(trash_dest: &Path, original: &Path) -> Result<()> {
     std::fs::write(&info_path, content).with_context(|| format!("write trashinfo {:?}", info_path))
 }
 
-/// Format a UNIX timestamp as `YYYY-MM-DDTHH:MM:SS` (UTC) using pure Rust
-/// arithmetic — no subprocess, no external crates.
+/// Format a UNIX timestamp as `YYYY-MM-DDTHH:MM:SS` (UTC).
 #[cfg(target_os = "linux")]
 fn format_iso8601_utc(secs: u64) -> String {
-    let ss = secs % 60;
-    let mm = (secs / 60) % 60;
-    let hh = (secs / 3600) % 24;
-    let mut days = secs / 86_400;
-
-    let mut year = 1970u32;
-    loop {
-        let dy = if is_leap_year(year) { 366 } else { 365 };
-        if days < dy {
-            break;
-        }
-        days -= dy;
-        year += 1;
-    }
-
-    let month_days: [u64; 12] = if is_leap_year(year) {
-        [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    } else {
-        [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    };
-    let mut month = 1u32;
-    for &md in &month_days {
-        if days < md {
-            break;
-        }
-        days -= md;
-        month += 1;
-    }
-    let day = days + 1;
-
-    format!(
-        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}",
-        year, month, day, hh, mm, ss
-    )
-}
-
-#[cfg(target_os = "linux")]
-fn is_leap_year(y: u32) -> bool {
-    (y % 4 == 0 && y % 100 != 0) || y % 400 == 0
+    let (year, month, day, hh, mm, ss) = crate::datetime::decompose_unix_secs(secs);
+    format!("{:04}-{:02}-{:02}T{:02}:{:02}:{:02}", year, month, day, hh, mm, ss)
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────

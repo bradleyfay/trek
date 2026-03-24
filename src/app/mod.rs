@@ -751,79 +751,13 @@ pub fn meta_human_size(bytes: u64) -> String {
 /// Format a UNIX timestamp as `YYYY-MM-DD HH:MM:SS` (UTC) without external
 /// crates or spawning a subprocess.
 pub fn format_unix_timestamp_utc(secs: u64) -> String {
-    let ss = secs % 60;
-    let mm = (secs / 60) % 60;
-    let hh = (secs / 3_600) % 24;
-    let mut days = secs / 86_400;
-
-    let mut year = 1970u32;
-    loop {
-        let dy = if is_leap_year(year) { 366u64 } else { 365 };
-        if days < dy {
-            break;
-        }
-        days -= dy;
-        year += 1;
-    }
-
-    let month_days: [u64; 12] = if is_leap_year(year) {
-        [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    } else {
-        [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    };
-    let mut month = 1u32;
-    for &md in &month_days {
-        if days < md {
-            break;
-        }
-        days -= md;
-        month += 1;
-    }
-    let day = days + 1;
-
-    format!(
-        "{:04}-{:02}-{:02} {:02}:{:02}:{:02}",
-        year, month, day, hh, mm, ss
-    )
-}
-
-fn is_leap_year(y: u32) -> bool {
-    (y % 4 == 0 && y % 100 != 0) || y % 400 == 0
+    let (year, month, day, hh, mm, ss) = crate::datetime::decompose_unix_secs(secs);
+    format!("{:04}-{:02}-{:02} {:02}:{:02}:{:02}", year, month, day, hh, mm, ss)
 }
 
 const MONTH_ABBR: [&str; 12] = [
     "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
-
-/// Decompose a Unix timestamp (seconds since epoch) into (year, month 1-12, day 1-31, hour, minute).
-fn decompose_unix_secs(secs: u64) -> (u32, u32, u32, u32, u32) {
-    let hh = ((secs / 3_600) % 24) as u32;
-    let mins = ((secs / 60) % 60) as u32;
-    let mut days = secs / 86_400;
-    let mut year = 1970u32;
-    loop {
-        let dy: u64 = if is_leap_year(year) { 366 } else { 365 };
-        if days < dy {
-            break;
-        }
-        days -= dy;
-        year += 1;
-    }
-    let month_days: [u64; 12] = if is_leap_year(year) {
-        [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    } else {
-        [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    };
-    let mut month = 1u32;
-    for &md in &month_days {
-        if days < md {
-            break;
-        }
-        days -= md;
-        month += 1;
-    }
-    (year, month, (days + 1) as u32, hh, mins)
-}
 
 /// Format a `SystemTime` as a fixed-12-char listing date (UTC).
 ///
@@ -840,8 +774,8 @@ pub fn format_listing_date(t: std::time::SystemTime) -> String {
         .map(|d| d.as_secs())
         .unwrap_or(0);
 
-    let (fy, fm, fd, fh, fmin) = decompose_unix_secs(file_secs);
-    let (ny, ..) = decompose_unix_secs(now_secs);
+    let (fy, fm, fd, fh, fmin, _) = crate::datetime::decompose_unix_secs(file_secs);
+    let (ny, ..) = crate::datetime::decompose_unix_secs(now_secs);
 
     let mon = MONTH_ABBR[fm.saturating_sub(1) as usize];
     if fy == ny {

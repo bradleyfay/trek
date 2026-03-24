@@ -25,9 +25,6 @@ pub struct GitStatus {
     pub file_statuses: HashMap<PathBuf, FileStatus>,
     /// Current branch name, or "HEAD:<hash>" when detached.
     pub branch: Option<String>,
-    /// Absolute path to the repository root.
-    #[allow(dead_code)]
-    pub repo_root: PathBuf,
     /// Directories that contain at least one changed file (transitively).
     dirty_dirs: HashSet<PathBuf>,
 }
@@ -93,7 +90,6 @@ impl GitStatus {
         Some(GitStatus {
             file_statuses,
             branch,
-            repo_root,
             dirty_dirs,
         })
     }
