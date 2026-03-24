@@ -303,6 +303,10 @@ pub struct App {
     /// Glob pattern typed by the user.
     pub glob_input: String,
 
+    // --- Yank picker (A) ---
+    /// True while the yank format picker overlay is open.
+    pub yank_picker_mode: bool,
+
     // --- File duplication (W) ---
     /// True while the duplicate name input bar is open.
     pub dup_mode: bool,
@@ -416,6 +420,7 @@ impl App {
             show_line_numbers: false,
             glob_mode: false,
             glob_input: String::new(),
+            yank_picker_mode: false,
             dup_mode: false,
             dup_input: String::new(),
             dup_src: None,

@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-03-24
+
+### Added
+- **`A` — yank path format picker**: press `A` on any entry to open a compact four-option overlay just above the status bar; press a single mnemonic key to copy in the desired format via OSC 52 and close the picker
+- Four formats: `r` (relative `./…`), `a` (absolute `/…`), `f` (filename only), `p` (parent directory path); numeric aliases `1`–`4` also accepted
+- `strip_prefix` failure (e.g. symlink outside cwd) causes `r` to fall back to absolute path without panic; `parent()` returning `None` (root `/`) copies `/` without panic
+- Paths longer than 44 characters are truncated with `…` in the overlay display; the **full untruncated string** is what gets copied to the clipboard
+- Existing `y` (relative) and `Y` (absolute) direct bindings are unchanged
+- `A` on an empty directory is a no-op (picker does not open)
+- `Esc` dismisses the picker without copying or setting a status message; any unrecognised key is silently ignored while the picker stays open
+- `A` registered in the command palette as "Yank path (pick format: relative/absolute/filename/parent)"
+- `A` documented in help overlay (`?`) under Yank & Misc and in `--help` output
+- New methods: `yank_filename`, `yank_parent_dir`, `open_yank_picker`, `close_yank_picker` in `src/app/yank.rs`
+- 6 new BDD-style unit tests; all 173 tests pass
+
 ## [0.27.0] - 2026-03-24
 
 ### Added
