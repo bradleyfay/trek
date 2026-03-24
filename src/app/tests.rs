@@ -3144,3 +3144,78 @@ fn meta_lines_directory_omits_wc_stats() {
     );
     let _ = std::fs::remove_dir_all(&tmp);
 }
+
+/// Given: exactly 2 files selected
+/// When: toggle_file_compare is called
+/// Then: file_compare_mode becomes true
+#[test]
+fn toggle_file_compare_with_two_files_enters_mode() {
+    let tmp = std::env::temp_dir().join(format!("trek_fc_on_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("a.txt"), b"hello\n").unwrap();
+    std::fs::write(tmp.join("b.txt"), b"world\n").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.rename_selected.insert(0);
+    app.rename_selected.insert(1);
+    app.toggle_file_compare();
+    assert!(app.file_compare_mode);
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: fewer than 2 files selected
+/// When: toggle_file_compare is called
+/// Then: file_compare_mode stays false and status_message is set
+#[test]
+fn toggle_file_compare_with_one_file_shows_status() {
+    let tmp = std::env::temp_dir().join(format!("trek_fc_one_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("a.txt"), b"hello\n").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.rename_selected.insert(0);
+    app.toggle_file_compare();
+    assert!(!app.file_compare_mode);
+    assert!(app.status_message.is_some());
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: file_compare_mode is true and other special modes are active
+/// When: toggle_file_compare exits the mode (second press)
+/// Then: file_compare_mode becomes false
+#[test]
+fn toggle_file_compare_second_press_exits_mode() {
+    let tmp = std::env::temp_dir().join(format!("trek_fc_off_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("a.txt"), b"hello\n").unwrap();
+    std::fs::write(tmp.join("b.txt"), b"world\n").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.rename_selected.insert(0);
+    app.rename_selected.insert(1);
+    app.toggle_file_compare();
+    assert!(app.file_compare_mode);
+    app.toggle_file_compare();
+    assert!(!app.file_compare_mode);
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: 2 files selected including a directory
+/// When: toggle_file_compare is called
+/// Then: file_compare_mode stays false and status_message mentions directories
+#[test]
+fn toggle_file_compare_with_dir_shows_status() {
+    let tmp = std::env::temp_dir().join(format!("trek_fc_dir_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let sub = tmp.join("adir");
+    std::fs::create_dir_all(&sub).unwrap();
+    std::fs::write(tmp.join("zfile.txt"), b"hi").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.rename_selected.insert(0);
+    app.rename_selected.insert(1);
+    app.toggle_file_compare();
+    assert!(!app.file_compare_mode);
+    let msg = app.status_message.clone().unwrap_or_default();
+    assert!(
+        msg.to_lowercase().contains("director"),
+        "should mention directory: {msg}"
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}

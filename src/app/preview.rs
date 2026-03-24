@@ -19,6 +19,22 @@ impl App {
             return;
         }
 
+        // File compare — second priority, requires exactly 2 files selected.
+        if self.file_compare_mode {
+            let paths: Vec<_> = self
+                .rename_selected
+                .iter()
+                .filter_map(|&i| self.entries.get(i))
+                .filter(|e| !e.is_dir)
+                .map(|e| e.path.clone())
+                .collect();
+            if paths.len() == 2 {
+                self.preview_lines = Self::load_file_diff(&paths[0], &paths[1]);
+                self.preview_is_diff = true;
+            }
+            return;
+        }
+
         // Metadata card takes priority over content/diff views.
         if self.meta_preview_mode {
             if let Some(entry) = self.entries.get(self.selected).cloned() {
@@ -152,10 +168,55 @@ impl App {
                 self.meta_preview_mode = false;
                 self.hash_preview_mode = false; // mutually exclusive
                 self.git_log_mode = false; // mutually exclusive
+                self.file_compare_mode = false; // mutually exclusive
             }
             self.load_preview();
         } else {
             self.status_message = Some("No git changes for this file".to_string());
+        }
+    }
+
+    /// Toggle two-file compare preview mode.
+    ///
+    /// Requires exactly 2 non-directory entries in `rename_selected`.
+    /// Mutually exclusive with all other special preview modes.
+    pub fn toggle_file_compare(&mut self) {
+        let any_dir = self
+            .rename_selected
+            .iter()
+            .any(|&i| self.entries.get(i).map(|e| e.is_dir).unwrap_or(false));
+        if any_dir {
+            self.status_message = Some("File comparison not available for directories".to_string());
+            return;
+        }
+        if self.rename_selected.len() != 2 {
+            self.status_message = Some("Select exactly 2 files to compare".to_string());
+            return;
+        }
+        self.file_compare_mode = !self.file_compare_mode;
+        if self.file_compare_mode {
+            self.diff_preview_mode = false;
+            self.meta_preview_mode = false;
+            self.hash_preview_mode = false;
+            self.git_log_mode = false;
+        }
+        self.load_preview();
+    }
+
+    /// Produce a unified diff between `a` and `b` as preview lines.
+    ///
+    /// Uses `diff -u` (POSIX); falls back to an informational message on error.
+    fn load_file_diff(a: &Path, b: &Path) -> Vec<String> {
+        match Command::new("diff").arg("-u").arg(a).arg(b).output() {
+            Ok(out) => {
+                let text = String::from_utf8_lossy(&out.stdout);
+                if text.trim().is_empty() {
+                    vec![String::new(), "  (files are identical)".to_string()]
+                } else {
+                    text.lines().take(2000).map(|l| l.to_string()).collect()
+                }
+            }
+            Err(e) => vec![String::new(), format!("  diff failed: {}", e)],
         }
     }
 
@@ -176,6 +237,7 @@ impl App {
             self.diff_preview_mode = false;
             self.meta_preview_mode = false;
             self.hash_preview_mode = false;
+            self.file_compare_mode = false;
         }
         self.load_preview();
     }

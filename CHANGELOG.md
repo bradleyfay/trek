@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.42.0] - 2026-03-24
+
+### Added
+- **`f` — two-file compare**: select exactly 2 files with `Space`/`J`/`K`, then press `f` to show a unified diff of the two files in the preview pane
+- Preview pane title shows `<file1> ↔ <file2> [compare]` when compare mode is active
+- Uses `diff -u` (POSIX); shows `(files are identical)` when there are no differences
+- Requires exactly 2 non-directory entries to be selected; shows a status message otherwise
+- Mutually exclusive with all other special preview modes (diff, meta, hash, git log)
+- `CompareFiles` registered in the command palette (`f`) and `?` help overlay
+
 ## [0.41.0] - 2026-03-24
 
 ### Added
