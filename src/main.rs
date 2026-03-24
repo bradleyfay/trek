@@ -1,4 +1,5 @@
 mod app;
+mod git;
 mod icons;
 mod ui;
 
@@ -122,6 +123,8 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<std::pat
                         KeyCode::Char('/') => app.start_search(),
                         KeyCode::Char('y') => app.yank_relative_path(),
                         KeyCode::Char('Y') => app.yank_absolute_path(),
+                        KeyCode::Char('d') => app.toggle_diff_preview(),
+                        KeyCode::Char('R') => app.refresh_git_status(),
                         KeyCode::Char('?') => app.show_help = true,
                         _ => {}
                     }
@@ -173,6 +176,7 @@ fn print_help() {
     println!("    g           Go to top          G           Go to bottom");
     println!("    ~           Go to home         .           Toggle hidden files");
     println!("    /           Fuzzy search       y / Y       Yank relative / absolute path");
+    println!("    d           Toggle diff preview R           Refresh git status");
     println!("    ?           Show help overlay  q           Quit");
 }
 

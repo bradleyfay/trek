@@ -1,9 +1,11 @@
+use crate::git::GitStatus;
 use crate::icons::icon_for_entry;
 use anyhow::Result;
 use std::collections::HashSet;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 /// Maximum directory entries loaded in a single pane.
 /// Prevents UI freezes when navigating extremely large directories (e.g. node_modules).
@@ -78,6 +80,14 @@ pub struct App {
 
     // --- Help overlay ---
     pub show_help: bool,
+
+    // --- Git integration ---
+    /// Cached git status for the current repository; None outside of a repo.
+    pub git_status: Option<GitStatus>,
+    /// When true the preview pane shows `git diff` output instead of raw file content.
+    pub diff_preview_mode: bool,
+    /// True when `preview_lines` holds diff output (used by the renderer to colorise lines).
+    pub preview_is_diff: bool,
 }
 
 #[derive(Clone)]
@@ -120,6 +130,9 @@ impl App {
             status_message: None,
             show_hidden: false,
             show_help: false,
+            git_status: None,
+            diff_preview_mode: false,
+            preview_is_diff: false,
         };
         app.load_dir();
         Ok(app)
@@ -164,6 +177,10 @@ impl App {
             self.parent_entries.clear();
             self.parent_selected = 0;
         }
+
+        // Refresh git status whenever we navigate to a new directory.
+        self.git_status = GitStatus::load(&self.cwd);
+        self.diff_preview_mode = false;
 
         self.load_preview();
     }
@@ -215,10 +232,11 @@ impl App {
     pub fn load_preview(&mut self) {
         self.preview_scroll = 0;
         self.preview_lines.clear();
+        self.preview_is_diff = false;
 
-        if let Some(entry) = self.entries.get(self.selected) {
+        if let Some(entry) = self.entries.get(self.selected).cloned() {
             if entry.is_dir {
-                // Show directory contents as preview.
+                // Directories never show a diff preview.
                 if let Ok((children, _)) = Self::read_entries(&entry.path, self.show_hidden) {
                     self.preview_lines = children
                         .iter()
@@ -228,10 +246,97 @@ impl App {
                         })
                         .collect();
                 }
+            } else if self.diff_preview_mode {
+                // Show git diff if the file has changes; fall back to raw preview.
+                let has_git_change = self
+                    .git_status
+                    .as_ref()
+                    .and_then(|g| g.for_path(&entry.path))
+                    .is_some();
+                if has_git_change {
+                    let diff = Self::load_git_diff(&entry.path);
+                    if !diff.is_empty() {
+                        self.preview_lines = diff;
+                        self.preview_is_diff = true;
+                        return;
+                    }
+                }
+                // No diff available — fall back to raw content.
+                self.preview_lines = Self::read_file_preview(&entry.path);
             } else {
                 self.preview_lines = Self::read_file_preview(&entry.path);
             }
         }
+    }
+
+    /// Load `git diff` (unstaged, then staged) for `path` as a list of lines.
+    fn load_git_diff(path: &PathBuf) -> Vec<String> {
+        let parent = match path.parent() {
+            Some(p) => p,
+            None => return Vec::new(),
+        };
+        let path_str = path.to_string_lossy();
+
+        // Try unstaged diff first.
+        if let Ok(out) = Command::new("git")
+            .arg("-C")
+            .arg(parent)
+            .args(["diff", "--no-color", "--", path_str.as_ref()])
+            .output()
+        {
+            if out.status.success() && !out.stdout.is_empty() {
+                return String::from_utf8_lossy(&out.stdout)
+                    .lines()
+                    .take(2000)
+                    .map(|l| l.to_string())
+                    .collect();
+            }
+        }
+
+        // Fall back to staged diff.
+        if let Ok(out) = Command::new("git")
+            .arg("-C")
+            .arg(parent)
+            .args(["diff", "--cached", "--no-color", "--", path_str.as_ref()])
+            .output()
+        {
+            if out.status.success() && !out.stdout.is_empty() {
+                return String::from_utf8_lossy(&out.stdout)
+                    .lines()
+                    .take(2000)
+                    .map(|l| l.to_string())
+                    .collect();
+            }
+        }
+
+        Vec::new()
+    }
+
+    /// Toggle diff preview mode for the currently selected file.
+    ///
+    /// Has no effect outside a git repo or when the selected item is a
+    /// directory or a clean (unmodified) file.
+    pub fn toggle_diff_preview(&mut self) {
+        let has_git_change = self
+            .entries
+            .get(self.selected)
+            .filter(|e| !e.is_dir)
+            .and_then(|e| self.git_status.as_ref().and_then(|g| g.for_path(&e.path)))
+            .is_some();
+
+        if has_git_change {
+            self.diff_preview_mode = !self.diff_preview_mode;
+            self.load_preview();
+        } else {
+            self.status_message = Some("No git changes for this file".to_string());
+        }
+    }
+
+    /// Re-run `git status` for the current directory and refresh the preview.
+    pub fn refresh_git_status(&mut self) {
+        self.git_status = GitStatus::load(&self.cwd);
+        self.load_preview();
+        self.status_message = Some("Git status refreshed".to_string());
     }
 
     fn read_file_preview(path: &PathBuf) -> Vec<String> {

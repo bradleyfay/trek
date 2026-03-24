@@ -1,4 +1,5 @@
 use crate::app::{format_size, App};
+use crate::git::FileStatus;
 use crate::icons::icon_for_entry;
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
@@ -107,14 +108,23 @@ pub fn draw(f: &mut Frame, app: &mut App) {
 fn draw_path_bar(f: &mut Frame, app: &App, area: Rect) {
     let path_str = app.cwd.to_string_lossy();
     let hidden_indicator = if app.show_hidden { " [H]" } else { "" };
-    let text = format!(" {}{}", path_str, hidden_indicator);
-    let para = Paragraph::new(Line::from(Span::styled(
-        text,
+    let mut spans = vec![Span::styled(
+        format!(" {}{}", path_str, hidden_indicator),
         Style::default()
             .fg(Color::Cyan)
             .add_modifier(Modifier::BOLD),
-    )));
-    f.render_widget(para, area);
+    )];
+
+    if let Some(branch) = app.git_status.as_ref().and_then(|g| g.branch.as_ref()) {
+        spans.push(Span::styled(
+            format!("  ({})", branch),
+            Style::default()
+                .fg(Color::Green)
+                .add_modifier(Modifier::BOLD),
+        ));
+    }
+
+    f.render_widget(Paragraph::new(Line::from(spans)), area);
 }
 
 fn draw_search_bar(f: &mut Frame, app: &App, area: Rect) {
@@ -206,8 +216,9 @@ fn draw_current_pane(f: &mut Frame, app: &App, area: Rect) {
         .skip(app.current_scroll)
         .take(visible_height)
         .map(|(i, entry)| {
+            let is_selected = i == app.selected;
             let is_match = !is_searching || app.filtered_set.contains(&i);
-            let style = if i == app.selected {
+            let style = if is_selected {
                 Style::default()
                     .fg(Color::Black)
                     .bg(Color::LightYellow)
@@ -221,21 +232,63 @@ fn draw_current_pane(f: &mut Frame, app: &App, area: Rect) {
             } else {
                 Style::default()
             };
+
+            // Determine git status indicator (char, color) for this entry.
+            let git_indicator: Option<(char, Color)> =
+                app.git_status.as_ref().and_then(|git| {
+                    if entry.is_dir {
+                        if git.subtree_dirty(&entry.path) {
+                            Some(('~', Color::Yellow))
+                        } else {
+                            None
+                        }
+                    } else {
+                        git.for_path(&entry.path).map(file_status_indicator)
+                    }
+                });
+
             let icon = icon_for_entry(&entry.name, entry.is_dir);
             let size_str = if entry.is_dir {
                 String::new()
             } else {
                 format_size(entry.size)
             };
-            // Compute padding so size is right-aligned.
+
+            // Layout: "{icon} {name}{padding}{indicator} {size_str}"
+            // indicator_width = 2 (char + space) when present, else 0.
             let left_part = format!("{} {}", icon, entry.name);
-            let padding = if inner_width > left_part.len() + size_str.len() {
-                inner_width - left_part.len() - size_str.len()
+            let indicator_width: usize = if git_indicator.is_some() { 2 } else { 0 };
+            let total_right = size_str.len() + indicator_width;
+            let padding = if inner_width > left_part.len() + total_right {
+                inner_width - left_part.len() - total_right
             } else {
                 1
             };
-            let name = format!("{}{:>pad$}{}", left_part, "", size_str, pad = padding);
-            ListItem::new(Span::styled(name, style))
+
+            let mut spans = vec![Span::styled(
+                format!("{}{:>pad$}", left_part, "", pad = padding),
+                style,
+            )];
+
+            if let Some((ch, color)) = git_indicator {
+                // On the selected row keep the yellow background; elsewhere use the indicator color.
+                let ind_style = if is_selected {
+                    Style::default()
+                        .fg(color)
+                        .bg(Color::LightYellow)
+                        .add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().fg(color).add_modifier(Modifier::BOLD)
+                };
+                spans.push(Span::styled(ch.to_string(), ind_style));
+                spans.push(Span::styled(" ", style));
+            }
+
+            if !size_str.is_empty() {
+                spans.push(Span::styled(size_str, style));
+            }
+
+            ListItem::new(Line::from(spans))
         })
         .collect();
 
@@ -258,7 +311,13 @@ fn draw_preview_pane(f: &mut Frame, app: &App, area: Rect) {
     let title = app
         .entries
         .get(app.selected)
-        .map(|e| e.name.clone())
+        .map(|e| {
+            if app.preview_is_diff {
+                format!("{} [diff]", e.name)
+            } else {
+                e.name.clone()
+            }
+        })
         .unwrap_or_default();
 
     let visible_height = area.height.saturating_sub(2) as usize;
@@ -275,7 +334,13 @@ fn draw_preview_pane(f: &mut Frame, app: &App, area: Rect) {
         .iter()
         .skip(app.preview_scroll)
         .take(visible_height)
-        .map(|l| Line::from(l.as_str()))
+        .map(|l| {
+            if app.preview_is_diff {
+                colorize_diff_line(l)
+            } else {
+                Line::from(l.as_str())
+            }
+        })
         .collect();
 
     // Draw main content (leave 1 col for scrollbar).
@@ -327,9 +392,40 @@ fn draw_preview_pane(f: &mut Frame, app: &App, area: Rect) {
     }
 }
 
+/// Map a `FileStatus` to a display character and colour.
+fn file_status_indicator(status: FileStatus) -> (char, Color) {
+    match status {
+        FileStatus::Conflict => ('!', Color::Red),
+        FileStatus::Deleted => ('D', Color::Red),
+        FileStatus::Staged | FileStatus::StagedModified => ('S', Color::Green),
+        FileStatus::Modified => ('M', Color::Yellow),
+        FileStatus::Untracked => ('?', Color::Cyan),
+    }
+}
+
+/// Apply diff-aware colouring to a single diff output line.
+fn colorize_diff_line(line: &str) -> Line<'_> {
+    let style = if line.starts_with('+') && !line.starts_with("+++") {
+        Style::default().fg(Color::Green)
+    } else if line.starts_with('-') && !line.starts_with("---") {
+        Style::default().fg(Color::Red)
+    } else if line.starts_with("@@") {
+        Style::default().fg(Color::Cyan)
+    } else if line.starts_with("diff ")
+        || line.starts_with("index ")
+        || line.starts_with("--- ")
+        || line.starts_with("+++ ")
+    {
+        Style::default().fg(Color::DarkGray)
+    } else {
+        Style::default()
+    };
+    Line::from(Span::styled(line, style))
+}
+
 fn draw_help_overlay(f: &mut Frame, size: Rect) {
     let width = 50u16.min(size.width.saturating_sub(4));
-    let height = 22u16.min(size.height.saturating_sub(4));
+    let height = 26u16.min(size.height.saturating_sub(4));
     let x = (size.width.saturating_sub(width)) / 2;
     let y = (size.height.saturating_sub(height)) / 2;
     let area = Rect::new(x, y, width, height);
@@ -391,6 +487,14 @@ fn draw_help_overlay(f: &mut Frame, size: Rect) {
         Line::from(vec![
             Span::styled("  Y         ", Style::default().fg(Color::Cyan)),
             Span::raw("Yank absolute path"),
+        ]),
+        Line::from(vec![
+            Span::styled("  d         ", Style::default().fg(Color::Cyan)),
+            Span::raw("Toggle git diff preview"),
+        ]),
+        Line::from(vec![
+            Span::styled("  R         ", Style::default().fg(Color::Cyan)),
+            Span::raw("Refresh git status"),
         ]),
         Line::from(vec![
             Span::styled("  Q         ", Style::default().fg(Color::Cyan)),
