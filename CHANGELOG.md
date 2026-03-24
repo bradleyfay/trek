@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.37.0] - 2026-03-24
+
+### Added
+- **Selection total size in status bar**: when one or more files are selected, the bottom bar now shows the aggregate byte size alongside the count — e.g., `" 3 selected  (2.4 MB)"`
+- Directories in the selection do not contribute to the total (their `DirEntry.size` is a meaningless filesystem block size)
+- When only directories are selected the size annotation is omitted entirely
+- `C` (copy-selected) status message now also includes total file size: `"[copy] 3 files (2.4 MB)"`
+
 ## [0.36.0] - 2026-03-24
 
 ### Added

@@ -2780,3 +2780,74 @@ fn open_clipboard_inspect_with_empty_clipboard() {
     assert!(app.clipboard_inspect_mode);
     let _ = std::fs::remove_dir_all(&tmp);
 }
+
+/// Given: rename_selected contains indices pointing to files with known sizes
+/// When: clipboard_copy_selected is called
+/// Then: the status message includes aggregate file size in parentheses
+#[test]
+fn copy_selected_status_includes_total_size() {
+    let tmp = std::env::temp_dir().join(format!("trek_sel_size_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    // Write two files with known sizes
+    std::fs::write(tmp.join("a.txt"), &vec![0u8; 1024]).unwrap(); // 1 KB
+    std::fs::write(tmp.join("b.txt"), &vec![0u8; 1024]).unwrap(); // 1 KB
+    let mut app = make_app_at(&tmp);
+    // Select both files
+    app.rename_selected.insert(0);
+    app.rename_selected.insert(1);
+    app.clipboard_copy_selected();
+    let msg = app.status_message.clone().unwrap_or_default();
+    assert!(msg.contains("2 files"), "should show count: {msg}");
+    assert!(
+        msg.contains('(') && msg.contains(')'),
+        "should include size in parens: {msg}"
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: rename_selected contains only a directory index
+/// When: clipboard_copy_selected is called
+/// Then: the status message contains no parenthesised size (dirs excluded)
+#[test]
+fn copy_selected_status_omits_size_for_dirs_only() {
+    let tmp = std::env::temp_dir().join(format!("trek_sel_dir_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let subdir = tmp.join("subdir");
+    std::fs::create_dir_all(&subdir).unwrap();
+    let mut app = make_app_at(&tmp);
+    // Select the directory (index 0 in a single-entry listing)
+    app.rename_selected.insert(0);
+    app.clipboard_copy_selected();
+    let msg = app.status_message.clone().unwrap_or_default();
+    // Message should NOT have a size annotation
+    assert!(
+        !msg.contains('('),
+        "should not show size for dirs-only selection: {msg}"
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: rename_selected contains a mix of files and a directory
+/// When: clipboard_copy_selected is called
+/// Then: only file sizes contribute — message includes parenthesised total
+#[test]
+fn copy_selected_status_sums_only_files_in_mixed_selection() {
+    let tmp = std::env::temp_dir().join(format!("trek_sel_mix_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let subdir = tmp.join("adir"); // sorted before file
+    std::fs::create_dir_all(&subdir).unwrap();
+    std::fs::write(tmp.join("zfile.txt"), &vec![0u8; 512]).unwrap();
+    let mut app = make_app_at(&tmp);
+    // Select both (indices 0 and 1 in a two-entry listing)
+    app.rename_selected.insert(0);
+    app.rename_selected.insert(1);
+    app.clipboard_copy_selected();
+    let msg = app.status_message.clone().unwrap_or_default();
+    assert!(msg.contains("2 files"), "should show total count: {msg}");
+    // Should include size from the file (not the dir)
+    assert!(
+        msg.contains('(') && msg.contains(')'),
+        "should include file size: {msg}"
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}
