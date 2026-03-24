@@ -142,8 +142,11 @@ pub struct DirEntry {
 }
 
 impl App {
-    pub fn new() -> Result<Self> {
-        let cwd = std::env::current_dir()?;
+    pub fn new(start_dir: Option<PathBuf>) -> Result<Self> {
+        let cwd = match start_dir {
+            Some(dir) => dir,
+            None => std::env::current_dir()?,
+        };
         let mut app = Self {
             cwd,
             entries: Vec::new(),

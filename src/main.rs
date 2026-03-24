@@ -18,23 +18,200 @@ use crossterm::{
 };
 use ratatui::{backend::CrosstermBackend, Terminal};
 use std::io;
+use std::path::PathBuf;
+
+// ── Argument parsing ───────────────────────────────────────────────────────────
+
+/// Outcome of parsing the command-line arguments.
+#[derive(Debug)]
+pub struct ParsedArgs {
+    pub show_help: bool,
+    pub show_version: bool,
+    pub install_shell: bool,
+    /// Value of `--choosedir <path>` (internal shell-integration flag).
+    pub choosedir: Option<String>,
+    /// Optional starting directory (first non-flag positional argument).
+    pub start_dir: Option<PathBuf>,
+}
+
+/// Parse `args` (argv[1..]) into a `ParsedArgs`.
+///
+/// Returns `Err(message)` on unrecognized flags or missing `--choosedir` value.
+pub fn parse_args(args: &[String]) -> Result<ParsedArgs, String> {
+    let mut parsed = ParsedArgs {
+        show_help: false,
+        show_version: false,
+        install_shell: false,
+        choosedir: None,
+        start_dir: None,
+    };
+
+    let mut i = 0;
+    while i < args.len() {
+        let arg = &args[i];
+        match arg.as_str() {
+            "--help" | "-h" => parsed.show_help = true,
+            "--version" | "-V" => parsed.show_version = true,
+            "--install-shell" => parsed.install_shell = true,
+            "--choosedir" => {
+                i += 1;
+                let val = args
+                    .get(i)
+                    .ok_or_else(|| "--choosedir requires a path argument".to_string())?;
+                parsed.choosedir = Some(val.clone());
+            }
+            a if a.starts_with('-') => {
+                return Err(format!("trek: unrecognized option '{a}'"));
+            }
+            _ => {
+                // Positional argument: first one wins as start_dir.
+                if parsed.start_dir.is_none() {
+                    parsed.start_dir = Some(PathBuf::from(arg));
+                }
+            }
+        }
+        i += 1;
+    }
+
+    Ok(parsed)
+}
+
+// ── Tests for parse_args ───────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod cli_tests {
+    use super::*;
+
+    fn s(v: &[&str]) -> Vec<String> {
+        v.iter().map(|s| s.to_string()).collect()
+    }
+
+    /// Given: no arguments
+    /// When: parse_args is called
+    /// Then: all flags are false and start_dir is None
+    #[test]
+    fn no_args_is_default() {
+        let p = parse_args(&s(&[])).unwrap();
+        assert!(!p.show_help);
+        assert!(!p.show_version);
+        assert!(!p.install_shell);
+        assert!(p.choosedir.is_none());
+        assert!(p.start_dir.is_none());
+    }
+
+    /// Given: --help
+    /// When: parse_args is called
+    /// Then: show_help is true
+    #[test]
+    fn help_flag_long() {
+        let p = parse_args(&s(&["--help"])).unwrap();
+        assert!(p.show_help);
+    }
+
+    /// Given: -h
+    /// When: parse_args is called
+    /// Then: show_help is true
+    #[test]
+    fn help_flag_short() {
+        let p = parse_args(&s(&["-h"])).unwrap();
+        assert!(p.show_help);
+    }
+
+    /// Given: --version
+    /// When: parse_args is called
+    /// Then: show_version is true
+    #[test]
+    fn version_flag_long() {
+        let p = parse_args(&s(&["--version"])).unwrap();
+        assert!(p.show_version);
+    }
+
+    /// Given: -V
+    /// When: parse_args is called
+    /// Then: show_version is true
+    #[test]
+    fn version_flag_short() {
+        let p = parse_args(&s(&["-V"])).unwrap();
+        assert!(p.show_version);
+    }
+
+    /// Given: an unrecognized flag (e.g. --foo)
+    /// When: parse_args is called
+    /// Then: an Err is returned naming the unknown flag
+    #[test]
+    fn unknown_flag_returns_error() {
+        let result = parse_args(&s(&["--foo"]));
+        assert!(result.is_err());
+        let msg = result.unwrap_err();
+        assert!(msg.contains("--foo"), "error should name the flag: {msg}");
+    }
+
+    /// Given: a positional argument that is a valid directory path
+    /// When: parse_args is called
+    /// Then: start_dir is Some with that path
+    #[test]
+    fn positional_arg_sets_start_dir() {
+        let tmp = std::env::temp_dir();
+        let p = parse_args(&s(&[tmp.to_str().unwrap()])).unwrap();
+        assert!(p.start_dir.is_some());
+    }
+
+    /// Given: --choosedir followed by a path
+    /// When: parse_args is called
+    /// Then: choosedir is Some with that path
+    #[test]
+    fn choosedir_flag_sets_value() {
+        let p = parse_args(&s(&["--choosedir", "/tmp/out"])).unwrap();
+        assert_eq!(p.choosedir.as_deref(), Some("/tmp/out"));
+    }
+
+    /// Given: --install-shell
+    /// When: parse_args is called
+    /// Then: install_shell is true
+    #[test]
+    fn install_shell_flag() {
+        let p = parse_args(&s(&["--install-shell"])).unwrap();
+        assert!(p.install_shell);
+    }
+}
 
 fn main() -> Result<()> {
-    let args: Vec<String> = std::env::args().collect();
+    let raw_args: Vec<String> = std::env::args().skip(1).collect();
 
-    if args.iter().any(|a| a == "--help" || a == "-h") {
+    let parsed = match parse_args(&raw_args) {
+        Ok(p) => p,
+        Err(msg) => {
+            eprintln!("{msg}");
+            eprintln!("Try 'trek --help' for more information.");
+            std::process::exit(1);
+        }
+    };
+
+    if parsed.show_help {
         print_help();
         return Ok(());
     }
 
-    if args.iter().any(|a| a == "--install-shell") {
+    if parsed.show_version {
+        println!("trek {}", env!("CARGO_PKG_VERSION"));
+        return Ok(());
+    }
+
+    if parsed.install_shell {
         return install_shell_integration();
     }
 
-    let choosedir = args
-        .iter()
-        .position(|a| a == "--choosedir")
-        .and_then(|i| args.get(i + 1).cloned());
+    // Validate the optional starting directory before entering the TUI.
+    let start_dir: Option<PathBuf> = if let Some(dir) = parsed.start_dir {
+        let canonical = dir.canonicalize().unwrap_or_else(|_| dir.clone());
+        if !canonical.is_dir() {
+            eprintln!("trek: '{}' is not a directory", dir.display());
+            std::process::exit(1);
+        }
+        Some(canonical)
+    } else {
+        None
+    };
 
     // Install a panic hook that restores terminal state before printing the
     // panic message.  Without this, a panic leaves the terminal in raw mode
@@ -47,7 +224,7 @@ fn main() -> Result<()> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let result = run(&mut terminal);
+    let result = run(&mut terminal, start_dir);
 
     disable_raw_mode()?;
     execute!(
@@ -59,7 +236,7 @@ fn main() -> Result<()> {
 
     match result {
         Ok(final_dir) => {
-            if let Some(ref path) = choosedir {
+            if let Some(ref path) = parsed.choosedir {
                 // Write atomically: write to a temp file first, then rename.
                 // A plain fs::write is not atomic — if the process is killed
                 // mid-write the shell script reads a partial path and passes it
@@ -69,7 +246,11 @@ fn main() -> Result<()> {
                 std::fs::rename(&tmp, path)?;
             }
         }
-        Err(e) => eprintln!("Error: {e:?}"),
+        Err(e) => {
+            // Issue #9: print error to stderr and exit 1, not 0.
+            eprintln!("Error: {e:?}");
+            std::process::exit(1);
+        }
     }
     Ok(())
 }
@@ -87,8 +268,11 @@ fn setup_panic_hook() {
     }));
 }
 
-fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<std::path::PathBuf> {
-    let mut app = App::new()?;
+fn run(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    start_dir: Option<PathBuf>,
+) -> Result<PathBuf> {
+    let mut app = App::new(start_dir)?;
 
     loop {
         terminal.draw(|f| ui::draw(f, &mut app))?;
@@ -218,12 +402,15 @@ fn print_help() {
     println!("trek — a terminal file manager");
     println!();
     println!("USAGE:");
-    println!("    trek [OPTIONS]");
+    println!("    trek [OPTIONS] [PATH]");
+    println!();
+    println!("ARGS:");
+    println!("    [PATH]    Directory to open (defaults to current working directory)");
     println!();
     println!("OPTIONS:");
     println!("    -h, --help             Print this help message");
-    println!("        --install-shell    Install the `m` shell function into your shell rc file");
-    println!("        --choosedir <path> Write the final directory to <path> on exit");
+    println!("    -V, --version          Print version information");
+    println!("        --install-shell    Install the `m` shell function (enables cd-on-exit)");
     println!();
     println!("KEYBINDINGS (inside the TUI):");
     println!("    j / Down    Move down          k / Up      Move up");
@@ -236,9 +423,9 @@ fn print_help() {
     println!("    Space       Toggle file selection v          Select all files");
     println!("    r           Rename selected files Esc        Clear selections");
     println!("    c           Copy current to clipboard C          Copy selected to clipboard");
-    println!("    x           Cut current to clipboard X          Cut selected to clipboard");
+    println!("    x           Cut current to clipboard");
     println!("    p           Paste clipboard       Delete      Delete current file/dir");
-    println!("    M           Make new directory");
+    println!("    X           Delete all selected   M           Make new directory");
     println!("    ?           Show help overlay  q           Quit");
 }
 

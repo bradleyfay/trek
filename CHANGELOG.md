@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-03-24
+
+### Added
+- `trek <path>` now opens in the specified directory instead of always using CWD; supports absolute, relative, and `~`-expanded paths; validates that the path is a directory and exits 1 with an error message if not (#8)
+- `trek --version` / `trek -V` prints `trek <version>` and exits 0 instead of launching the TUI (#6)
+- `trek --help` / `-h` now documents the optional `[PATH]` positional argument and the `-V`/`--version` flag; `--choosedir` removed from user-facing help (internal shell-integration flag) (#10)
+
+### Fixed
+- Unrecognized flags (e.g. `trek --typo`) now print an error to stderr and exit 1 instead of silently launching the TUI (#7)
+- Trek now exits with code 1 when `run()` returns an error, instead of always exiting 0 (#9)
+
+### Changed
+- Argument parsing extracted into a testable `parse_args` function with 9 unit tests covering all flag combinations and error cases
+
 ## [0.6.0] - 2026-03-24
 
 ### Added
