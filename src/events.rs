@@ -197,6 +197,7 @@ pub fn run(
                     match key.code {
                         KeyCode::Esc => app.cancel_path_jump(),
                         KeyCode::Enter => app.confirm_path_jump(),
+                        KeyCode::Tab => app.complete_path(),
                         KeyCode::Backspace => app.path_pop_char(),
                         KeyCode::Char(c) => app.path_push_char(c),
                         _ => {}

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.49.0] - 2026-03-24
+
+### Added
+- **Tab completion in path-jump bar**: press `e` to open the jump bar, then `Tab` to complete the current path prefix using filesystem entries
+- Single match: completes to the full name and appends `/` for directories
+- Multiple matches: advances to the longest common prefix of all matching entries
+- No matches: input unchanged (silent no-op)
+- `~` prefix expands to the home directory for completion, then the `~` is preserved in the displayed input
+- Hint text in the jump bar updated to show `Tab=complete  Enter=go  Esc=cancel`
+- Help overlay and command palette updated to reflect Tab completion
+
 ## [0.48.0] - 2026-03-24
 
 ### Added

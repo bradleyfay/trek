@@ -1153,6 +1153,94 @@ fn path_jump_push_pop_char() {
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
+// ── path-jump tab completion tests ────────────────────────────────────────────
+
+/// Given: path_input is a prefix matching exactly one directory
+/// When: complete_path() is called
+/// Then: path_input is completed to the full name with a trailing slash
+#[test]
+fn complete_path_single_dir_match_appends_slash() {
+    let tmp = std::env::temp_dir().join(format!("trek_complete_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let sub = tmp.join("subdir");
+    let _ = std::fs::create_dir_all(&sub);
+    let mut app = make_app_at(&tmp);
+    app.begin_path_jump();
+    let prefix = format!("{}/sub", tmp.display());
+    app.path_input = prefix;
+    app.complete_path();
+    assert_eq!(app.path_input, format!("{}/subdir/", tmp.display()));
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: path_input is a prefix matching exactly one file
+/// When: complete_path() is called
+/// Then: path_input is completed to the full filename without trailing slash
+#[test]
+fn complete_path_single_file_match_no_slash() {
+    let tmp = std::env::temp_dir().join(format!("trek_complete_file_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("readme.txt"), b"").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.begin_path_jump();
+    let prefix = format!("{}/readme", tmp.display());
+    app.path_input = prefix;
+    app.complete_path();
+    assert_eq!(app.path_input, format!("{}/readme.txt", tmp.display()));
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: path_input prefix matches multiple entries
+/// When: complete_path() is called
+/// Then: path_input is advanced to the longest common prefix of all matches
+#[test]
+fn complete_path_multiple_matches_uses_common_prefix() {
+    let tmp = std::env::temp_dir().join(format!("trek_complete_multi_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("foobar.txt"), b"").unwrap();
+    std::fs::write(tmp.join("foobaz.txt"), b"").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.begin_path_jump();
+    let prefix = format!("{}/foo", tmp.display());
+    app.path_input = prefix;
+    app.complete_path();
+    assert_eq!(app.path_input, format!("{}/fooba", tmp.display()));
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: path_input prefix matches nothing
+/// When: complete_path() is called
+/// Then: path_input is unchanged
+#[test]
+fn complete_path_no_matches_leaves_input_unchanged() {
+    let tmp = std::env::temp_dir().join(format!("trek_complete_none_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let mut app = make_app_at(&tmp);
+    app.begin_path_jump();
+    let input = format!("{}/zzznomatch", tmp.display());
+    app.path_input = input.clone();
+    app.complete_path();
+    assert_eq!(app.path_input, input);
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: path_input ends with a slash (complete from inside the directory)
+/// When: complete_path() is called with a single entry inside
+/// Then: completes to that single entry
+#[test]
+fn complete_path_trailing_slash_lists_dir_contents() {
+    let tmp = std::env::temp_dir().join(format!("trek_complete_slash_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let inner = tmp.join("only_child");
+    let _ = std::fs::create_dir_all(&inner);
+    let mut app = make_app_at(&tmp);
+    app.begin_path_jump();
+    app.path_input = format!("{}/", tmp.display());
+    app.complete_path();
+    assert_eq!(app.path_input, format!("{}/only_child/", tmp.display()));
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
 // ── range selection (J / K) tests ──────────────────────────────────────────────
 
 /// Given: cursor at index 0 in a multi-file directory

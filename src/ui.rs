@@ -475,7 +475,7 @@ fn draw_path_jump_bar(f: &mut Frame, app: &App, area: Rect) {
         ),
         Span::styled("\u{2588}", Style::default().fg(Color::White)),
         Span::styled(
-            "  Enter=go  Esc=cancel",
+            "  Tab=complete  Enter=go  Esc=cancel",
             Style::default().fg(Color::DarkGray),
         ),
     ]));
@@ -2021,7 +2021,7 @@ fn draw_help_overlay(f: &mut Frame, size: Rect) {
         key_line("g / G", "Go to top / bottom"),
         key_line("~", "Go to home directory"),
         key_line(".", "Toggle hidden files"),
-        key_line("e", "Jump to path (type any absolute/relative path)"),
+        key_line("e", "Jump to path (Tab to complete, Enter to go)"),
         key_line("[ / ]", "Scroll preview pane up / down (5 lines)"),
         key_line("Ctrl+O", "Go back in directory history"),
         key_line("Ctrl+I", "Go forward in directory history"),

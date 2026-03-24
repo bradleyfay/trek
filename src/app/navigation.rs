@@ -427,6 +427,103 @@ impl App {
         self.path_input.pop();
     }
 
+    /// Tab-complete the current path_input using filesystem entries.
+    ///
+    /// - Expands a leading `~` to the home directory before reading the
+    ///   directory, but preserves the original `~` representation in
+    ///   path_input when reassembling the result.
+    /// - Single match: completes to full name; appends `/` for directories.
+    /// - Multiple matches: advances to the longest common prefix of all names.
+    /// - No matches: leaves path_input unchanged (no-op).
+    pub fn complete_path(&mut self) {
+        let raw = self.path_input.clone();
+
+        // Expand ~ to the home directory for filesystem operations.
+        let expanded = if let Some(rest) = raw.strip_prefix('~') {
+            if let Some(home) = dirs_home() {
+                let trimmed = rest.trim_start_matches('/');
+                if trimmed.is_empty() {
+                    home.to_string_lossy().into_owned()
+                } else {
+                    format!("{}/{}", home.display(), trimmed)
+                }
+            } else {
+                raw.clone()
+            }
+        } else {
+            raw.clone()
+        };
+
+        // Split into (search_dir, stem_prefix).
+        let path = std::path::Path::new(&expanded);
+        let (search_dir, prefix) = if expanded.ends_with('/') {
+            (path.to_path_buf(), String::new())
+        } else {
+            let parent = path
+                .parent()
+                .unwrap_or_else(|| std::path::Path::new("."))
+                .to_path_buf();
+            let stem = path
+                .file_name()
+                .map(|s| s.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            (parent, stem)
+        };
+
+        // Collect entries in search_dir whose names start with prefix.
+        let Ok(rd) = std::fs::read_dir(&search_dir) else {
+            return;
+        };
+        let mut matches: Vec<(String, bool)> = rd
+            .filter_map(|e| e.ok())
+            .filter_map(|e| {
+                let name = e.file_name().to_string_lossy().into_owned();
+                if name.starts_with(&prefix) {
+                    let is_dir = e.file_type().map(|t| t.is_dir()).unwrap_or(false);
+                    Some((name, is_dir))
+                } else {
+                    None
+                }
+            })
+            .collect();
+        matches.sort_by(|a, b| a.0.cmp(&b.0));
+
+        if matches.is_empty() {
+            return;
+        }
+
+        // Build the completed name.
+        let completed = if matches.len() == 1 {
+            let (name, is_dir) = &matches[0];
+            if *is_dir {
+                format!("{}/", name)
+            } else {
+                name.clone()
+            }
+        } else {
+            common_prefix(matches.iter().map(|(n, _)| n.as_str()))
+        };
+
+        // Reconstruct path_input, preserving the original dir prefix (e.g. `~`).
+        let orig_dir_prefix = if expanded.ends_with('/') {
+            raw.clone()
+        } else {
+            let orig_path = std::path::Path::new(&raw);
+            orig_path
+                .parent()
+                .map(|p| {
+                    let s = p.to_string_lossy();
+                    if s.is_empty() {
+                        String::new()
+                    } else {
+                        format!("{}/", s)
+                    }
+                })
+                .unwrap_or_default()
+        };
+        self.path_input = format!("{}{}", orig_dir_prefix, completed);
+    }
+
     /// Returns the path of the currently selected file (not directory), or None.
     /// Used by the open-in-editor (`o`) handler which should not act on directories.
     pub fn selected_file_path(&self) -> Option<PathBuf> {
@@ -597,4 +694,16 @@ impl App {
             }
         }
     }
+}
+
+/// Return the longest common prefix of a non-empty iterator of strings.
+fn common_prefix<'a>(mut iter: impl Iterator<Item = &'a str>) -> String {
+    let first = iter.next().unwrap_or("").to_string();
+    iter.fold(first, |acc, s| {
+        acc.chars()
+            .zip(s.chars())
+            .take_while(|(a, b)| a == b)
+            .map(|(c, _)| c)
+            .collect()
+    })
 }
