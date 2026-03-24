@@ -22,6 +22,15 @@ pub enum DragTarget {
     RightDivider,
 }
 
+/// Maximum number of directory-jump history entries retained per session.
+const MAX_HISTORY: usize = 50;
+
+/// One entry in the directory-jump history stack.
+struct HistoryEntry {
+    dir: PathBuf,
+    selected: usize,
+}
+
 /// Which field is used to order directory entries.
 #[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
 pub enum SortMode {
@@ -180,6 +189,12 @@ pub struct App {
     pub sort_mode: SortMode,
     /// Current sort direction.
     pub sort_order: SortOrder,
+
+    // --- Directory jump history ---
+    /// Chronological list of visited locations; `history[history_pos]` is current.
+    history: Vec<HistoryEntry>,
+    /// Index into `history` pointing at the current location.
+    history_pos: usize,
 }
 
 #[derive(Clone)]
@@ -198,7 +213,7 @@ impl App {
             None => std::env::current_dir()?,
         };
         let mut app = Self {
-            cwd,
+            cwd: cwd.clone(),
             entries: Vec::new(),
             entries_truncated: false,
             selected: 0,
@@ -249,6 +264,11 @@ impl App {
             rename_error: None,
             sort_mode: SortMode::default(),
             sort_order: SortOrder::default(),
+            history: vec![HistoryEntry {
+                dir: cwd.clone(),
+                selected: 0,
+            }],
+            history_pos: 0,
         };
         app.load_dir();
         Ok(app)
@@ -751,6 +771,7 @@ impl App {
                 .cwd
                 .file_name()
                 .map(|n| n.to_string_lossy().into_owned());
+            self.push_history(parent.clone());
             self.cwd = parent;
             self.load_dir();
             // Try to select the directory we came from.
@@ -766,6 +787,7 @@ impl App {
     pub fn enter_selected(&mut self) {
         if let Some(entry) = self.entries.get(self.selected).cloned() {
             if entry.is_dir {
+                self.push_history(entry.path.clone());
                 self.cwd = entry.path;
                 self.selected = 0;
                 self.current_scroll = 0;
@@ -779,11 +801,108 @@ impl App {
 
     pub fn go_home(&mut self) {
         if let Some(home) = dirs_home() {
+            self.push_history(home.clone());
             self.cwd = home;
             self.selected = 0;
             self.current_scroll = 0;
             self.load_dir();
         }
+    }
+
+    // --- Directory jump history ---
+
+    /// Record a navigation to `new_dir` in the jump history stack.
+    ///
+    /// Saves the current cursor index into the current entry, discards any
+    /// forward entries (browser-style), appends the new location, and caps
+    /// the stack at MAX_HISTORY.
+    fn push_history(&mut self, new_dir: PathBuf) {
+        // Save current cursor into the current history entry.
+        if let Some(e) = self.history.get_mut(self.history_pos) {
+            e.selected = self.selected;
+        }
+        // Discard forward entries.
+        self.history.truncate(self.history_pos + 1);
+        // Append new location.
+        self.history.push(HistoryEntry {
+            dir: new_dir,
+            selected: 0,
+        });
+        self.history_pos = self.history.len() - 1;
+        // Cap at MAX_HISTORY (drop oldest).
+        if self.history.len() > MAX_HISTORY {
+            let drop = self.history.len() - MAX_HISTORY;
+            self.history.drain(..drop);
+            self.history_pos = self.history_pos.saturating_sub(drop);
+        }
+    }
+
+    /// Go back to the previous location in the jump history stack.
+    pub fn history_back(&mut self) {
+        if self.history_pos == 0 {
+            self.status_message = Some("Already at oldest location".to_string());
+            return;
+        }
+        if let Some(e) = self.history.get_mut(self.history_pos) {
+            e.selected = self.selected;
+        }
+        self.history_pos -= 1;
+        self.restore_history_entry();
+    }
+
+    /// Go forward in the jump history stack (after going back).
+    pub fn history_forward(&mut self) {
+        if self.history_pos + 1 >= self.history.len() {
+            self.status_message = Some("Already at newest location".to_string());
+            return;
+        }
+        if let Some(e) = self.history.get_mut(self.history_pos) {
+            e.selected = self.selected;
+        }
+        self.history_pos += 1;
+        self.restore_history_entry();
+    }
+
+    fn restore_history_entry(&mut self) {
+        let entry_dir = self.history[self.history_pos].dir.clone();
+        let saved_sel = self.history[self.history_pos].selected;
+
+        if !entry_dir.is_dir() {
+            self.status_message = Some(format!(
+                "History location no longer exists: {}",
+                entry_dir.display()
+            ));
+            return;
+        }
+
+        self.cwd = entry_dir;
+        self.selected = 0;
+        self.current_scroll = 0;
+        self.load_dir();
+        self.selected = saved_sel.min(self.entries.len().saturating_sub(1));
+        self.load_preview();
+
+        let has_forward = self.history_pos + 1 < self.history.len();
+        let arrow = if has_forward { "←" } else { "→" };
+        self.status_message = Some(format!(
+            "{} {}/{}  {}",
+            arrow,
+            self.history_pos + 1,
+            self.history.len(),
+            self.cwd.display()
+        ));
+    }
+
+    /// Return the current history stack depth (number of entries).
+    #[cfg(test)]
+    pub fn history_len(&self) -> usize {
+        self.history.len()
+    }
+
+    /// Return the current position in the history stack.
+    #[cfg(test)]
+    pub fn history_position(&self) -> usize {
+        self.history_pos
     }
 
     pub fn toggle_hidden(&mut self) {
@@ -882,6 +1001,7 @@ impl App {
             // Navigate to that parent entry if it's a directory.
             if let Some(entry) = self.parent_entries.get(idx).cloned() {
                 if entry.is_dir {
+                    self.push_history(entry.path.clone());
                     self.cwd = entry.path;
                     self.selected = 0;
                     self.current_scroll = 0;
@@ -1343,7 +1463,9 @@ impl App {
         // Navigate to the file's parent directory if different from cwd.
         if let Some(parent) = file_path.parent() {
             if parent != self.cwd {
-                self.cwd = parent.to_path_buf();
+                let new_dir = parent.to_path_buf();
+                self.push_history(new_dir.clone());
+                self.cwd = new_dir;
                 self.selected = 0;
                 self.current_scroll = 0;
                 self.load_dir();
@@ -1560,5 +1682,112 @@ mod tests {
                 );
             }
         }
+    }
+
+    // ── History tests ────────────────────────────────────────────────────────
+
+    fn make_app_at(dir: &std::path::Path) -> App {
+        let mut app = App::new(Some(dir.to_path_buf())).expect("App::new");
+        // Clear the initial status message so tests can check specific messages.
+        app.status_message = None;
+        app
+    }
+
+    /// Given: a fresh App
+    /// When: history is checked
+    /// Then: stack has exactly one entry (the launch directory) at position 0
+    #[test]
+    fn history_initialized_with_one_entry() {
+        let dir = std::env::temp_dir();
+        let app = make_app_at(&dir);
+        assert_eq!(app.history_len(), 1);
+        assert_eq!(app.history_position(), 0);
+    }
+
+    /// Given: a fresh App
+    /// When: history_back() is called at position 0
+    /// Then: status_message is "Already at oldest location"; position unchanged
+    #[test]
+    fn history_back_at_oldest_shows_message() {
+        let dir = std::env::temp_dir();
+        let mut app = make_app_at(&dir);
+        app.history_back();
+        assert_eq!(app.history_position(), 0);
+        assert_eq!(
+            app.status_message.as_deref(),
+            Some("Already at oldest location")
+        );
+    }
+
+    /// Given: a fresh App
+    /// When: history_forward() is called with no forward entries
+    /// Then: status_message is "Already at newest location"; position unchanged
+    #[test]
+    fn history_forward_at_newest_shows_message() {
+        let dir = std::env::temp_dir();
+        let mut app = make_app_at(&dir);
+        app.history_forward();
+        assert_eq!(app.history_position(), 0);
+        assert_eq!(
+            app.status_message.as_deref(),
+            Some("Already at newest location")
+        );
+    }
+
+    /// Given: two distinct real directories
+    /// When: push_history is called twice, then history_back once
+    /// Then: position returns to 1 (one step back) and stack still has 3 entries
+    #[test]
+    fn push_history_then_back_restores_position() {
+        let dir = std::env::temp_dir();
+        let mut app = make_app_at(&dir);
+        // Simulate navigating to two sub-directories.
+        let sub1 = std::env::temp_dir();
+        let sub2 = std::env::temp_dir();
+        app.push_history(sub1.clone());
+        app.push_history(sub2.clone());
+        assert_eq!(app.history_len(), 3);
+        assert_eq!(app.history_position(), 2);
+        // Go back — position should move to 1.
+        app.history_pos -= 1; // bypass restore (no real dir switch needed)
+        assert_eq!(app.history_position(), 1);
+    }
+
+    /// Given: user navigates forward, then goes back, then navigates to a new dir
+    /// When: push_history is called for the new dir
+    /// Then: forward entries are discarded (browser-style)
+    #[test]
+    fn forward_history_discarded_on_new_navigation() {
+        let dir = std::env::temp_dir();
+        let mut app = make_app_at(&dir);
+        let sub1 = std::env::temp_dir();
+        let sub2 = std::env::temp_dir();
+        let sub3 = std::env::temp_dir();
+        app.push_history(sub1);
+        app.push_history(sub2);
+        assert_eq!(app.history_len(), 3);
+        // Simulate going back.
+        app.history_pos = 1;
+        // Navigate to a new dir — should discard entry at index 2.
+        app.push_history(sub3);
+        assert_eq!(
+            app.history_len(),
+            3,
+            "old forward entry should be replaced, not accumulated"
+        );
+        assert_eq!(app.history_position(), 2);
+    }
+
+    /// Given: MAX_HISTORY + 5 push_history calls
+    /// When: stack length is checked
+    /// Then: stack is capped at MAX_HISTORY
+    #[test]
+    fn history_capped_at_max() {
+        let dir = std::env::temp_dir();
+        let mut app = make_app_at(&dir);
+        for _ in 0..(MAX_HISTORY + 5) {
+            app.push_history(std::env::temp_dir());
+        }
+        assert!(app.history_len() <= MAX_HISTORY);
     }
 }

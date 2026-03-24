@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-03-23
+
+### Added
+- Directory jump history: `Ctrl+O` goes back to the previous visited directory; `Ctrl+I` goes forward after going back
+- Each history entry stores the directory path and cursor index; cursor is restored on return (clamped if entries changed)
+- Forward entries are discarded when navigating somewhere new (browser-style)
+- Stack capped at 50 entries; oldest entries dropped when full
+- Status message shows direction and stack position: `← 3/7  ~/projects/myapp/src`
+- History is recorded on `l`/`Enter`, `h`, `~`, mouse parent-pane click, and content search jump
+- `Ctrl+O`/`Ctrl+I` themselves do not push new entries
+- Navigating to a deleted history entry shows a descriptive error message instead of crashing
+- Help overlay documents both new keybindings
+- 5 unit tests covering initialization, boundary messages, forward-discard semantics, and stack cap
+
 ## [0.9.0] - 2026-03-23
 
 ### Added

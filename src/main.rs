@@ -369,6 +369,12 @@ fn run(
                         KeyCode::Char('M') => app.begin_mkdir(),
                         KeyCode::Char('S') => app.cycle_sort_mode(),
                         KeyCode::Char('s') => app.toggle_sort_order(),
+                        KeyCode::Char('o') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                            app.history_back()
+                        }
+                        KeyCode::Char('i') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                            app.history_forward()
+                        }
                         _ => {}
                     }
                 }

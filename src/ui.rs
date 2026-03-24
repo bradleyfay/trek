@@ -917,6 +917,14 @@ fn draw_help_overlay(f: &mut Frame, size: Rect) {
             Span::raw("Content search (ripgrep)"),
         ]),
         Line::from(vec![
+            Span::styled("  Ctrl+O    ", Style::default().fg(Color::Cyan)),
+            Span::raw("Go back in directory history"),
+        ]),
+        Line::from(vec![
+            Span::styled("  Ctrl+I    ", Style::default().fg(Color::Cyan)),
+            Span::raw("Go forward in directory history"),
+        ]),
+        Line::from(vec![
             Span::styled("  y         ", Style::default().fg(Color::Cyan)),
             Span::raw("Yank relative path"),
         ]),
