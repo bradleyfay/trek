@@ -6,24 +6,26 @@ Trek handles the full range of day-to-day file management tasks: creating, copyi
 
 ## Opening Files
 
-| Key | Action |
-|-----|--------|
+| Input | Action |
+|-------|--------|
 | `l` / `→` / `Enter` | Enter a directory; for files, open in a new cmux tab (routes by file type — see below) |
+| Right-click | Select the file and open it in a new cmux tab (same routing as `l` / `Enter`) |
+| Double-click | Open the file in a new cmux pane split to the right (`cmux new-pane --direction right`); falls back to system opener for images, HTML, and PDFs |
 | `o` | Open in terminal editor — checks `$VISUAL`, then `$EDITOR`, then falls back to `vi` |
 | `O` | Open with system default — `open` on macOS, `xdg-open` on Linux |
 
-### File routing with `l` / `→` / `Enter`
+### File routing
 
-When you press `l`, `→`, or `Enter` on a file, Trek routes it based on type:
+When you press `l`, `→`, or `Enter` on a file, right-click a file, or double-click a file, Trek routes it based on type:
 
-| File type | Opens with |
-|-----------|-----------|
-| HTML (`.html`, `.htm`) | System default opener (`open` / `xdg-open`) |
-| Images (`.png`, `.jpg`, `.gif`, etc.) | System default opener |
-| PDFs (`.pdf`) | System default opener |
-| All other text / code files | `$EDITOR` in a new terminal surface |
+| File type | `l` / `Enter` / right-click opens with | Double-click opens with |
+|-----------|----------------------------------------|------------------------|
+| HTML (`.html`, `.htm`) | System default opener (`open` / `xdg-open`) | System default opener |
+| Images (`.png`, `.jpg`, `.gif`, etc.) | System default opener | System default opener |
+| PDFs (`.pdf`) | System default opener | System default opener |
+| All other text / code files | `$EDITOR` in a new cmux tab | `$EDITOR` in a new cmux pane split right |
 
-This requires Trek to be running inside cmux. When Trek is not running inside cmux, a status-bar message appears instead. Use `o` or `O` as alternatives in that case.
+This requires Trek to be running inside cmux. When Trek is not running inside cmux, all three open methods show a hint in the status bar instead. Use `o` or `O` as alternatives in that case.
 
 To copy a file's path to the clipboard instead of opening it, use `y` (relative path) or `Y` (absolute path) from the Yanking Paths section below.
 

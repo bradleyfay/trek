@@ -61,6 +61,8 @@ Trek supports both keyboard and mouse. Use whichever feels natural.
 
 - Click any entry to select it
 - Double-click a directory to enter it
+- Right-click a file to select it and open it in a new cmux tab (same routing as `l` / `Enter`)
+- Double-click a file to open it in a new cmux pane split to the right
 - Scroll the mouse wheel to move through the list
 - Scroll inside the preview pane to read longer files
 - Drag the dividers between panes to resize them
@@ -74,7 +76,12 @@ When a file is selected in the center pane, pressing `l`, `Enter`, or `Right` op
 - HTML, images, and PDFs open with the system default application (`open` on macOS, `xdg-open` on Linux).
 - All other text and code files open in `$EDITOR` inside a new terminal surface.
 
-If Trek is not running inside cmux, a status-bar message tells you so and no external action is taken.
+You can also open files using the mouse:
+
+- **Right-click** a file to select it and open it in a new cmux tab (the same routing as `l` / `Enter`).
+- **Double-click** a file to open it in a new cmux pane split to the right. Images, HTML, and PDFs fall back to the system opener.
+
+If Trek is not running inside cmux, all of these actions show a hint in the status bar instead of launching an external surface.
 
 You can also open files directly without cmux routing:
 

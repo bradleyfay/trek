@@ -1,6 +1,6 @@
 # Keybinding Reference
 
-Trek v0.53.0
+Trek v0.55.0
 
 This page lists every keybinding available in Trek, organized by category.
 If you can't find what you need here, press `:` to open the command palette and
@@ -45,7 +45,14 @@ Pressing `l`, `→`, or `Enter` on a **file** opens it in a new cmux surface. Tr
 | PDFs (`.pdf`) | System default opener |
 | All other text / code files | `$EDITOR` in a new terminal surface |
 
-When Trek is not running inside cmux, pressing `l`, `→`, or `Enter` on a file falls back gracefully and shows a hint in the status bar. Use `o` to open in `$EDITOR` directly, or `O` to open with the system default, without requiring cmux.
+**Mouse actions also trigger cmux routing:**
+
+| Mouse action | Effect |
+|--------------|--------|
+| Right-click | Select the entry and open it in a new cmux tab (same routing as `l` / `Enter`) |
+| Double-click | Open the file in a new cmux pane split to the right (`cmux new-pane --direction right`); falls back to the system opener for images, HTML, and PDFs |
+
+When Trek is not running inside cmux, pressing `l`, `→`, or `Enter` on a file, right-clicking a file, or double-clicking a file all fall back gracefully and show a hint in the status bar. Use `o` to open in `$EDITOR` directly, or `O` to open with the system default, without requiring cmux.
 
 To copy a file path without opening the file, use `y` (relative path) or `Y` (absolute path). The `l/→/Enter` keys no longer yank to the clipboard.
 
@@ -190,11 +197,14 @@ Content search (`Ctrl+F`) uses ripgrep and respects `.gitignore` by default.
 | Action | Effect |
 |--------|--------|
 | Click | Select entry / enter directory |
+| Right-click | Select entry and open it in a new cmux tab (same routing as `l` / `Enter`) |
+| Double-click | Open file in a new cmux pane split to the right; falls back to system opener for images, HTML, and PDFs |
 | Drag pane dividers | Resize panes |
 | Scroll wheel over preview | Scroll preview content |
 
 Mouse support is enabled by default. All mouse actions have keyboard
-equivalents.
+equivalents. Right-click and double-click both appear in the help overlay (`?`)
+and the command palette.
 
 ---
 
