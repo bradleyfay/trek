@@ -179,6 +179,11 @@ pub struct App {
     /// Mutually exclusive with diff_preview_mode, meta_preview_mode, hash_preview_mode.
     pub git_log_mode: bool,
 
+    // --- Two-file compare (f) ---
+    /// When true the preview pane shows a unified diff of the two selected files.
+    /// Mutually exclusive with all other special preview modes.
+    pub file_compare_mode: bool,
+
     // --- chmod editor (P) ---
     /// True while the chmod input bar is open.
     pub chmod_mode: bool,
@@ -433,6 +438,7 @@ impl App {
             meta_preview_mode: false,
             hash_preview_mode: false,
             git_log_mode: false,
+            file_compare_mode: false,
             chmod_mode: false,
             chmod_input: String::new(),
             highlighter: Highlighter::new(),
