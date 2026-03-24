@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-03-23
+
+### Added
+- Syntax-highlighted file preview: source files (`.rs`, `.py`, `.js`, `.ts`, `.yaml`, `.json`, and 40+ other extensions) are now rendered with per-token color in the preview pane using `syntect` (same engine as `bat`/`delta`)
+- New `src/highlight.rs` module: `Highlighter` struct loaded once at startup; `highlight()` returns `None` for unrecognized extensions so the caller falls back to plain text automatically
+- Theme: `base16-ocean.dark` applied to all highlighted previews
+- Syntax highlighting capped at `preview_scroll + visible_height` lines for bounded render time
+- Diff preview (`d`) and plain-text fallback unaffected by the new code path
+
 ## [0.6.1] - 2026-03-24
 
 ### Added

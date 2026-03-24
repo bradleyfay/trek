@@ -1,5 +1,6 @@
 mod app;
 mod git;
+mod highlight;
 mod icons;
 mod ops;
 mod rename;
