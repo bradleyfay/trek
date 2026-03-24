@@ -3466,7 +3466,15 @@ fn session_save_then_load_restores_cwd_and_marks() {
             m.insert('a', tmp.clone());
             m
         };
-        crate::session::save(&tmp, &marks).unwrap();
+        crate::session::save(
+            &tmp,
+            &marks,
+            false,
+            crate::app::SortMode::default(),
+            crate::app::SortOrder::default(),
+            None,
+        )
+        .unwrap();
         let s = crate::session::load();
         assert_eq!(s.cwd, Some(tmp.clone()));
         assert_eq!(s.marks.get(&'a'), Some(&tmp));
@@ -3481,7 +3489,15 @@ fn session_load_skips_missing_cwd() {
     with_temp_session(|| {
         let marks = std::collections::HashMap::new();
         let gone = std::path::PathBuf::from("/tmp/__trek_gone_dir_that_does_not_exist__");
-        crate::session::save(&gone, &marks).unwrap();
+        crate::session::save(
+            &gone,
+            &marks,
+            false,
+            crate::app::SortMode::default(),
+            crate::app::SortOrder::default(),
+            None,
+        )
+        .unwrap();
         let s = crate::session::load();
         assert!(s.cwd.is_none());
     });
@@ -3499,7 +3515,15 @@ fn session_load_skips_missing_mark_paths() {
             m.insert('z', std::path::PathBuf::from("/tmp/__trek_no_such_dir__"));
             m
         };
-        crate::session::save(&tmp, &marks).unwrap();
+        crate::session::save(
+            &tmp,
+            &marks,
+            false,
+            crate::app::SortMode::default(),
+            crate::app::SortOrder::default(),
+            None,
+        )
+        .unwrap();
         let s = crate::session::load();
         assert!(s.marks.get(&'z').is_none());
     });
