@@ -557,4 +557,104 @@ impl App {
         self.pending_extract = None;
         self.status_message = Some("Extract cancelled".to_string());
     }
+
+    // ── Archive creation (E) ──────────────────────────────────────────────────
+
+    /// Open the archive-creation input bar with a suggested filename.
+    ///
+    /// - 1 entry selected → `"<name>.tar.gz"`
+    /// - Multiple selected → `"archive.tar.gz"`
+    /// - No selection → current entry name + `".tar.gz"`
+    pub fn begin_archive_create(&mut self) {
+        let suggestion = if !self.rename_selected.is_empty() {
+            if self.rename_selected.len() == 1 {
+                let idx = *self.rename_selected.iter().next().unwrap();
+                let stem = self
+                    .entries
+                    .get(idx)
+                    .map(|e| e.name.as_str())
+                    .unwrap_or("archive");
+                format!("{}.tar.gz", stem)
+            } else {
+                "archive.tar.gz".to_string()
+            }
+        } else if let Some(entry) = self.entries.get(self.selected) {
+            format!("{}.tar.gz", entry.name)
+        } else {
+            return; // No entries at all.
+        };
+        self.archive_create_input = suggestion;
+        self.archive_create_mode = true;
+    }
+
+    /// Cancel the archive-creation input bar without creating anything.
+    pub fn cancel_archive_create(&mut self) {
+        self.archive_create_mode = false;
+        self.archive_create_input.clear();
+        self.status_message = Some("Archive creation cancelled".to_string());
+    }
+
+    /// Validate the typed name and create the archive.
+    pub fn confirm_archive_create(&mut self) {
+        let name = self.archive_create_input.trim().to_string();
+        self.archive_create_mode = false;
+        self.archive_create_input.clear();
+
+        if name.is_empty() {
+            return;
+        }
+
+        let output_path = self.cwd.join(&name);
+        if output_path.exists() {
+            self.status_message = Some(format!("'{}' already exists", name));
+            return;
+        }
+
+        // Collect inputs: selected entries, or current entry if no selection.
+        let inputs: Vec<PathBuf> = if !self.rename_selected.is_empty() {
+            self.rename_selected
+                .iter()
+                .filter_map(|&i| self.entries.get(i).map(|e| e.path.clone()))
+                .collect()
+        } else {
+            self.entries
+                .get(self.selected)
+                .map(|e| vec![e.path.clone()])
+                .unwrap_or_default()
+        };
+
+        if inputs.is_empty() {
+            return;
+        }
+
+        let n = inputs.len();
+        match crate::archive::create_archive(&output_path, &inputs) {
+            Ok(()) => {
+                self.load_dir();
+                if let Some(idx) = self.entries.iter().position(|e| e.name == name) {
+                    self.selected = idx;
+                    self.load_preview();
+                }
+                self.status_message = Some(format!(
+                    "Created {} ({} entr{})",
+                    name,
+                    n,
+                    if n == 1 { "y" } else { "ies" }
+                ));
+            }
+            Err(msg) => {
+                self.status_message = Some(format!("Archive failed: {}", msg));
+            }
+        }
+    }
+
+    /// Append a character to the archive name input.
+    pub fn archive_create_push_char(&mut self, c: char) {
+        self.archive_create_input.push(c);
+    }
+
+    /// Remove the last character from the archive name input.
+    pub fn archive_create_pop_char(&mut self) {
+        self.archive_create_input.pop();
+    }
 }

@@ -66,6 +66,7 @@ pub enum ActionId {
     ToggleHexView,
     InspectClipboard,
     OpenFrecency,
+    BeginArchiveCreate,
     ShowHelp,
     Quit,
 }
@@ -379,6 +380,11 @@ pub static PALETTE_ACTIONS: &[PaletteAction] = &[
         id: ActionId::OpenFrecency,
         name: "Open frecency jump list (auto-ranked recent dirs)",
         keys: "z",
+    },
+    PaletteAction {
+        id: ActionId::BeginArchiveCreate,
+        name: "Create archive from selected files (tar.gz, zip, …)",
+        keys: "E",
     },
     PaletteAction {
         id: ActionId::ShowHelp,

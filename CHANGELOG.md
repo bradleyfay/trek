@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.48.0] - 2026-03-24
+
+### Added
+- **`E` — create archive from selected files**: press `E` to open a filename input bar (pre-filled with `<entry>.tar.gz`) and type an archive name; Trek infers the format from the extension and runs the appropriate tool
+- Supports `.tar.gz` / `.tgz`, `.tar.bz2` / `.tbz2`, `.tar.xz` / `.txz`, `.tar.zst` / `.tzst`, `.tar`, and `.zip`; `.gz` and `.7z` are unsupported for creation and show a clear error
+- `E` with no selection archives the current entry; with 1 selection it pre-fills `<name>.tar.gz`; with multiple selections it pre-fills `archive.tar.gz`
+- Created archive appears in the listing immediately with the cursor moved to it
+- Error cases handled gracefully: unknown extension, output already exists, `zip` binary not found
+- `BeginArchiveCreate` registered in command palette (`E`) and `?` help overlay
+- `Z` extracts; `E` creates — they are a symmetric pair
+
 ## [0.47.0] - 2026-03-24
 
 ### Added

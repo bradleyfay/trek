@@ -101,6 +101,8 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         draw_delete_confirm_bar(f, app, bottom_area);
     } else if let Some(ref path) = app.pending_extract {
         draw_extract_bar(f, bottom_area, path);
+    } else if app.archive_create_mode {
+        draw_archive_create_bar(f, app, bottom_area);
     } else if app.quick_rename_mode {
         draw_quick_rename_bar(f, app, bottom_area);
     } else if app.path_mode {
@@ -513,6 +515,29 @@ fn draw_touch_bar(f: &mut Frame, app: &App, area: Rect) {
         ),
         Span::styled(
             &app.touch_input,
+            Style::default()
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled("\u{2588}", Style::default().fg(Color::White)),
+        Span::styled(
+            "  Enter: create   Esc: cancel",
+            Style::default().fg(Color::DarkGray),
+        ),
+    ]));
+    f.render_widget(para, area);
+}
+
+fn draw_archive_create_bar(f: &mut Frame, app: &App, area: Rect) {
+    let para = Paragraph::new(Line::from(vec![
+        Span::styled(
+            "Archive:  ",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            &app.archive_create_input,
             Style::default()
                 .fg(Color::White)
                 .add_modifier(Modifier::BOLD),
@@ -1978,7 +2003,7 @@ fn draw_yank_picker(f: &mut Frame, app: &App, size: Rect) {
 
 fn draw_help_overlay(f: &mut Frame, size: Rect) {
     let width = 60u16.min(size.width.saturating_sub(4));
-    let height = 98u16.min(size.height.saturating_sub(4));
+    let height = 100u16.min(size.height.saturating_sub(4));
     let x = (size.width.saturating_sub(width)) / 2;
     let y = (size.height.saturating_sub(height)) / 2;
     let area = Rect::new(x, y, width, height);
@@ -2067,6 +2092,7 @@ fn draw_help_overlay(f: &mut Frame, size: Rect) {
         key_line("W", "Duplicate selected entry in place"),
         key_line("L", "Create symlink to selected entry"),
         key_line("Z", "Extract archive to current directory"),
+        key_line("E", "Create archive from selected files (tar.gz, zip, …)"),
         key_line("M", "Make new directory"),
         Line::from(""),
         // ── Yank & Misc ─────────────────────────────────────────────────────
