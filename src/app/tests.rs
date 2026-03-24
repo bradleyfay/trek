@@ -2851,3 +2851,74 @@ fn copy_selected_status_sums_only_files_in_mixed_selection() {
     );
     let _ = std::fs::remove_dir_all(&tmp);
 }
+
+/// Given: a symlink pointing to an existing target
+/// When: load_meta_lines is called on the symlink path
+/// Then: the output contains a "Target" line and a "Valid" line showing "exists"
+#[test]
+#[cfg(unix)]
+fn meta_lines_symlink_valid_shows_target_and_exists() {
+    let tmp = std::env::temp_dir().join(format!("trek_sl_valid_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let target = tmp.join("real.txt");
+    std::fs::write(&target, b"hello").unwrap();
+    let link = tmp.join("link.txt");
+    std::os::unix::fs::symlink(&target, &link).unwrap();
+
+    let lines = crate::app::App::load_meta_lines(&link);
+    let joined = lines.join("\n");
+    assert!(
+        joined.contains("Target"),
+        "should have Target line: {joined}"
+    );
+    assert!(joined.contains("exists"), "should show exists: {joined}");
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: a dangling symlink (target does not exist)
+/// When: load_meta_lines is called on the symlink path
+/// Then: the output contains a "Target" line and a "Valid" line showing "dangling"
+#[test]
+#[cfg(unix)]
+fn meta_lines_symlink_dangling_shows_dangling() {
+    let tmp = std::env::temp_dir().join(format!("trek_sl_dangle_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let link = tmp.join("broken.txt");
+    std::os::unix::fs::symlink("/this/path/does/not/exist/anywhere", &link).unwrap();
+
+    let lines = crate::app::App::load_meta_lines(&link);
+    let joined = lines.join("\n");
+    assert!(
+        joined.contains("Target"),
+        "should have Target line: {joined}"
+    );
+    assert!(
+        joined.contains("dangling"),
+        "should show dangling: {joined}"
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: a regular file (not a symlink)
+/// When: load_meta_lines is called
+/// Then: the output contains no "Target" or "Valid" lines
+#[test]
+#[cfg(unix)]
+fn meta_lines_regular_file_has_no_target_line() {
+    let tmp = std::env::temp_dir().join(format!("trek_sl_reg_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let file = tmp.join("plain.txt");
+    std::fs::write(&file, b"data").unwrap();
+
+    let lines = crate::app::App::load_meta_lines(&file);
+    let joined = lines.join("\n");
+    assert!(
+        !joined.contains("Target"),
+        "regular file should have no Target line: {joined}"
+    );
+    assert!(
+        !joined.contains("Valid"),
+        "regular file should have no Valid line: {joined}"
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}

@@ -147,10 +147,41 @@ impl App {
                     .map(|d| format_unix_timestamp_utc(d.as_secs()))
                     .unwrap_or_else(|| "unavailable".to_string())
             };
-            vec![
+            let mut lines = vec![
                 String::new(),
                 format!("  Path      {}", path.display()),
                 format!("  Type      {}", file_type),
+            ];
+
+            // For symlinks: show stored target path and whether it resolves.
+            if meta.file_type().is_symlink() {
+                match std::fs::read_link(path) {
+                    Ok(target) => {
+                        let home = std::env::var("HOME").unwrap_or_default();
+                        let raw = target.to_string_lossy().into_owned();
+                        let display = if !home.is_empty() {
+                            raw.replace(&home, "~")
+                        } else {
+                            raw
+                        };
+                        lines.push(format!("  Target    {}", display));
+                        let valid = path.exists();
+                        lines.push(format!(
+                            "  Valid     {}",
+                            if valid {
+                                "\u{2713}  exists"
+                            } else {
+                                "\u{2717}  dangling"
+                            }
+                        ));
+                    }
+                    Err(_) => {
+                        lines.push("  Target    (unreadable)".to_string());
+                    }
+                }
+            }
+
+            lines.extend([
                 format!("  Size      {} ({} bytes)", meta_human_size(size), size),
                 format!(
                     "  Mode      {} ({:04o})",
@@ -160,7 +191,9 @@ impl App {
                 format!("  UID / GID {} / {}", meta.uid(), meta.gid()),
                 format!("  Modified  {}", fmt_time(meta.modified())),
                 format!("  Accessed  {}", fmt_time(meta.accessed())),
-            ]
+            ]);
+
+            lines
         }
         #[cfg(not(unix))]
         {
