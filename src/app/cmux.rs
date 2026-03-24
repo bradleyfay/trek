@@ -54,6 +54,97 @@ impl App {
         }
     }
 
+    /// Open the selected file in a new cmux terminal pane to the right of the
+    /// current Trek pane.
+    ///
+    /// Uses the same opener-config routing as [`open_in_cmux_tab`].  When the
+    /// matched command is the built-in `$EDITOR {}` rule the file is opened in
+    /// a brand-new terminal pane split to the right (`cmux new-pane --direction
+    /// right`).  For all other commands (system open, custom rules) the command
+    /// is spawned normally — those openers don't live inside a specific pane.
+    ///
+    /// When Trek is not running inside cmux a status-bar hint is shown instead.
+    pub fn open_to_the_right(&mut self) {
+        let entry = match self.entries.get(self.selected).cloned() {
+            Some(e) if !e.is_dir => e,
+            _ => return,
+        };
+
+        let config = OpenerConfig::load().unwrap_or_else(|| OpenerConfig {
+            rules: default_rules(),
+        });
+
+        let command_template = match config.find_command(&entry.path) {
+            Some(t) => t.to_owned(),
+            None => {
+                self.status_message = Some(format!("No opener rule matched: {}", entry.name));
+                return;
+            }
+        };
+
+        let expanded = OpenerConfig::expand_command(&command_template, &entry.path);
+
+        if command_template == "$EDITOR {}" {
+            self.open_in_right_pane(&entry.name, &entry.path.to_string_lossy());
+        } else {
+            self.spawn_opener_command(&entry.name, &expanded);
+        }
+    }
+
+    /// Open `path` in a new cmux terminal pane split to the right.
+    ///
+    /// Uses `cmux new-pane --type terminal --direction right` to create a
+    /// vertical split, then sends `$EDITOR <path>` to the resulting surface.
+    fn open_in_right_pane(&mut self, name: &str, path: &str) {
+        if std::env::var("CMUX_WORKSPACE_ID").is_err() {
+            self.status_message = Some("Not in cmux — use 'o' to open in editor".to_string());
+            return;
+        }
+
+        let editor = std::env::var("VISUAL")
+            .or_else(|_| std::env::var("EDITOR"))
+            .unwrap_or_else(|_| "vi".to_string());
+        let command = format!("{} {}", editor, shell_escape(path));
+
+        match std::process::Command::new("cmux")
+            .args(["new-pane", "--type", "terminal", "--direction", "right"])
+            .output()
+        {
+            Ok(out) if out.status.success() => {
+                let stdout = String::from_utf8_lossy(&out.stdout);
+                let surface_ref = stdout
+                    .split_whitespace()
+                    .find(|s| s.starts_with("surface:"))
+                    .unwrap_or("")
+                    .to_string();
+
+                if surface_ref.is_empty() {
+                    self.status_message = Some("cmux: could not parse surface ref".to_string());
+                    return;
+                }
+
+                match std::process::Command::new("cmux")
+                    .args(["send", "--surface", &surface_ref, &format!("{}\r", command)])
+                    .status()
+                {
+                    Ok(_) => {
+                        self.status_message = Some(format!("Opened to the right: {}", name));
+                    }
+                    Err(e) => {
+                        self.status_message = Some(format!("cmux send failed: {}", e));
+                    }
+                }
+            }
+            Ok(out) => {
+                let stderr = String::from_utf8_lossy(&out.stderr);
+                self.status_message = Some(format!("cmux error: {}", stderr.trim()));
+            }
+            Err(e) => {
+                self.status_message = Some(format!("cmux not available: {}", e));
+            }
+        }
+    }
+
     /// Execute `command` via `sh -c` as a background subprocess.
     ///
     /// Used for all user-configured opener rules and for system-open commands

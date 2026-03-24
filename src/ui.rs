@@ -1925,6 +1925,14 @@ fn draw_help_overlay(f: &mut Frame, size: Rect) {
         key_line("?", "Toggle this help"),
         Line::from(""),
         Line::from(Span::styled(
+            "  Right-click: open file in new cmux tab",
+            Style::default().fg(Color::DarkGray),
+        )),
+        Line::from(Span::styled(
+            "  Double-click: open file in new cmux pane to the right",
+            Style::default().fg(Color::DarkGray),
+        )),
+        Line::from(Span::styled(
             "  Drag dividers to resize · scroll wheel on all panes",
             Style::default().fg(Color::DarkGray),
         )),

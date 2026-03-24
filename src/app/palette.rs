@@ -65,6 +65,7 @@ pub enum ActionId {
     OpenFrecency,
     ShowHelp,
     OpenInCmuxTab,
+    OpenToTheRight,
     Quit,
 }
 
@@ -367,6 +368,11 @@ pub static PALETTE_ACTIONS: &[PaletteAction] = &[
         id: ActionId::OpenInCmuxTab,
         name: "Open file in new cmux tab (l / Right / Enter on file)",
         keys: "l / Right / Enter",
+    },
+    PaletteAction {
+        id: ActionId::OpenToTheRight,
+        name: "Open file in new cmux pane to the right (double-click)",
+        keys: "double-click",
     },
     PaletteAction {
         id: ActionId::ShowHelp,

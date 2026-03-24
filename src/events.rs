@@ -445,6 +445,10 @@ pub fn run(
                         app.on_mouse_down(mouse.column, mouse.row);
                     }
                 }
+                MouseEventKind::Down(MouseButton::Right) => {
+                    app.clear_status();
+                    app.on_mouse_right_down(mouse.column, mouse.row);
+                }
                 MouseEventKind::Drag(MouseButton::Left) => {
                     app.on_mouse_drag(mouse.column, mouse.row);
                 }
@@ -549,6 +553,7 @@ fn execute_palette_action(
         ActionId::InspectClipboard => app.open_clipboard_inspect(),
         ActionId::OpenFrecency => app.open_frecency(),
         ActionId::OpenInCmuxTab => app.open_in_cmux_tab(),
+        ActionId::OpenToTheRight => app.open_to_the_right(),
         ActionId::ShowHelp => app.show_help = true,
         // Quit appears in the palette for discoverability but cannot break out
         // of the event loop from here — use q directly.
