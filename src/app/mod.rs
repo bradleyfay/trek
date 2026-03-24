@@ -375,6 +375,14 @@ pub struct App {
     pub frecency_selected: usize,
     /// Current filter query typed in the overlay.
     pub frecency_query: String,
+
+    // --- Double-click detection ---
+    /// Timestamp of the most recent left-button click.  Used with
+    /// `last_click_pos` to detect double-clicks; crossterm does not emit
+    /// native double-click events.
+    pub last_click_time: Option<std::time::Instant>,
+    /// Terminal cell position (col, row) of the most recent left-button click.
+    pub last_click_pos: Option<(u16, u16)>,
 }
 
 #[derive(Clone)]
@@ -503,6 +511,8 @@ impl App {
             frecency_filtered: Vec::new(),
             frecency_selected: 0,
             frecency_query: String::new(),
+            last_click_time: None,
+            last_click_pos: None,
         };
         app.load_dir();
         Ok(app)

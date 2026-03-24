@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.55.0] - 2026-03-24
+
+### Added
+- **Right-click to open in new cmux tab** — right-clicking a file in the current pane selects it and opens it in a new cmux tab using the same file-type routing as `l`/`Enter` (opener config or built-in defaults).
+- **Double-click to open to the right** — double-clicking a file opens it in a new cmux terminal pane split to the right of Trek's pane (`cmux new-pane --direction right`). Falls back to spawning the system opener for non-editor file types. Both actions show a status-bar hint when Trek is not running inside cmux.
+- Both actions are listed in the help overlay (`?`) and command palette.
+
 ## [0.54.0] - 2026-03-24
 
 ### Added

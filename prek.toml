@@ -37,7 +37,7 @@ repo = "local"
 id = "cargo-fmt"
 name = "cargo fmt"
 language = "system"
-entry = "cargo fmt --"
+entry = "/Users/bradleyfay/.cargo/bin/cargo fmt --"
 files = "\\.rs$"
 priority = 1
 
@@ -45,7 +45,7 @@ priority = 1
 id = "cargo-clippy"
 name = "cargo clippy"
 language = "system"
-entry = "cargo clippy -- -D warnings"
+entry = "/Users/bradleyfay/.cargo/bin/cargo clippy -- -D warnings"
 files = "\\.rs$"
 pass_filenames = false
 priority = 2
