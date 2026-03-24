@@ -1,0 +1,185 @@
+use std::path::PathBuf;
+
+/// Outcome of parsing the command-line arguments.
+#[derive(Debug)]
+pub struct ParsedArgs {
+    pub show_help: bool,
+    pub show_version: bool,
+    pub install_shell: bool,
+    /// Value of `--choosedir <path>` (internal shell-integration flag).
+    pub choosedir: Option<String>,
+    /// Optional starting directory (first non-flag positional argument).
+    pub start_dir: Option<PathBuf>,
+}
+
+/// Parse `args` (argv[1..]) into a `ParsedArgs`.
+///
+/// Returns `Err(message)` on unrecognized flags or missing `--choosedir` value.
+pub fn parse_args(args: &[String]) -> Result<ParsedArgs, String> {
+    let mut parsed = ParsedArgs {
+        show_help: false,
+        show_version: false,
+        install_shell: false,
+        choosedir: None,
+        start_dir: None,
+    };
+
+    let mut i = 0;
+    while i < args.len() {
+        let arg = &args[i];
+        match arg.as_str() {
+            "--help" | "-h" => parsed.show_help = true,
+            "--version" | "-V" => parsed.show_version = true,
+            "--install-shell" => parsed.install_shell = true,
+            "--choosedir" => {
+                i += 1;
+                let val = args
+                    .get(i)
+                    .ok_or_else(|| "--choosedir requires a path argument".to_string())?;
+                parsed.choosedir = Some(val.clone());
+            }
+            a if a.starts_with('-') => {
+                return Err(format!("trek: unrecognized option '{a}'"));
+            }
+            _ => {
+                // Positional argument: first one wins as start_dir.
+                if parsed.start_dir.is_none() {
+                    parsed.start_dir = Some(PathBuf::from(arg));
+                }
+            }
+        }
+        i += 1;
+    }
+
+    Ok(parsed)
+}
+
+pub fn print_help() {
+    println!("trek — a terminal file manager");
+    println!();
+    println!("USAGE:");
+    println!("    trek [OPTIONS] [PATH]");
+    println!();
+    println!("ARGS:");
+    println!("    [PATH]    Directory to open (defaults to current working directory)");
+    println!();
+    println!("OPTIONS:");
+    println!("    -h, --help             Print this help message");
+    println!("    -V, --version          Print version information");
+    println!("        --install-shell    Install the `m` shell function (enables cd-on-exit)");
+    println!();
+    println!("KEYBINDINGS (inside the TUI):");
+    println!("    j / Down    Move down          k / Up      Move up");
+    println!("    l / Right   Enter directory    h / Left    Go to parent");
+    println!("    g           Go to top          G           Go to bottom");
+    println!("    ~           Go to home         .           Toggle hidden files");
+    println!("    /           Fuzzy search       Ctrl+F      Content search (rg)");
+    println!("    y / Y       Yank relative / absolute path");
+    println!("    d           Toggle diff preview R           Refresh git status");
+    println!("    Space       Toggle file selection v          Select all files");
+    println!("    r           Rename selected files Esc        Clear selections");
+    println!("    c           Copy current to clipboard C          Copy selected to clipboard");
+    println!("    x           Cut current to clipboard");
+    println!("    p           Paste clipboard       Delete      Delete current file/dir");
+    println!("    X           Delete all selected   M           Make new directory");
+    println!("    ?           Show help overlay  q           Quit");
+}
+
+// ── Tests for parse_args ───────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod cli_tests {
+    use super::*;
+
+    fn s(v: &[&str]) -> Vec<String> {
+        v.iter().map(|s| s.to_string()).collect()
+    }
+
+    /// Given: no arguments
+    /// When: parse_args is called
+    /// Then: all flags are false and start_dir is None
+    #[test]
+    fn no_args_is_default() {
+        let p = parse_args(&s(&[])).unwrap();
+        assert!(!p.show_help);
+        assert!(!p.show_version);
+        assert!(!p.install_shell);
+        assert!(p.choosedir.is_none());
+        assert!(p.start_dir.is_none());
+    }
+
+    /// Given: --help
+    /// When: parse_args is called
+    /// Then: show_help is true
+    #[test]
+    fn help_flag_long() {
+        let p = parse_args(&s(&["--help"])).unwrap();
+        assert!(p.show_help);
+    }
+
+    /// Given: -h
+    /// When: parse_args is called
+    /// Then: show_help is true
+    #[test]
+    fn help_flag_short() {
+        let p = parse_args(&s(&["-h"])).unwrap();
+        assert!(p.show_help);
+    }
+
+    /// Given: --version
+    /// When: parse_args is called
+    /// Then: show_version is true
+    #[test]
+    fn version_flag_long() {
+        let p = parse_args(&s(&["--version"])).unwrap();
+        assert!(p.show_version);
+    }
+
+    /// Given: -V
+    /// When: parse_args is called
+    /// Then: show_version is true
+    #[test]
+    fn version_flag_short() {
+        let p = parse_args(&s(&["-V"])).unwrap();
+        assert!(p.show_version);
+    }
+
+    /// Given: an unrecognized flag (e.g. --foo)
+    /// When: parse_args is called
+    /// Then: an Err is returned naming the unknown flag
+    #[test]
+    fn unknown_flag_returns_error() {
+        let result = parse_args(&s(&["--foo"]));
+        assert!(result.is_err());
+        let msg = result.unwrap_err();
+        assert!(msg.contains("--foo"), "error should name the flag: {msg}");
+    }
+
+    /// Given: a positional argument that is a valid directory path
+    /// When: parse_args is called
+    /// Then: start_dir is Some with that path
+    #[test]
+    fn positional_arg_sets_start_dir() {
+        let tmp = std::env::temp_dir();
+        let p = parse_args(&s(&[tmp.to_str().unwrap()])).unwrap();
+        assert!(p.start_dir.is_some());
+    }
+
+    /// Given: --choosedir followed by a path
+    /// When: parse_args is called
+    /// Then: choosedir is Some with that path
+    #[test]
+    fn choosedir_flag_sets_value() {
+        let p = parse_args(&s(&["--choosedir", "/tmp/out"])).unwrap();
+        assert_eq!(p.choosedir.as_deref(), Some("/tmp/out"));
+    }
+
+    /// Given: --install-shell
+    /// When: parse_args is called
+    /// Then: install_shell is true
+    #[test]
+    fn install_shell_flag() {
+        let p = parse_args(&s(&["--install-shell"])).unwrap();
+        assert!(p.install_shell);
+    }
+}

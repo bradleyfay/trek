@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.1] - 2026-03-24
+
+### Changed
+- **Refactor: decompose App god object** — `src/app.rs` (2,400 lines) converted to a `src/app/` module directory with 14 focused sub-files: `navigation.rs`, `layout.rs`, `mouse.rs`, `sort.rs`, `search.rs`, `rename.rs`, `file_ops.rs`, `content.rs`, `bookmarks.rs`, `find.rs`, `filter.rs`, `metadata.rs`, `yank.rs`, `preview.rs`
+- `src/main.rs` split into three dedicated modules: `src/args.rs` (argument parsing + 9 unit tests), `src/shell.rs` (shell integration), `src/events.rs` (TUI event loop)
+- Unit tests extracted from inline `mod tests` to `src/app/tests.rs`
+- `src/app/mod.rs` reduced from ~2,400 lines to ~607 lines (type definitions + core lifecycle methods)
+- No behaviour changes; all 96 tests pass
+
 ## [0.16.0] - 2026-03-24
 
 ### Added
