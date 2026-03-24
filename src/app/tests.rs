@@ -2007,3 +2007,161 @@ fn yank_filename_no_extension() {
     assert!(msg.contains("Makefile"), "got: {msg}");
     let _ = std::fs::remove_dir_all(&tmp);
 }
+
+// ── Per-session directory marks (` to set, ' to jump) ──────────────────────
+
+/// Given: normal mode
+/// When: begin_set_mark is called
+/// Then: mark_set_mode is true and status shows "Mark: [a-z A-Z]"
+#[test]
+fn begin_set_mark_enters_mode() {
+    let tmp = std::env::temp_dir().join(format!("trek_mark_bsm_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("a.txt"), b"").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.begin_set_mark();
+    assert!(app.mark_set_mode);
+    let msg = app.status_message.clone().unwrap_or_default();
+    assert!(msg.contains("Mark"), "expected 'Mark' hint, got: {msg}");
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: mark_set_mode is active
+/// When: set_mark('s') is called
+/// Then: marks['s'] == cwd, mark_set_mode is false, status shows the slot and dirname
+#[test]
+fn set_mark_records_cwd() {
+    let tmp = std::env::temp_dir().join(format!("trek_mark_rec_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("b.txt"), b"").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.begin_set_mark();
+    app.set_mark('s');
+    assert!(!app.mark_set_mode);
+    assert_eq!(app.marks.get(&'s'), Some(&tmp));
+    let msg = app.status_message.clone().unwrap_or_default();
+    assert!(msg.contains('\'') || msg.contains("Marked"), "got: {msg}");
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: a mark 's' pointing at an existing directory
+/// When: begin_jump_mark then jump_to_mark('s') are called from a different dir
+/// Then: cwd changes to the marked directory
+#[test]
+fn jump_to_mark_navigates() {
+    let base = std::env::temp_dir().join(format!("trek_mark_jmp_{}", std::process::id()));
+    let marked = base.join("marked");
+    let other = base.join("other");
+    let _ = std::fs::create_dir_all(&marked);
+    let _ = std::fs::create_dir_all(&other);
+    std::fs::write(marked.join("x.txt"), b"").unwrap();
+    std::fs::write(other.join("y.txt"), b"").unwrap();
+
+    let mut app = make_app_at(&marked);
+    app.set_mark('t');
+
+    // Navigate away
+    app.cwd = other.clone();
+    app.load_dir();
+
+    app.begin_jump_mark();
+    app.jump_to_mark('t');
+    assert_eq!(app.cwd, marked, "should have jumped to marked dir");
+    let _ = std::fs::remove_dir_all(&base);
+}
+
+/// Given: no mark set for letter 'z'
+/// When: jump_to_mark('z') is called
+/// Then: cwd is unchanged, status message mentions "not set"
+#[test]
+fn jump_to_unset_mark_shows_error() {
+    let tmp = std::env::temp_dir().join(format!("trek_mark_unset_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("c.txt"), b"").unwrap();
+    let mut app = make_app_at(&tmp);
+    let before = app.cwd.clone();
+    app.jump_to_mark('z');
+    assert_eq!(app.cwd, before, "cwd should be unchanged");
+    let msg = app.status_message.clone().unwrap_or_default();
+    assert!(msg.to_lowercase().contains("not set"), "got: {msg}");
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: a mark 'q' pointing at a now-deleted directory
+/// When: jump_to_mark('q') is called
+/// Then: cwd is unchanged, status message mentions "no longer exists"
+#[test]
+fn jump_to_deleted_mark_shows_error() {
+    let base = std::env::temp_dir().join(format!("trek_mark_del_{}", std::process::id()));
+    let gone = base.join("gone");
+    let stay = base.join("stay");
+    let _ = std::fs::create_dir_all(&gone);
+    let _ = std::fs::create_dir_all(&stay);
+    std::fs::write(stay.join("d.txt"), b"").unwrap();
+
+    let mut app = make_app_at(&stay);
+    app.marks.insert('q', gone.clone());
+    std::fs::remove_dir_all(&gone).unwrap();
+
+    let before = app.cwd.clone();
+    app.jump_to_mark('q');
+    assert_eq!(app.cwd, before, "cwd should be unchanged");
+    let msg = app.status_message.clone().unwrap_or_default();
+    assert!(msg.to_lowercase().contains("no longer"), "got: {msg}");
+    let _ = std::fs::remove_dir_all(&base);
+}
+
+/// Given: a mark is set then reset to the same slot
+/// When: set_mark called twice with the same char
+/// Then: the second cwd wins (overwrite semantics)
+#[test]
+fn set_mark_overwrites_previous() {
+    let base = std::env::temp_dir().join(format!("trek_mark_ovw_{}", std::process::id()));
+    let dir1 = base.join("dir1");
+    let dir2 = base.join("dir2");
+    let _ = std::fs::create_dir_all(&dir1);
+    let _ = std::fs::create_dir_all(&dir2);
+    std::fs::write(dir1.join("e.txt"), b"").unwrap();
+    std::fs::write(dir2.join("f.txt"), b"").unwrap();
+
+    let mut app = make_app_at(&dir1);
+    app.set_mark('m');
+    assert_eq!(app.marks.get(&'m'), Some(&dir1));
+
+    app.cwd = dir2.clone();
+    app.load_dir();
+    app.set_mark('m');
+    assert_eq!(
+        app.marks.get(&'m'),
+        Some(&dir2),
+        "overwrite should point to dir2"
+    );
+    let _ = std::fs::remove_dir_all(&base);
+}
+
+/// Given: mark jump navigates to a new directory
+/// When: jump completes
+/// Then: history is updated (can go back with history_back)
+#[test]
+fn jump_to_mark_pushes_history() {
+    let base = std::env::temp_dir().join(format!("trek_mark_hist_{}", std::process::id()));
+    let src = base.join("src");
+    let dest = base.join("dest");
+    let _ = std::fs::create_dir_all(&src);
+    let _ = std::fs::create_dir_all(&dest);
+    std::fs::write(src.join("g.txt"), b"").unwrap();
+    std::fs::write(dest.join("h.txt"), b"").unwrap();
+
+    let mut app = make_app_at(&src);
+    app.set_mark('h');
+    app.cwd = dest.clone();
+    app.load_dir();
+
+    let pos_before = app.history_position();
+    app.jump_to_mark('h');
+    assert!(
+        app.history_position() > pos_before || app.history_len() > 1,
+        "history should grow after mark jump"
+    );
+    let _ = std::fs::remove_dir_all(&base);
+}

@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-03-24
+
+### Added
+- **`` ` `` / `'` — per-session directory marks**: press `` ` `` then a letter (`a`–`z`, `A`–`Z`) to record the current directory to that slot; press `'` then the same letter to jump back instantly from anywhere in the session
+- Marks are session-only (in-memory `HashMap<char, PathBuf>`) — they are never written to disk; the persistent bookmark system (`b`/`B`) handles cross-session locations
+- 52 available slots (`a`–`z` and `A`–`Z`); re-marking a slot silently overwrites it
+- `` ` `` followed by `Esc` or a non-letter cancels silently; `'` followed by an unset letter shows `"Mark '<c>' not set"`; a set letter whose directory was deleted shows `"Mark '<c>' no longer exists"` without crashing
+- Mark jumps push to the history stack so `Ctrl+O`/`Ctrl+I` navigation works correctly after a mark jump
+- `filter_input` and `filter_mode` are cleared on mark navigation (consistent with all other navigation methods)
+- Both actions registered in the command palette: "Set mark" and "Jump to mark"
+- Both documented in help overlay (`?`) under Navigation and in `--help` output
+- 8 new BDD-style unit tests; all 180 tests pass
+
 ## [0.28.0] - 2026-03-24
 
 ### Added
