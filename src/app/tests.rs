@@ -703,3 +703,187 @@ fn palette_selected_action_returns_correct_id() {
     );
     let _ = std::fs::remove_dir_all(&tmp);
 }
+
+// ── quick rename tests ───────────────────────────────────────────────────────
+
+/// Given: a directory with a file selected
+/// When: begin_quick_rename() is called
+/// Then: quick_rename_mode is true, input is pre-filled with the current entry name
+#[test]
+fn begin_quick_rename_prefills_name() {
+    let tmp = std::env::temp_dir().join(format!("trek_qr_begin_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("hello.txt"), b"").unwrap();
+
+    let mut app = make_app_at(&tmp);
+    if let Some(idx) = app.entries.iter().position(|e| !e.is_dir) {
+        app.selected = idx;
+    }
+    app.begin_quick_rename();
+    assert!(app.quick_rename_mode);
+    assert_eq!(app.quick_rename_input, "hello.txt");
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: no entries in the listing
+/// When: begin_quick_rename() is called
+/// Then: quick_rename_mode stays false (no-op)
+#[test]
+fn begin_quick_rename_empty_entries_is_noop() {
+    let tmp = std::env::temp_dir().join(format!("trek_qr_empty_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let mut app = make_app_at(&tmp);
+    app.entries.clear();
+    app.begin_quick_rename();
+    assert!(!app.quick_rename_mode);
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: quick rename bar is open
+/// When: cancel_quick_rename() is called
+/// Then: mode is false, input is cleared, filesystem unchanged
+#[test]
+fn cancel_quick_rename_clears_state() {
+    let tmp = std::env::temp_dir().join(format!("trek_qr_cancel_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("file.rs"), b"").unwrap();
+
+    let mut app = make_app_at(&tmp);
+    if let Some(idx) = app.entries.iter().position(|e| !e.is_dir) {
+        app.selected = idx;
+    }
+    app.begin_quick_rename();
+    app.cancel_quick_rename();
+    assert!(!app.quick_rename_mode);
+    assert!(app.quick_rename_input.is_empty());
+    assert!(tmp.join("file.rs").exists());
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: quick rename bar is open with the original name
+/// When: Enter is pressed (confirm_quick_rename) with no changes
+/// Then: the file is NOT renamed (no-op), mode closes
+#[test]
+fn confirm_quick_rename_same_name_is_noop() {
+    let tmp = std::env::temp_dir().join(format!("trek_qr_same_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("same.txt"), b"").unwrap();
+
+    let mut app = make_app_at(&tmp);
+    if let Some(idx) = app.entries.iter().position(|e| e.name == "same.txt") {
+        app.selected = idx;
+    }
+    app.begin_quick_rename();
+    // input already equals current name — confirm should be a no-op
+    app.confirm_quick_rename();
+    assert!(!app.quick_rename_mode);
+    assert!(tmp.join("same.txt").exists());
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: quick rename bar is open
+/// When: input is cleared and Enter pressed
+/// Then: status message says "Name cannot be empty", bar stays open
+#[test]
+fn confirm_quick_rename_empty_input_shows_error() {
+    let tmp = std::env::temp_dir().join(format!("trek_qr_empty_in_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("nonempty.txt"), b"").unwrap();
+
+    let mut app = make_app_at(&tmp);
+    if let Some(idx) = app.entries.iter().position(|e| !e.is_dir) {
+        app.selected = idx;
+    }
+    app.begin_quick_rename();
+    app.quick_rename_input.clear();
+    app.confirm_quick_rename();
+    // Mode should be closed (we close on empty) and status set
+    assert!(app.status_message.is_some());
+    let msg = app.status_message.as_deref().unwrap_or("");
+    assert!(
+        msg.contains("empty") || msg.contains("Empty"),
+        "expected empty-name error, got: {msg}"
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: quick rename bar is open with a new valid name
+/// When: confirm_quick_rename() is called
+/// Then: file is renamed, listing refreshed, cursor on renamed entry, status shown
+#[test]
+fn confirm_quick_rename_renames_file() {
+    let tmp = std::env::temp_dir().join(format!("trek_qr_rename_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("old.txt"), b"content").unwrap();
+
+    let mut app = make_app_at(&tmp);
+    if let Some(idx) = app.entries.iter().position(|e| e.name == "old.txt") {
+        app.selected = idx;
+    }
+    app.begin_quick_rename();
+    app.quick_rename_input = "new.txt".to_string();
+    app.confirm_quick_rename();
+
+    assert!(!app.quick_rename_mode);
+    assert!(tmp.join("new.txt").exists(), "renamed file should exist");
+    assert!(!tmp.join("old.txt").exists(), "old file should be gone");
+    assert!(
+        app.entries.iter().any(|e| e.name == "new.txt"),
+        "listing should contain new name"
+    );
+    let msg = app.status_message.as_deref().unwrap_or("");
+    assert!(
+        msg.contains("old.txt") && msg.contains("new.txt"),
+        "status should mention both names, got: {msg}"
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: quick rename bar is open, target name already exists
+/// When: confirm_quick_rename() is called
+/// Then: status shows collision error, original file still exists
+#[test]
+fn confirm_quick_rename_collision_shows_error() {
+    let tmp = std::env::temp_dir().join(format!("trek_qr_coll_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("a.txt"), b"").unwrap();
+    std::fs::write(tmp.join("b.txt"), b"").unwrap();
+
+    let mut app = make_app_at(&tmp);
+    if let Some(idx) = app.entries.iter().position(|e| e.name == "a.txt") {
+        app.selected = idx;
+    }
+    app.begin_quick_rename();
+    app.quick_rename_input = "b.txt".to_string();
+    app.confirm_quick_rename();
+
+    assert!(tmp.join("a.txt").exists(), "original should still exist");
+    let msg = app.status_message.as_deref().unwrap_or("");
+    assert!(
+        msg.contains("exists") || msg.contains("Exists") || msg.contains("Already"),
+        "expected collision error, got: {msg}"
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: quick rename bar
+/// When: quick_rename_push_char and quick_rename_pop_char are called
+/// Then: input is updated correctly
+#[test]
+fn quick_rename_push_pop_char() {
+    let tmp = std::env::temp_dir().join(format!("trek_qr_chars_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("test.txt"), b"").unwrap();
+
+    let mut app = make_app_at(&tmp);
+    if let Some(idx) = app.entries.iter().position(|e| !e.is_dir) {
+        app.selected = idx;
+    }
+    app.begin_quick_rename();
+    let original_len = app.quick_rename_input.len();
+    app.quick_rename_push_char('X');
+    assert_eq!(app.quick_rename_input.len(), original_len + 1);
+    app.quick_rename_pop_char();
+    assert_eq!(app.quick_rename_input.len(), original_len);
+    let _ = std::fs::remove_dir_all(&tmp);
+}

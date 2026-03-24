@@ -107,6 +107,14 @@ pub fn run(
                         KeyCode::Char(c) => app.find_push_char(c),
                         _ => {}
                     }
+                } else if app.quick_rename_mode {
+                    match key.code {
+                        KeyCode::Esc => app.cancel_quick_rename(),
+                        KeyCode::Enter => app.confirm_quick_rename(),
+                        KeyCode::Backspace => app.quick_rename_pop_char(),
+                        KeyCode::Char(c) => app.quick_rename_push_char(c),
+                        _ => {}
+                    }
                 } else if app.chmod_mode {
                     match key.code {
                         KeyCode::Esc => app.cancel_chmod(),
@@ -198,6 +206,8 @@ pub fn run(
                         KeyCode::Delete => app.begin_delete_current(),
                         KeyCode::Char('X') => app.begin_delete_selected(),
                         KeyCode::Char('M') => app.begin_mkdir(),
+                        // Quick single-file rename
+                        KeyCode::Char('n') | KeyCode::F(2) => app.begin_quick_rename(),
                         KeyCode::Char('u') => app.undo_trash(),
                         KeyCode::Char('b') => app.add_bookmark(),
                         KeyCode::Char('B') => app.open_bookmarks(),
@@ -346,6 +356,7 @@ fn execute_palette_action(
         }
         ActionId::SelectAll => app.select_all(),
         ActionId::ClearSelections => app.clear_selections(),
+        ActionId::QuickRename => app.begin_quick_rename(),
         ActionId::StartRename => app.start_rename(),
         ActionId::AddBookmark => app.add_bookmark(),
         ActionId::OpenBookmarks => app.open_bookmarks(),

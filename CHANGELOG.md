@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-03-24
+
+### Added
+- **`n` / `F2` — quick single-file rename**: opens a lightweight inline bar at the bottom pre-filled with the current entry's full name; typing edits the name in place; `Enter` renames via `std::fs::rename`, refreshes the listing, and moves the cursor to the renamed entry; `Esc` cancels with no changes
+- Empty input shows `"Name cannot be empty"` and closes the bar; name collision shows `"Already exists: <name>"` and closes the bar; same-name confirm is a silent no-op; works on both files and directories
+- Status bar shows `Renamed "old" → "new"` on success
+- `n` / `F2` registered in the command palette as `"Quick rename current file or directory"`
+- Both keybindings documented in the help overlay (`?`) under Selection & Rename and in `--help` output
+- 8 new unit tests covering: prefill, no-op on empty entries, cancel, same-name no-op, empty input error, successful rename, collision error, push/pop char
+
 ## [0.18.0] - 2026-03-24
 
 ### Added
