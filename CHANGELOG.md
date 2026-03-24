@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-03-23
+
+### Added
+- Archive content preview: hovering over `.zip`, `.jar`, `.war`, `.ear`, `.tar`, `.tar.gz`/`.tgz`, `.tar.bz2`/`.tbz2`, `.tar.xz`/`.txz`, `.tar.zst`/`.tzst`, `.gz`, and `.7z` files shows the archive's file manifest in the preview pane instead of `[binary file]`
+- No extraction occurs — only the table of contents is listed
+- When a required tool (`unzip`, `7z`) is not installed, an informative message is shown instead of crashing
+- Archive listings capped at 1,000 entries with a `[truncated]` notice appended
+- Corrupt or unreadable archives show `[could not read archive]`
+- New `src/archive.rs` module: `try_list_archive()`, per-format parsers, and 16 unit tests covering extension detection, output parsing, and truncation
+
 ## [0.7.0] - 2026-03-23
 
 ### Added

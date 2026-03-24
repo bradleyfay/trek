@@ -549,6 +549,11 @@ impl App {
         if !meta.file_type().is_file() {
             return vec!["[not a regular file]".to_string()];
         }
+        // Attempt archive listing before the size and binary checks so that
+        // large archives (> 512 KB) still produce a useful file manifest.
+        if let Some(lines) = crate::archive::try_list_archive(path) {
+            return lines;
+        }
         // Check size via metadata *before* allocating.
         // Previously we allocated the full buffer and then discarded it — this
         // avoids that wasted allocation and speeds up rejection of large files.
