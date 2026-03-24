@@ -221,6 +221,55 @@ impl App {
         self.status_message = Some("Delete cancelled".to_string());
     }
 
+    /// Enter touch mode.
+    pub fn begin_touch(&mut self) {
+        self.touch_mode = true;
+        self.touch_input.clear();
+    }
+
+    /// Cancel touch mode without creating anything.
+    pub fn cancel_touch(&mut self) {
+        self.touch_mode = false;
+        self.touch_input.clear();
+    }
+
+    /// Execute touch with the current input and exit touch mode.
+    pub fn confirm_touch(&mut self) {
+        let name = self.touch_input.trim().to_string();
+        self.touch_mode = false;
+        self.touch_input.clear();
+        if name.is_empty() {
+            self.status_message = Some("File name cannot be empty".to_string());
+            return;
+        }
+        match ops::touch_file(&self.cwd, &name) {
+            Ok(_) => {
+                self.status_message = Some(format!("Created \"{}\"", name));
+                self.load_dir();
+                if let Some(idx) = self.entries.iter().position(|e| e.name == name) {
+                    self.selected = idx;
+                    self.load_preview();
+                }
+            }
+            Err(e) => {
+                let msg = if e.to_string().contains("exists") {
+                    format!("'{}' already exists", name)
+                } else {
+                    format!("touch failed: {}", e)
+                };
+                self.status_message = Some(msg);
+            }
+        }
+    }
+
+    pub fn touch_push_char(&mut self, c: char) {
+        self.touch_input.push(c);
+    }
+
+    pub fn touch_pop_char(&mut self) {
+        self.touch_input.pop();
+    }
+
     /// Enter mkdir mode.
     pub fn begin_mkdir(&mut self) {
         self.mkdir_mode = true;

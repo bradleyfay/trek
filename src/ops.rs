@@ -82,6 +82,20 @@ pub fn make_dir(parent: &Path, name: &str) -> Result<PathBuf> {
     Ok(path)
 }
 
+/// Create a new empty file named `name` inside `parent`.
+///
+/// Returns the created path. Fails if a file with that name already exists,
+/// preventing silent overwrites.
+pub fn touch_file(parent: &Path, name: &str) -> Result<PathBuf> {
+    let path = parent.join(name);
+    std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&path)
+        .with_context(|| format!("touch {:?}", path))?;
+    Ok(path)
+}
+
 // ── Tests ──────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]

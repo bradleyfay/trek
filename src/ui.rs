@@ -103,6 +103,8 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         draw_path_jump_bar(f, app, bottom_area);
     } else if app.mkdir_mode {
         draw_mkdir_bar(f, app, bottom_area);
+    } else if app.touch_mode {
+        draw_touch_bar(f, app, bottom_area);
     } else if app.chmod_mode {
         draw_chmod_bar(f, app, bottom_area);
     } else if app.content_search_mode {
@@ -419,6 +421,29 @@ fn draw_mkdir_bar(f: &mut Frame, app: &App, area: Rect) {
         ),
         Span::styled(
             &app.mkdir_input,
+            Style::default()
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled("\u{2588}", Style::default().fg(Color::White)),
+        Span::styled(
+            "  Enter: create   Esc: cancel",
+            Style::default().fg(Color::DarkGray),
+        ),
+    ]));
+    f.render_widget(para, area);
+}
+
+fn draw_touch_bar(f: &mut Frame, app: &App, area: Rect) {
+    let para = Paragraph::new(Line::from(vec![
+        Span::styled(
+            "New file: ",
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            &app.touch_input,
             Style::default()
                 .fg(Color::White)
                 .add_modifier(Modifier::BOLD),
@@ -1451,7 +1476,7 @@ fn draw_palette_overlay(f: &mut Frame, app: &App, size: Rect) {
 
 fn draw_help_overlay(f: &mut Frame, size: Rect) {
     let width = 60u16.min(size.width.saturating_sub(4));
-    let height = 58u16.min(size.height.saturating_sub(4));
+    let height = 60u16.min(size.height.saturating_sub(4));
     let x = (size.width.saturating_sub(width)) / 2;
     let y = (size.height.saturating_sub(height)) / 2;
     let area = Rect::new(x, y, width, height);
@@ -1511,6 +1536,7 @@ fn draw_help_overlay(f: &mut Frame, size: Rect) {
         key_line("p", "Paste clipboard into current dir"),
         key_line("Delete / X", "Trash current / selected (recoverable)"),
         key_line("u", "Undo last trash operation"),
+        key_line("t", "New file (touch — create empty file)"),
         key_line("M", "Make new directory"),
         Line::from(""),
         // ── Yank & Misc ─────────────────────────────────────────────────────

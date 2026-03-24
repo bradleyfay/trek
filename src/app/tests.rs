@@ -1394,3 +1394,123 @@ fn scroll_preview_on_empty_preview_is_noop() {
     assert_eq!(app.preview_scroll, 0);
     let _ = std::fs::remove_dir_all(&tmp);
 }
+
+// ── touch file (t) tests ──────────────────────────────────────────────────────
+
+/// Given: normal mode
+/// When: begin_touch() is called
+/// Then: touch_mode is true, touch_input is empty
+#[test]
+fn begin_touch_opens_bar() {
+    let tmp = std::env::temp_dir().join(format!("trek_touch_open_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let mut app = make_app_at(&tmp);
+    assert!(!app.touch_mode);
+    app.begin_touch();
+    assert!(app.touch_mode);
+    assert!(app.touch_input.is_empty());
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: touch mode open with some input
+/// When: cancel_touch() is called
+/// Then: touch_mode is false, input cleared, no file created
+#[test]
+fn cancel_touch_closes_without_creating() {
+    let tmp = std::env::temp_dir().join(format!("trek_touch_cancel_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let mut app = make_app_at(&tmp);
+    app.begin_touch();
+    app.touch_push_char('f');
+    app.touch_push_char('o');
+    app.touch_push_char('o');
+    app.cancel_touch();
+    assert!(!app.touch_mode);
+    assert!(app.touch_input.is_empty());
+    assert!(
+        !tmp.join("foo").exists(),
+        "no file should be created on cancel"
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: touch mode with a valid filename
+/// When: confirm_touch() is called
+/// Then: file is created, listing refreshed, cursor on new file, status set
+#[test]
+fn confirm_touch_creates_file_and_selects_it() {
+    let tmp = std::env::temp_dir().join(format!("trek_touch_create_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let mut app = make_app_at(&tmp);
+    app.begin_touch();
+    for c in "newfile.txt".chars() {
+        app.touch_push_char(c);
+    }
+    app.confirm_touch();
+    assert!(!app.touch_mode, "touch mode should close after confirm");
+    let created = tmp.join("newfile.txt");
+    assert!(created.exists(), "file should exist on disk");
+    assert_eq!(created.metadata().unwrap().len(), 0, "file should be empty");
+    let selected_name = app.entries.get(app.selected).map(|e| e.name.as_str());
+    assert_eq!(
+        selected_name,
+        Some("newfile.txt"),
+        "cursor should be on new file"
+    );
+    assert!(app.status_message.is_some());
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: touch mode with an empty filename
+/// When: confirm_touch() is called
+/// Then: no file created, status message set, touch_mode closed
+#[test]
+fn confirm_touch_empty_name_shows_error() {
+    let tmp = std::env::temp_dir().join(format!("trek_touch_empty_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let mut app = make_app_at(&tmp);
+    app.begin_touch();
+    app.confirm_touch();
+    assert!(!app.touch_mode);
+    assert!(app.status_message.is_some());
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: a file already exists with that name
+/// When: confirm_touch() is called with the same name
+/// Then: no overwrite, status message contains the filename
+#[test]
+fn confirm_touch_existing_file_shows_error() {
+    let tmp = std::env::temp_dir().join(format!("trek_touch_exists_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("existing.txt"), b"data").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.begin_touch();
+    for c in "existing.txt".chars() {
+        app.touch_push_char(c);
+    }
+    app.confirm_touch();
+    assert!(!app.touch_mode);
+    assert!(app.status_message.is_some());
+    // Original file content must be preserved
+    assert_eq!(std::fs::read(tmp.join("existing.txt")).unwrap(), b"data");
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: touch_input has characters
+/// When: touch_pop_char() is called
+/// Then: last character is removed
+#[test]
+fn touch_push_pop_char() {
+    let tmp = std::env::temp_dir().join(format!("trek_touch_chars_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let mut app = make_app_at(&tmp);
+    app.begin_touch();
+    app.touch_push_char('a');
+    app.touch_push_char('b');
+    app.touch_push_char('c');
+    assert_eq!(app.touch_input, "abc");
+    app.touch_pop_char();
+    assert_eq!(app.touch_input, "ab");
+    let _ = std::fs::remove_dir_all(&tmp);
+}

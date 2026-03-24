@@ -27,6 +27,7 @@ pub enum ActionId {
     BeginDeleteCurrent,
     BeginDeleteSelected,
     BeginMkdir,
+    BeginTouch,
     UndoTrash,
     BeginChmod,
     SelectMoveDown,
@@ -163,6 +164,11 @@ pub static PALETTE_ACTIONS: &[PaletteAction] = &[
         id: ActionId::BeginMkdir,
         name: "New directory",
         keys: "M",
+    },
+    PaletteAction {
+        id: ActionId::BeginTouch,
+        name: "New file (touch — create empty file)",
+        keys: "t",
     },
     PaletteAction {
         id: ActionId::UndoTrash,

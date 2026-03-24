@@ -59,6 +59,14 @@ pub fn run(
                         KeyCode::Char(c) => app.mkdir_push_char(c),
                         _ => {}
                     }
+                } else if app.touch_mode {
+                    match key.code {
+                        KeyCode::Esc => app.cancel_touch(),
+                        KeyCode::Enter => app.confirm_touch(),
+                        KeyCode::Backspace => app.touch_pop_char(),
+                        KeyCode::Char(c) => app.touch_push_char(c),
+                        _ => {}
+                    }
                 } else if app.content_search_mode {
                     match key.code {
                         KeyCode::Esc => app.cancel_content_search(),
@@ -219,6 +227,7 @@ pub fn run(
                         KeyCode::Delete => app.begin_delete_current(),
                         KeyCode::Char('X') => app.begin_delete_selected(),
                         KeyCode::Char('M') => app.begin_mkdir(),
+                        KeyCode::Char('t') => app.begin_touch(),
                         // Quick single-file rename
                         KeyCode::Char('n') | KeyCode::F(2) => app.begin_quick_rename(),
                         KeyCode::Char('u') => app.undo_trash(),
@@ -367,6 +376,7 @@ fn execute_palette_action(
         ActionId::BeginDeleteCurrent => app.begin_delete_current(),
         ActionId::BeginDeleteSelected => app.begin_delete_selected(),
         ActionId::BeginMkdir => app.begin_mkdir(),
+        ActionId::BeginTouch => app.begin_touch(),
         ActionId::UndoTrash => app.undo_trash(),
         ActionId::BeginChmod => app.begin_chmod(),
         ActionId::SelectMoveDown => app.select_move_down(),
