@@ -397,6 +397,12 @@ pub struct App {
     pub frecency_selected: usize,
     /// Current filter query typed in the overlay.
     pub frecency_query: String,
+
+    // --- Archive creation (E) ---
+    /// True while the archive-creation filename input bar is shown.
+    pub archive_create_mode: bool,
+    /// Filename being typed for the new archive.
+    pub archive_create_input: String,
 }
 
 #[derive(Clone)]
@@ -535,6 +541,8 @@ impl App {
             frecency_filtered: Vec::new(),
             frecency_selected: 0,
             frecency_query: String::new(),
+            archive_create_mode: false,
+            archive_create_input: String::new(),
         };
         app.load_dir();
         Ok(app)

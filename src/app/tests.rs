@@ -3555,6 +3555,141 @@ fn poll_dir_changed_detects_new_file() {
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
+// ── Archive creation tests (issue #92) ───────────────────────────────────────
+
+/// Given: the app is in a directory with at least one entry and no selection
+/// When: begin_archive_create is called
+/// Then: archive_create_mode becomes true and input is pre-filled with "<entry>.tar.gz"
+#[test]
+fn begin_archive_create_no_selection_prefills_entry_name() {
+    let tmp = std::env::temp_dir().join(format!("trek_arc_begin_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("main.rs"), b"fn main(){}").unwrap();
+    let mut app = make_app_at(&tmp);
+    assert!(!app.archive_create_mode);
+    app.begin_archive_create();
+    assert!(app.archive_create_mode);
+    assert_eq!(app.archive_create_input, "main.rs.tar.gz");
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: exactly one entry is selected
+/// When: begin_archive_create is called
+/// Then: input is pre-filled with "<selected_entry>.tar.gz"
+#[test]
+fn begin_archive_create_single_selection_prefills_name() {
+    let tmp = std::env::temp_dir().join(format!("trek_arc_single_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("lib.rs"), b"").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.rename_selected.insert(0);
+    app.begin_archive_create();
+    assert!(app.archive_create_mode);
+    assert_eq!(app.archive_create_input, "lib.rs.tar.gz");
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: more than one entry is selected
+/// When: begin_archive_create is called
+/// Then: input is pre-filled with "archive.tar.gz"
+#[test]
+fn begin_archive_create_multi_selection_prefills_archive() {
+    let tmp = std::env::temp_dir().join(format!("trek_arc_multi_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("a.rs"), b"").unwrap();
+    std::fs::write(tmp.join("b.rs"), b"").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.rename_selected.insert(0);
+    app.rename_selected.insert(1);
+    app.begin_archive_create();
+    assert!(app.archive_create_mode);
+    assert_eq!(app.archive_create_input, "archive.tar.gz");
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: archive_create_mode is true with some input
+/// When: cancel_archive_create is called
+/// Then: mode becomes false and input is cleared
+#[test]
+fn cancel_archive_create_clears_mode_and_input() {
+    let tmp = std::env::temp_dir().join(format!("trek_arc_cancel_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("f.txt"), b"x").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.begin_archive_create();
+    assert!(app.archive_create_mode);
+    app.cancel_archive_create();
+    assert!(!app.archive_create_mode);
+    assert!(app.archive_create_input.is_empty());
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: an archive name that already exists in the cwd
+/// When: confirm_archive_create is called
+/// Then: an "already exists" error is shown and no archive is created
+#[test]
+fn confirm_archive_create_existing_name_shows_error() {
+    let tmp = std::env::temp_dir().join(format!("trek_arc_exists_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("f.txt"), b"hi").unwrap();
+    std::fs::write(tmp.join("out.tar.gz"), b"").unwrap(); // pre-existing archive
+    let mut app = make_app_at(&tmp);
+    app.archive_create_mode = true;
+    app.archive_create_input = "out.tar.gz".to_string();
+    app.confirm_archive_create();
+    let msg = app.status_message.clone().unwrap_or_default();
+    assert!(
+        msg.contains("already exists"),
+        "expected 'already exists', got: {msg}"
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: an unknown archive extension (e.g. .bak) is typed
+/// When: confirm_archive_create is called
+/// Then: an "Unknown archive format" error is shown
+#[test]
+fn confirm_archive_create_unknown_ext_shows_error() {
+    let tmp = std::env::temp_dir().join(format!("trek_arc_badext_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("f.txt"), b"hi").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.archive_create_mode = true;
+    app.archive_create_input = "backup.bak".to_string();
+    app.confirm_archive_create();
+    let msg = app.status_message.clone().unwrap_or_default();
+    assert!(
+        msg.to_lowercase().contains("unknown archive format")
+            || msg.to_lowercase().contains("archive failed"),
+        "expected unknown format error, got: {msg}"
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: a valid .tar.gz name and a real file to archive
+/// When: confirm_archive_create is called
+/// Then: the archive file is created on disk and the status message contains the archive name
+#[test]
+fn confirm_archive_create_tar_gz_creates_file() {
+    let tmp = std::env::temp_dir().join(format!("trek_arc_create_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("hello.txt"), b"hello world").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.archive_create_mode = true;
+    app.archive_create_input = "out.tar.gz".to_string();
+    app.confirm_archive_create();
+    assert!(
+        tmp.join("out.tar.gz").exists(),
+        "archive should be created on disk"
+    );
+    let msg = app.status_message.clone().unwrap_or_default();
+    assert!(
+        msg.contains("out.tar.gz"),
+        "status should reference archive name, got: {msg}"
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
 /// Given: watch mode is off
 /// When: poll_dir_changed is called even with a changed mtime
 /// Then: listing does NOT reload (watch mode gate)

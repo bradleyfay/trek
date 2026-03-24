@@ -109,6 +109,7 @@ pub fn print_help() {
     println!("    L           Create symlink to selected entry (Unix only)");
     println!("    W           Duplicate selected entry in place (editable name bar)");
     println!("    Z           Extract archive to current directory");
+    println!("    E           Create archive from selected files (tar.gz, zip, …)");
     println!("    X           Delete all selected");
     println!("    :           Open command palette");
     println!("    ?           Show help overlay  q           Quit");

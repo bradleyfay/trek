@@ -80,6 +80,14 @@ pub fn run(
                         }
                         _ => app.cancel_extract(),
                     }
+                } else if app.archive_create_mode {
+                    match key.code {
+                        KeyCode::Esc => app.cancel_archive_create(),
+                        KeyCode::Enter => app.confirm_archive_create(),
+                        KeyCode::Backspace => app.archive_create_pop_char(),
+                        KeyCode::Char(c) => app.archive_create_push_char(c),
+                        _ => {}
+                    }
                 } else if app.mkdir_mode {
                     match key.code {
                         KeyCode::Esc => app.cancel_mkdir(),
@@ -350,6 +358,7 @@ pub fn run(
                         KeyCode::Char('W') => app.begin_dup(),
                         KeyCode::Char('L') => app.begin_symlink(),
                         KeyCode::Char('Z') => app.begin_extract(),
+                        KeyCode::Char('E') => app.begin_archive_create(),
                         // Quick single-file rename
                         KeyCode::Char('n') | KeyCode::F(2) => app.begin_quick_rename(),
                         KeyCode::Char('u') => app.undo_trash(),
@@ -547,6 +556,7 @@ fn execute_palette_action(
         ActionId::BeginDup => app.begin_dup(),
         ActionId::BeginSymlink => app.begin_symlink(),
         ActionId::BeginExtract => app.begin_extract(),
+        ActionId::BeginArchiveCreate => app.begin_archive_create(),
         ActionId::InspectClipboard => app.open_clipboard_inspect(),
         ActionId::OpenFrecency => app.open_frecency(),
         ActionId::ShowHelp => app.show_help = true,
