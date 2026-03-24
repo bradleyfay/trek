@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-03-24
+
+### Added
+- **`|` — filter/narrow mode**: opens an inline filter bar at the bottom; as the user types, the current directory listing narrows in real time to entries whose names contain the query (case-insensitive substring match)
+- **`Enter` or `|` (in filter bar)**: closes the bar but keeps the filter active ("frozen"); the current pane title shows `dirname [~pattern]` to signal the active filter
+- **`Esc` (in filter bar)**: clears the filter and closes the bar in one step, restoring the full listing
+- **`Esc` (in normal mode, when a filter is active)**: clears the filter and restores the full listing; if no filter is active, clears selections as before
+- Filter is automatically re-applied after every `load_dir` call (trash, paste, mkdir, sort change, hidden-files toggle), keeping the narrowed set coherent across file operations
+- Navigating into a subdirectory, going to parent, going home, jumping via bookmark/find, or using history back/forward clears the filter (scoped to the current directory)
+- `|` documented in the help overlay (`?`) under Search
+- 8 new unit tests covering default state, start/close/clear, case-insensitive narrowing, pop-char widening, empty-match, and full-listing restoration
+
 ## [0.15.0] - 2026-03-24
 
 ### Added

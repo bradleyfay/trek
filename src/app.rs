@@ -233,6 +233,13 @@ pub struct App {
     history: Vec<HistoryEntry>,
     /// Index into `history` pointing at the current location.
     history_pos: usize,
+
+    // --- Filter / narrow mode (|) ---
+    /// True while the filter input bar is open (user is actively typing).
+    pub filter_mode: bool,
+    /// Active filter string. Empty = no filter. Non-empty while filter_mode is false
+    /// means the filter is "frozen" (bar closed, listing still narrowed).
+    pub filter_input: String,
 }
 
 #[derive(Clone)]
@@ -322,6 +329,8 @@ impl App {
                 selected: 0,
             }],
             history_pos: 0,
+            filter_mode: false,
+            filter_input: String::new(),
         };
         app.load_dir();
         Ok(app)
@@ -343,6 +352,14 @@ impl App {
                 self.status_message = Some(format!("Cannot read directory: {e}"));
             }
         }
+
+        // Re-apply active filter to the freshly loaded entries.
+        if !self.filter_input.is_empty() {
+            let pattern = self.filter_input.to_lowercase();
+            self.entries
+                .retain(|e| e.name.to_lowercase().contains(&pattern));
+        }
+
         if self.selected >= self.entries.len() {
             self.selected = self.entries.len().saturating_sub(1);
         }
@@ -835,6 +852,8 @@ impl App {
                 .cwd
                 .file_name()
                 .map(|n| n.to_string_lossy().into_owned());
+            self.filter_input.clear();
+            self.filter_mode = false;
             self.push_history(parent.clone());
             self.cwd = parent;
             self.load_dir();
@@ -851,6 +870,8 @@ impl App {
     pub fn enter_selected(&mut self) {
         if let Some(entry) = self.entries.get(self.selected).cloned() {
             if entry.is_dir {
+                self.filter_input.clear();
+                self.filter_mode = false;
                 self.push_history(entry.path.clone());
                 self.cwd = entry.path;
                 self.selected = 0;
@@ -865,6 +886,8 @@ impl App {
 
     pub fn go_home(&mut self) {
         if let Some(home) = dirs_home() {
+            self.filter_input.clear();
+            self.filter_mode = false;
             self.push_history(home.clone());
             self.cwd = home;
             self.selected = 0;
@@ -910,6 +933,8 @@ impl App {
         if let Some(e) = self.history.get_mut(self.history_pos) {
             e.selected = self.selected;
         }
+        self.filter_input.clear();
+        self.filter_mode = false;
         self.history_pos -= 1;
         self.restore_history_entry();
     }
@@ -923,6 +948,8 @@ impl App {
         if let Some(e) = self.history.get_mut(self.history_pos) {
             e.selected = self.selected;
         }
+        self.filter_input.clear();
+        self.filter_mode = false;
         self.history_pos += 1;
         self.restore_history_entry();
     }
@@ -1656,6 +1683,8 @@ impl App {
             self.status_message = Some(format!("\"{}\" no longer exists", dest.display()));
             return;
         }
+        self.filter_input.clear();
+        self.filter_mode = false;
         self.push_history(dest.clone());
         self.cwd = dest;
         self.selected = 0;
@@ -1799,6 +1828,9 @@ impl App {
             return;
         };
 
+        self.filter_input.clear();
+        self.filter_mode = false;
+
         if parent != self.cwd {
             let new_dir = parent.to_path_buf();
             self.push_history(new_dir.clone());
@@ -1849,6 +1881,42 @@ impl App {
         let seq = format!("\x1b]52;c;{}\x07", encoded);
         let _ = std::io::stdout().write_all(seq.as_bytes());
         let _ = std::io::stdout().flush();
+    }
+
+    // --- Filter / narrow mode (|) ---
+
+    /// Open the filter input bar.
+    pub fn start_filter(&mut self) {
+        self.filter_mode = true;
+    }
+
+    /// Close the bar but keep the filter active ("frozen" state).
+    pub fn close_filter(&mut self) {
+        self.filter_mode = false;
+    }
+
+    /// Clear the active filter and restore the full listing.
+    pub fn clear_filter(&mut self) {
+        self.filter_input.clear();
+        self.filter_mode = false;
+        self.current_scroll = 0;
+        self.load_dir();
+    }
+
+    /// Add a character to the filter and re-narrow the listing.
+    pub fn filter_push_char(&mut self, c: char) {
+        self.filter_input.push(c);
+        self.selected = 0;
+        self.current_scroll = 0;
+        self.load_dir();
+    }
+
+    /// Remove the last character from the filter and reload.
+    pub fn filter_pop_char(&mut self) {
+        self.filter_input.pop();
+        self.selected = 0;
+        self.current_scroll = 0;
+        self.load_dir();
     }
 
     // --- Metadata preview (m) ---
@@ -2396,5 +2464,194 @@ mod tests {
             format_unix_timestamp_utc(1_705_318_245),
             "2024-01-15 11:30:45"
         );
+    }
+
+    // ── Filter / narrow mode tests ────────────────────────────────────────────
+
+    /// Given: a fresh App
+    /// When: filter state is inspected
+    /// Then: filter_mode is false and filter_input is empty
+    #[test]
+    fn filter_mode_is_off_by_default() {
+        let dir = std::env::temp_dir();
+        let app = make_app_at(&dir);
+        assert!(!app.filter_mode);
+        assert!(app.filter_input.is_empty());
+    }
+
+    /// Given: a fresh App
+    /// When: start_filter() is called
+    /// Then: filter_mode is true
+    #[test]
+    fn start_filter_sets_filter_mode() {
+        let dir = std::env::temp_dir();
+        let mut app = make_app_at(&dir);
+        app.start_filter();
+        assert!(app.filter_mode);
+    }
+
+    /// Given: an App in a temp dir containing "alpha.txt" and "beta.txt"
+    /// When: filter_push_char('a') is called
+    /// Then: only entries whose names contain 'a' remain
+    #[test]
+    fn filter_push_char_narrows_listing() {
+        let tmp =
+            std::env::temp_dir().join(format!("trek_filter_test_narrow_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&tmp);
+        std::fs::write(tmp.join("alpha.txt"), b"").unwrap();
+        std::fs::write(tmp.join("beta.txt"), b"").unwrap();
+        std::fs::write(tmp.join("gamma.txt"), b"").unwrap();
+
+        let mut app = make_app_at(&tmp);
+        app.start_filter();
+        app.filter_push_char('a');
+
+        let names: Vec<&str> = app.entries.iter().map(|e| e.name.as_str()).collect();
+        // "alpha" and "beta" contain 'a'; "gamma" contains 'a' too
+        // none should contain entries that don't match
+        for name in &names {
+            assert!(
+                name.to_lowercase().contains('a'),
+                "expected all entries to contain 'a', got {name}"
+            );
+        }
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    /// Given: a file named "README.md"
+    /// When: filter_push_char with lowercase 'r', 'e', 'a' is called
+    /// Then: the file still appears (case-insensitive match)
+    #[test]
+    fn filter_is_case_insensitive() {
+        let tmp =
+            std::env::temp_dir().join(format!("trek_filter_test_case_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&tmp);
+        std::fs::write(tmp.join("README.md"), b"").unwrap();
+        std::fs::write(tmp.join("other.txt"), b"").unwrap();
+
+        let mut app = make_app_at(&tmp);
+        app.start_filter();
+        app.filter_push_char('r');
+        app.filter_push_char('e');
+        app.filter_push_char('a');
+
+        assert!(
+            app.entries.iter().any(|e| e.name == "README.md"),
+            "README.md should still be visible with filter 'rea'"
+        );
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    /// Given: filter "al" is active (showing only "alpha.txt")
+    /// When: filter_pop_char() is called
+    /// Then: listing contains more entries than before (filter widened)
+    #[test]
+    fn filter_pop_char_widens_listing() {
+        let tmp = std::env::temp_dir().join(format!("trek_filter_test_pop_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&tmp);
+        std::fs::write(tmp.join("alpha.txt"), b"").unwrap();
+        std::fs::write(tmp.join("beta.txt"), b"").unwrap();
+
+        let mut app = make_app_at(&tmp);
+        app.start_filter();
+        app.filter_push_char('a');
+        app.filter_push_char('l');
+        let narrow_count = app.entries.len();
+
+        app.filter_pop_char(); // back to just "a"
+        let wider_count = app.entries.len();
+        assert!(
+            wider_count >= narrow_count,
+            "popping a char should not shrink the listing further"
+        );
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    /// Given: filter "xyz" matches nothing
+    /// When: filter_push_char cycles build "xyz"
+    /// Then: entries is empty and no panic occurs
+    #[test]
+    fn filter_no_match_gives_empty_listing() {
+        let tmp =
+            std::env::temp_dir().join(format!("trek_filter_test_empty_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&tmp);
+        std::fs::write(tmp.join("alpha.txt"), b"").unwrap();
+
+        let mut app = make_app_at(&tmp);
+        app.start_filter();
+        for c in "zzznomatch".chars() {
+            app.filter_push_char(c);
+        }
+        // Should be empty, not panic
+        assert_eq!(app.entries.len(), 0);
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    /// Given: filter_mode is true with non-empty filter_input
+    /// When: close_filter() is called
+    /// Then: filter_mode is false but filter_input is still non-empty (frozen)
+    #[test]
+    fn close_filter_keeps_filter_active() {
+        let tmp =
+            std::env::temp_dir().join(format!("trek_filter_test_close_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&tmp);
+        std::fs::write(tmp.join("alpha.txt"), b"").unwrap();
+
+        let mut app = make_app_at(&tmp);
+        app.start_filter();
+        app.filter_push_char('a');
+        app.close_filter();
+
+        assert!(
+            !app.filter_mode,
+            "filter_mode should be false after close_filter"
+        );
+        assert!(
+            !app.filter_input.is_empty(),
+            "filter_input should remain non-empty"
+        );
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    /// Given: a frozen filter narrowing the listing
+    /// When: clear_filter() is called
+    /// Then: filter_input is empty, filter_mode is false, full listing is restored
+    #[test]
+    fn clear_filter_restores_full_listing() {
+        let tmp =
+            std::env::temp_dir().join(format!("trek_filter_test_clear_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&tmp);
+        std::fs::write(tmp.join("alpha.txt"), b"").unwrap();
+        std::fs::write(tmp.join("zzz.txt"), b"").unwrap(); // no 'a' in stem
+
+        let mut app = make_app_at(&tmp);
+        let full_count = app.entries.len();
+
+        // "alp" matches only "alpha.txt", not "zzz.txt"
+        app.start_filter();
+        app.filter_push_char('a');
+        app.filter_push_char('l');
+        app.filter_push_char('p');
+        let narrow_count = app.entries.len();
+        assert!(
+            narrow_count < full_count,
+            "filter 'alp' should narrow the listing (full={full_count}, narrow={narrow_count})"
+        );
+
+        app.clear_filter();
+        assert!(app.filter_input.is_empty());
+        assert!(!app.filter_mode);
+        assert_eq!(
+            app.entries.len(),
+            full_count,
+            "full listing should be restored"
+        );
+
+        let _ = std::fs::remove_dir_all(&tmp);
     }
 }

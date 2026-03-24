@@ -363,6 +363,15 @@ fn run(
                         KeyCode::Char(c @ '0'..='7') => app.chmod_push_char(c),
                         _ => {}
                     }
+                } else if app.filter_mode {
+                    match key.code {
+                        KeyCode::Esc => app.clear_filter(),
+                        KeyCode::Enter => app.close_filter(),
+                        KeyCode::Char('|') => app.close_filter(),
+                        KeyCode::Backspace => app.filter_pop_char(),
+                        KeyCode::Char(c) => app.filter_push_char(c),
+                        _ => {}
+                    }
                 } else if app.search_mode {
                     match key.code {
                         KeyCode::Esc => app.cancel_search(),
@@ -393,6 +402,7 @@ fn run(
                         KeyCode::Char('~') => app.go_home(),
                         KeyCode::Char('.') => app.toggle_hidden(),
                         KeyCode::Char('/') => app.start_search(),
+                        KeyCode::Char('|') => app.start_filter(),
                         KeyCode::Char('y') => app.yank_relative_path(),
                         KeyCode::Char('Y') => app.yank_absolute_path(),
                         KeyCode::Char('d') => app.toggle_diff_preview(),
@@ -404,7 +414,13 @@ fn run(
                         KeyCode::Char(' ') => app.toggle_selection(app.selected),
                         KeyCode::Char('v') => app.select_all(),
                         KeyCode::Char('r') => app.start_rename(),
-                        KeyCode::Esc => app.clear_selections(),
+                        KeyCode::Esc => {
+                            if !app.filter_input.is_empty() {
+                                app.clear_filter();
+                            } else {
+                                app.clear_selections();
+                            }
+                        }
                         // File operations
                         KeyCode::Char('c') => app.clipboard_copy_current(),
                         KeyCode::Char('C') => app.clipboard_copy_selected(),
