@@ -2,6 +2,8 @@
 
 Trek is a **terminal-first visual file browser** designed to live inside [cmux](https://github.com/bradleyfay/cmux) as a persistent project panel. It gives you the navigation and browsing experience of VSCode's file explorer, but entirely in the terminal — no GUI, no Electron, no leaving your workflow.
 
+Trek is built for developers who work with AI coding assistants like Claude Code or Codex. When an AI agent is actively modifying your project, Trek is the persistent window that keeps you oriented — you can see new files appear, watch git status change, preview what was written, and navigate the structure as it evolves. Trek is the transparency layer between you and the AI working in your codebase.
+
 ---
 
 ## What Trek Is
@@ -12,14 +14,14 @@ The mental model is VSCode's sidebar file tree, elevated to full-pane status and
 
 ### Primary jobs:
 
-- **Explore** a project's structure at a glance (three-pane: parent / current / preview)
+- **Inspect** what the AI has written — preview files without leaving Trek
+- **Orient** yourself in the project — understand the structure as it changes
 - **Navigate** quickly to any file or directory without typing full paths
-- **Open** files in the appropriate viewer or editor for their type
-- **Browse** file contents in the preview pane before deciding what to do
+- **Monitor** git status as the AI works — see what's been modified, staged, or created
 - **Search** inside files across a project (ripgrep-powered)
-- **Make minor edits** in-place when it's not worth switching context
+- **Open** files in the appropriate viewer or editor when deeper inspection is needed
 
-Trek is the thing you use to *find* and *route* files, not the final destination for working with them.
+Trek is the thing you use to *watch, find, and understand* what's happening in your project. Complex file operations — renaming, restructuring, bulk changes — belong in the AI assistant, not here.
 
 ---
 
@@ -45,11 +47,10 @@ The guiding rule: **trek opens the right tool, not a worse version of it.**
 ### What trek handles directly
 
 - Reading and previewing text files in the right pane
-- In-place edits for small changes (renaming, quick fixes, config tweaks)
-- File operations: copy, move, delete, mkdir
 - Git status overlays (modified, staged, untracked, deleted)
-- Bulk rename with regex and live preview
 - Content search across the project
+- File operations: copy, move, delete, mkdir
+- Watch mode: auto-refresh the tree as the filesystem changes
 
 ---
 
@@ -57,7 +58,9 @@ The guiding rule: **trek opens the right tool, not a worse version of it.**
 
 Knowing what trek doesn't do is as important as knowing what it does.
 
-**Trek is not a text editor.** There is no intent to build a full editing environment. The editing surface exists for quick, minor changes — not for writing code. If you find yourself wanting syntax highlighting, LSP hints, or multi-file editing, that's a signal to open your actual editor.
+**Trek is not a text editor.** There is no intent to build a full editing environment. If you find yourself wanting syntax highlighting, LSP hints, or multi-file editing, that's a signal to open your actual editor — or ask your AI assistant.
+
+**Trek is not a replacement for your AI assistant.** Bulk operations, refactoring, renaming across many files — these belong in Claude Code or Codex, not in Trek. Trek helps you see and understand what the AI is doing; it doesn't compete with it.
 
 **Trek is not a vim clone.** Vim keybindings exist where they overlap with universal conventions (`j`/`k` for up/down, `g`/`G` for top/bottom), but trek does not require vim fluency. Every keybinding must have a visible hint — either always-on in the UI or immediately accessible via the command palette. Muscle memory is optional; discoverability is required.
 
@@ -68,6 +71,10 @@ Knowing what trek doesn't do is as important as knowing what it does.
 ---
 
 ## Design Principles
+
+### Built for AI-native developers
+
+Trek's primary user works with an AI coding assistant — Claude Code, Codex, or similar — and needs a persistent, always-on view of what the AI is doing to the project. Trek provides that view. Design decisions should optimize for inspection and orientation, not for power editing or complex file manipulation. When a feature would be better handled by asking an AI assistant, that is the right answer.
 
 ### Terminal-first, not editor-first
 
@@ -129,15 +136,14 @@ The command palette is not a separate mode — it is an overlay that closes afte
 |---|---|
 | File tree navigation | Full text editing |
 | File preview (read-only) | Syntax highlighting in editor |
-| Minor in-place edits | LSP / code intelligence |
-| File operations (copy, move, delete, mkdir) | Terminal emulation |
-| Bulk rename with regex | Plugin system |
-| Content search (ripgrep) | Remote file systems |
 | Git status overlays | Git operations beyond status |
+| Content search (ripgrep) | LSP / code intelligence |
+| Watch mode (auto-refresh) | Terminal emulation |
+| File operations (copy, move, delete, mkdir) | Bulk rename / complex file manipulation |
 | Opening files in cmux tools / browser | Managing cmux layout |
-| Mouse-resizable panes | Window management |
-| Command palette | Application launching |
-| Shell integration (`cd` on exit) | Scripting / macros |
+| Mouse-resizable panes | Plugin system |
+| Command palette | Remote file systems |
+| Shell integration (`cd` on exit) | Application launching |
 
 ---
 

@@ -9,7 +9,6 @@ mod git;
 mod highlight;
 mod icons;
 mod ops;
-mod rename;
 mod search;
 mod session;
 mod shell;

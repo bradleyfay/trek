@@ -17,7 +17,6 @@ pub enum ActionId {
     ToggleGitignored,
     ToggleDiffPreview,
     ToggleMetaPreview,
-    ToggleHashPreview,
     TogglePreviewPane,
     ToggleTimestamps,
     TogglePreviewWrap,
@@ -43,7 +42,6 @@ pub enum ActionId {
     SelectAll,
     ClearSelections,
     QuickRename,
-    StartRename,
     AddBookmark,
     OpenBookmarks,
     CycleSortMode,
@@ -55,7 +53,6 @@ pub enum ActionId {
     ScrollPreviewUp,
     ScrollPreviewDown,
     PathJump,
-    GlobSelect,
     BeginDup,
     BeginSymlink,
     BeginExtract,
@@ -66,7 +63,6 @@ pub enum ActionId {
     ToggleHexView,
     InspectClipboard,
     OpenFrecency,
-    BeginArchiveCreate,
     ShowHelp,
     OpenInCmuxTab,
     Quit,
@@ -136,11 +132,6 @@ pub static PALETTE_ACTIONS: &[PaletteAction] = &[
         id: ActionId::ToggleMetaPreview,
         name: "Toggle meta preview (permissions, size)",
         keys: "m",
-    },
-    PaletteAction {
-        id: ActionId::ToggleHashPreview,
-        name: "Toggle hash preview (SHA-256 checksum)",
-        keys: "H",
     },
     PaletteAction {
         id: ActionId::ToggleGitLogPreview,
@@ -293,11 +284,6 @@ pub static PALETTE_ACTIONS: &[PaletteAction] = &[
         keys: "n / F2",
     },
     PaletteAction {
-        id: ActionId::StartRename,
-        name: "Bulk rename with regex",
-        keys: "r",
-    },
-    PaletteAction {
         id: ActionId::AddBookmark,
         name: "Add bookmark for current directory",
         keys: "b",
@@ -353,11 +339,6 @@ pub static PALETTE_ACTIONS: &[PaletteAction] = &[
         keys: "e",
     },
     PaletteAction {
-        id: ActionId::GlobSelect,
-        name: "Select files by glob pattern",
-        keys: "*",
-    },
-    PaletteAction {
         id: ActionId::BeginDup,
         name: "Duplicate entry in place",
         keys: "W",
@@ -381,11 +362,6 @@ pub static PALETTE_ACTIONS: &[PaletteAction] = &[
         id: ActionId::OpenFrecency,
         name: "Open frecency jump list (auto-ranked recent dirs)",
         keys: "z",
-    },
-    PaletteAction {
-        id: ActionId::BeginArchiveCreate,
-        name: "Create archive from selected files (tar.gz, zip, …)",
-        keys: "E",
     },
     PaletteAction {
         id: ActionId::OpenInCmuxTab,

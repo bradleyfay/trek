@@ -9,17 +9,7 @@ impl App {
         self.preview_lines.clear();
         self.preview_is_diff = false;
 
-        // Hash card — highest-priority special preview mode.
-        if self.hash_preview_mode {
-            if let Some(entry) = self.entries.get(self.selected).cloned() {
-                if !entry.is_dir {
-                    self.preview_lines = Self::load_hash_lines(&entry.path);
-                }
-            }
-            return;
-        }
-
-        // Hex dump view — second priority after hash.
+        // Hex dump view — first priority.
         if self.hex_view_mode {
             if let Some(entry) = self.entries.get(self.selected).cloned() {
                 if !entry.is_dir {
@@ -181,7 +171,6 @@ impl App {
             self.diff_preview_mode = !self.diff_preview_mode;
             if self.diff_preview_mode {
                 self.meta_preview_mode = false;
-                self.hash_preview_mode = false; // mutually exclusive
                 self.git_log_mode = false; // mutually exclusive
                 self.file_compare_mode = false; // mutually exclusive
                 self.hex_view_mode = false; // mutually exclusive
@@ -214,7 +203,6 @@ impl App {
         if self.file_compare_mode {
             self.diff_preview_mode = false;
             self.meta_preview_mode = false;
-            self.hash_preview_mode = false;
             self.git_log_mode = false;
             self.hex_view_mode = false;
             self.du_preview_mode = false;
@@ -235,7 +223,6 @@ impl App {
         }
         self.hex_view_mode = !self.hex_view_mode;
         if self.hex_view_mode {
-            self.hash_preview_mode = false;
             self.meta_preview_mode = false;
             self.diff_preview_mode = false;
             self.git_log_mode = false;
@@ -339,7 +326,6 @@ impl App {
         if self.git_log_mode {
             self.diff_preview_mode = false;
             self.meta_preview_mode = false;
-            self.hash_preview_mode = false;
             self.file_compare_mode = false;
             self.hex_view_mode = false;
             self.du_preview_mode = false;
@@ -389,7 +375,6 @@ impl App {
         }
         self.du_preview_mode = !self.du_preview_mode;
         if self.du_preview_mode {
-            self.hash_preview_mode = false;
             self.hex_view_mode = false;
             self.file_compare_mode = false;
             self.meta_preview_mode = false;

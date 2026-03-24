@@ -1,8 +1,10 @@
 # Trek
 
-**A terminal-first visual file browser. Navigate your project like VSCode's sidebar — without leaving the terminal.**
+**A terminal-first visual file browser built for AI-native developers.**
 
-Trek gives you a three-pane file browsing experience designed to live inside a terminal multiplexer. It does not try to be a text editor or a shell. Its job is to help you find the right file and open it in the right tool.
+Trek gives you a persistent, three-pane window into your project — designed to live in a cmux pane alongside Claude Code, Codex, or whatever AI assistant is working in your codebase. When an AI agent is actively modifying files, Trek keeps you oriented: you can see what changed, preview what was written, and understand the project structure as it evolves.
+
+Trek does not try to be a text editor, a shell, or a replacement for your AI assistant. Its job is transparency and navigation — helping you stay in the loop without interrupting the AI's flow.
 
 ---
 
@@ -20,14 +22,14 @@ When you open a file, Trek routes it to the appropriate tool — your editor for
 
 ## Key Features
 
-- **Mouse-resizable panes** — drag dividers to reconfigure the layout; mouse and keyboard are both first-class
-- **Fuzzy file search** — locate any file in the current project with `/` or `Ctrl+F`
+- **Watch mode** — the file tree refreshes automatically when the filesystem changes; see what the AI created in real time
+- **Git status overlays** — modified, staged, untracked, and deleted files are marked inline in the tree as the AI works
+- **File preview** — inspect what was written without opening an editor; the right pane updates as you navigate
 - **Content search** — ripgrep-powered full-text search across the project
-- **Git status overlays** — modified, staged, untracked, and deleted files are marked inline in the tree
-- **Command palette** — press `:` to see every available action with its keybinding, searchable by name
-- **Bulk rename** — rename multiple files with a regex pattern and live preview before committing
-- **Archive support** — browse into `.zip`, `.tar.gz`, and other archives; create archives from selected files
-- **Watch mode** — the file tree refreshes automatically when the filesystem changes
+- **Fuzzy file search** — locate any file instantly with `/` or `Ctrl+F`
+- **Mouse-resizable panes** — drag dividers to reconfigure the layout; mouse and keyboard are both first-class
+- **Archive browsing** — navigate into `.zip`, `.tar.gz`, and other archives as virtual directories
+- **Command palette** — press `?` to see every available action with its keybinding, searchable by name
 - **Shell integration** — the `m` function launches Trek and `cd`s your shell to the directory you exit from
 
 ---

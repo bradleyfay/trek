@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.53.0] - 2026-03-24
+
+### Removed
+- **Bulk rename with regex** (`r`) — complex file operations belong in the AI assistant (Claude Code, Codex), not in Trek. Single-file quick rename (`n` / `F2`) is unaffected.
+- **Archive creation** (`E`) — creating archives is an AI-delegable operation. Archive extraction (`Z`) and browsing are unchanged.
+- **SHA-256 hash preview** (`H`) — niche sysadmin feature that doesn't fit Trek's inspection-focused purpose.
+- **Glob pattern selection** (`*`) — removed alongside bulk rename, which was its primary consumer.
+
 ## [0.52.0] - 2026-03-24
 
 ### Added

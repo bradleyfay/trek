@@ -1,6 +1,6 @@
 # Command Palette
 
-Trek v0.48.1
+Trek v0.53.0
 
 The command palette is Trek's primary discoverability surface. It lists every
 action available in the current context, lets you filter by name, and executes
@@ -31,8 +31,7 @@ act; use `?` when you want to browse.
 | `Esc` or `:` | Close without executing |
 
 Filtering is live — the list narrows with each character you type. You do not
-need to type the full action name. For example, typing `hash` will surface the
-"Toggle SHA-256 hash preview" action.
+need to type the full action name. For example, typing `git` will surface the git log and git diff preview actions.
 
 ---
 

@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
 
 pub const MAX_ARCHIVE_ENTRIES: usize = 1_000;
@@ -156,61 +156,6 @@ fn truncate_if_needed(mut lines: Vec<String>) -> Vec<String> {
 /// Returns `true` if `path` has a recognized archive extension.
 pub fn is_archive(path: &Path) -> bool {
     archive_ext(path).is_some()
-}
-
-/// Create an archive at `output_path` containing all paths in `inputs`.
-///
-/// Returns `Ok(())` on success or `Err(human-readable message)` on failure.
-/// Callers must verify the output path does not already exist before calling.
-pub fn create_archive(output_path: &Path, inputs: &[PathBuf]) -> Result<(), String> {
-    let ext = archive_ext(output_path).ok_or_else(|| {
-        "Unknown archive format; use .tar.gz, .tar.bz2, .tar.xz, .zip, or .tar".to_string()
-    })?;
-
-    let out_str = output_path
-        .to_str()
-        .ok_or_else(|| "Archive path contains invalid UTF-8".to_string())?
-        .to_owned();
-
-    let input_strs: Vec<String> = inputs
-        .iter()
-        .filter_map(|p| p.to_str().map(|s| s.to_owned()))
-        .collect();
-
-    match ext {
-        ArchiveExt::Tar => run_create("tar", &["-cf", &out_str], &input_strs),
-        ArchiveExt::TarGz => run_create("tar", &["-czf", &out_str], &input_strs),
-        ArchiveExt::TarBz2 => run_create("tar", &["-cjf", &out_str], &input_strs),
-        ArchiveExt::TarXz => run_create("tar", &["-cJf", &out_str], &input_strs),
-        ArchiveExt::TarZst => run_create("tar", &["--zstd", "-cf", &out_str], &input_strs),
-        ArchiveExt::Zip => {
-            if !command_exists("zip") {
-                return Err(
-                    "zip not found — install: brew install zip (macOS) / apt install zip (Linux)"
-                        .to_string(),
-                );
-            }
-            run_create("zip", &["-r", &out_str], &input_strs)
-        }
-        ArchiveExt::Gz | ArchiveExt::SevenZip => {
-            Err("Unknown archive format; use .tar.gz, .tar.bz2, .tar.xz, .zip, or .tar".to_string())
-        }
-    }
-}
-
-/// Run `bin args... inputs...` and return `Ok(())` or `Err(stderr)`.
-fn run_create(bin: &str, args: &[&str], inputs: &[String]) -> Result<(), String> {
-    let input_refs: Vec<&str> = inputs.iter().map(|s| s.as_str()).collect();
-    let out = Command::new(bin)
-        .args(args)
-        .args(&input_refs)
-        .output()
-        .map_err(|e| format!("Failed to run {}: {}", bin, e))?;
-    if out.status.success() {
-        Ok(())
-    } else {
-        Err(String::from_utf8_lossy(&out.stderr).trim().to_string())
-    }
 }
 
 /// Extract the archive at `path` into `dest_dir`.

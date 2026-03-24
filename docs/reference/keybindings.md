@@ -1,6 +1,6 @@
 # Keybinding Reference
 
-Trek v0.52.0
+Trek v0.53.0
 
 This page lists every keybinding available in Trek, organized by category.
 If you can't find what you need here, press `:` to open the command palette and
@@ -69,7 +69,6 @@ To copy a file path without opening the file, use `y` (relative path) or `Y` (ab
 | `p` | Paste from clipboard |
 | `F` | Open clipboard inspector |
 | `d` | Delete / trash current entry |
-| `r` | Bulk rename selected files (regex) |
 
 ---
 
@@ -80,10 +79,9 @@ To copy a file path without opening the file, use `y` (relative path) or `Y` (ab
 | `Space` | Toggle selection on current entry |
 | `J` | Select current entry and move down (range select) |
 | `K` | Select current entry and move up (range select) |
-| `*` | Select files by glob pattern |
 
 Selected entries are highlighted in the file listing and used by bulk
-operations such as `C`, `X`, `r`, and `E`.
+operations such as `C` and `X`.
 
 ---
 
@@ -96,7 +94,6 @@ key again to return to the default file content preview.
 |-----|--------|
 | `d` | Toggle git diff preview |
 | `m` | Toggle metadata card |
-| `H` | Toggle SHA-256 hash preview |
 | `V` | Toggle git log preview |
 | `a` | Toggle hex dump preview |
 | `D` | Toggle disk usage preview (directories only) |
@@ -111,10 +108,8 @@ key again to return to the default file content preview.
 | Key | Action |
 |-----|--------|
 | `Z` | Extract archive into current directory |
-| `E` | Create archive from current entry or selection |
 
-Supported formats for extraction depend on the archive tools available on the
-system. Creation always produces a `.tar.gz` archive.
+Supported formats depend on the archive tools available on the system.
 
 ---
 

@@ -1,6 +1,6 @@
 # trek
 
-A terminal file manager with mouse-resizable panes, inspired by yazi and ranger.
+A terminal file browser built for AI-native developers. When Claude Code or Codex is working in your project, Trek keeps you oriented — live file tree, git status, and file preview in a persistent cmux pane.
 
 ![trek screenshot](https://raw.githubusercontent.com/bradleyfay/trek/main/assets/demo.gif)
 

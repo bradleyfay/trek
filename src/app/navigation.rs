@@ -36,7 +36,6 @@ impl App {
                 .map(|n| n.to_string_lossy().into_owned());
             self.filter_input.clear();
             self.filter_mode = false;
-            self.hash_preview_mode = false;
             self.push_history(parent.clone());
             self.cwd = parent;
             self.load_dir();
@@ -55,7 +54,6 @@ impl App {
             if entry.is_dir {
                 self.filter_input.clear();
                 self.filter_mode = false;
-                self.hash_preview_mode = false;
                 self.push_history(entry.path.clone());
                 self.cwd = entry.path;
                 self.selected = 0;
@@ -73,7 +71,6 @@ impl App {
         if let Some(home) = dirs_home() {
             self.filter_input.clear();
             self.filter_mode = false;
-            self.hash_preview_mode = false;
             self.push_history(home.clone());
             self.cwd = home;
             self.selected = 0;

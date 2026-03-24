@@ -1,10 +1,6 @@
 use super::{format_permission_bits, format_unix_timestamp_utc, meta_human_size, App};
 use std::path::Path;
 
-/// Maximum file size for hash computation (512 MB).
-/// SHA-256 of 512 MB completes in < 1 s on modern hardware; above this we skip.
-const MAX_HASH_FILE_SIZE: u64 = 512 * 1024 * 1024;
-
 /// Maximum file size for synchronous content statistics (line/word/char count).
 /// Files larger than this are skipped to avoid blocking the render loop.
 const STAT_SIZE_LIMIT: u64 = 10 * 1024 * 1024; // 10 MB
@@ -34,115 +30,6 @@ fn count_text_stats(path: &Path, size: u64) -> Option<(u64, u64, u64)> {
 }
 
 impl App {
-    // --- Hash preview (H) ---
-
-    /// Toggle between content preview and hash (SHA-256) preview.
-    ///
-    /// No-op if the selected entry is a directory — shows a status message instead.
-    /// Clears `meta_preview_mode` and `diff_preview_mode` when entering hash mode.
-    pub fn toggle_hash_preview(&mut self) {
-        if let Some(entry) = self.entries.get(self.selected) {
-            if entry.is_dir {
-                self.status_message =
-                    Some("Hash preview not available for directories".to_string());
-                return;
-            }
-        }
-        self.hash_preview_mode = !self.hash_preview_mode;
-        if self.hash_preview_mode {
-            self.meta_preview_mode = false;
-            self.diff_preview_mode = false;
-            self.git_log_mode = false; // mutually exclusive
-            self.file_compare_mode = false; // mutually exclusive
-            self.hex_view_mode = false; // mutually exclusive
-            self.du_preview_mode = false; // mutually exclusive
-        }
-        self.load_preview();
-    }
-
-    /// Compute the SHA-256 hash of `path` and return formatted preview lines.
-    ///
-    /// Uses `shasum -a 256` (macOS) or `sha256sum` (Linux/GNU coreutils).
-    /// Returns an informational message if the file is too large, the tool is
-    /// missing, or the output cannot be parsed.
-    pub fn load_hash_lines(path: &Path) -> Vec<String> {
-        // Size guard — avoid blocking the UI on huge files.
-        match std::fs::metadata(path) {
-            Ok(meta) if meta.len() > MAX_HASH_FILE_SIZE => {
-                return vec![
-                    String::new(),
-                    format!(
-                        "  File too large to hash ({} — limit 512 MB)",
-                        meta_human_size(meta.len())
-                    ),
-                ];
-            }
-            Err(e) => return vec![String::new(), format!("  Error reading file: {}", e)],
-            _ => {}
-        }
-
-        let file_name = path
-            .file_name()
-            .map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or_default();
-
-        // Detect available hashing tool.
-        let tool_available = |bin: &str| -> bool {
-            std::process::Command::new("which")
-                .arg(bin)
-                .output()
-                .map(|o| o.status.success())
-                .unwrap_or(false)
-        };
-        let (cmd, extra_args): (&str, &[&str]) = if tool_available("shasum") {
-            ("shasum", &["-a", "256"])
-        } else if tool_available("sha256sum") {
-            ("sha256sum", &[])
-        } else {
-            return vec![
-                String::new(),
-                "  SHA-256 hash requires shasum or sha256sum".to_string(),
-                String::new(),
-                "  Install: brew install coreutils   (macOS)".to_string(),
-                "           apt install coreutils    (Debian/Ubuntu)".to_string(),
-            ];
-        };
-
-        let output = match std::process::Command::new(cmd)
-            .args(extra_args)
-            .arg(path)
-            .output()
-        {
-            Ok(o) => o,
-            Err(e) => return vec![String::new(), format!("  Failed to run {}: {}", cmd, e)],
-        };
-
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        // Both shasum and sha256sum output: "<64-char-hash>  <filename>"
-        let hash = match stdout.split_whitespace().next() {
-            Some(h) if h.len() == 64 && h.chars().all(|c| c.is_ascii_hexdigit()) => h.to_string(),
-            _ => {
-                return vec![
-                    String::new(),
-                    "  Could not parse hash output".to_string(),
-                    format!("  Raw: {}", stdout.trim()),
-                ]
-            }
-        };
-
-        let size_str = std::fs::metadata(path)
-            .map(|m| meta_human_size(m.len()))
-            .unwrap_or_else(|_| "unknown".to_string());
-
-        vec![
-            String::new(),
-            format!("  SHA-256  {}", hash),
-            String::new(),
-            format!("  File     {}", file_name),
-            format!("  Size     {}", size_str),
-        ]
-    }
-
     // --- Metadata preview (m) ---
 
     /// Toggle between content preview and metadata preview.
@@ -150,7 +37,6 @@ impl App {
         self.meta_preview_mode = !self.meta_preview_mode;
         if self.meta_preview_mode {
             self.diff_preview_mode = false;
-            self.hash_preview_mode = false; // mutually exclusive
             self.git_log_mode = false; // mutually exclusive
             self.file_compare_mode = false; // mutually exclusive
             self.hex_view_mode = false; // mutually exclusive

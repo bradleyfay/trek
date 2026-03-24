@@ -95,14 +95,6 @@ pub fn run(
                         }
                         _ => app.cancel_extract(),
                     }
-                } else if app.archive_create_mode {
-                    match key.code {
-                        KeyCode::Esc => app.cancel_archive_create(),
-                        KeyCode::Enter => app.confirm_archive_create(),
-                        KeyCode::Backspace => app.archive_create_pop_char(),
-                        KeyCode::Char(c) => app.archive_create_push_char(c),
-                        _ => {}
-                    }
                 } else if app.mkdir_mode {
                     match key.code {
                         KeyCode::Esc => app.cancel_mkdir(),
@@ -144,16 +136,6 @@ pub fn run(
                         KeyCode::Down | KeyCode::Char('j') => app.content_search_move_down(),
                         KeyCode::Char('l') | KeyCode::Right => app.jump_to_content_result(),
                         KeyCode::Char(c) => app.content_search_push_char(c),
-                        _ => {}
-                    }
-                } else if app.rename_mode {
-                    match key.code {
-                        KeyCode::Esc => app.cancel_rename(),
-                        KeyCode::Enter => app.confirm_rename(),
-                        KeyCode::Tab => app.rename_next_field(),
-                        KeyCode::BackTab => app.rename_prev_field(),
-                        KeyCode::Backspace => app.rename_pop_char(),
-                        KeyCode::Char(c) => app.rename_push_char(c),
                         _ => {}
                     }
                 } else if app.bookmark_mode {
@@ -215,14 +197,6 @@ pub fn run(
                         KeyCode::Tab => app.complete_path(),
                         KeyCode::Backspace => app.path_pop_char(),
                         KeyCode::Char(c) => app.path_push_char(c),
-                        _ => {}
-                    }
-                } else if app.glob_mode {
-                    match key.code {
-                        KeyCode::Esc => app.cancel_glob_select(),
-                        KeyCode::Enter => app.confirm_glob_select(),
-                        KeyCode::Backspace => app.glob_pop_char(),
-                        KeyCode::Char(c) => app.glob_push_char(c),
                         _ => {}
                     }
                 } else if app.palette_mode {
@@ -334,7 +308,6 @@ pub fn run(
                         KeyCode::Char('A') => app.open_yank_picker(),
                         KeyCode::Char('d') => app.toggle_diff_preview(),
                         KeyCode::Char('m') => app.toggle_meta_preview(),
-                        KeyCode::Char('H') => app.toggle_hash_preview(),
                         KeyCode::Char('V') => app.toggle_git_log_preview(),
                         KeyCode::Char('D') => app.toggle_du_preview(),
                         KeyCode::Char('I') => app.toggle_watch_mode(),
@@ -349,10 +322,9 @@ pub fn run(
                         KeyCode::Char('P') => app.begin_chmod(),
                         KeyCode::Char('R') => app.refresh_git_status(),
                         KeyCode::Char('?') => app.show_help = true,
-                        // Bulk rename
+                        // Multi-file selection
                         KeyCode::Char(' ') => app.toggle_selection(app.selected),
                         KeyCode::Char('v') => app.select_all(),
-                        KeyCode::Char('r') => app.start_rename(),
                         KeyCode::Esc => {
                             if !app.filter_input.is_empty() {
                                 app.clear_filter();
@@ -374,7 +346,6 @@ pub fn run(
                         KeyCode::Char('W') => app.begin_dup(),
                         KeyCode::Char('L') => app.begin_symlink(),
                         KeyCode::Char('Z') => app.begin_extract(),
-                        KeyCode::Char('E') => app.begin_archive_create(),
                         // Quick single-file rename
                         KeyCode::Char('n') | KeyCode::F(2) => app.begin_quick_rename(),
                         KeyCode::Char('u') => app.undo_trash(),
@@ -430,8 +401,6 @@ pub fn run(
                         KeyCode::Char('#') => app.toggle_line_numbers(),
                         // Path jump bar
                         KeyCode::Char('e') => app.begin_path_jump(),
-                        // Glob pattern selection
-                        KeyCode::Char('*') => app.begin_glob_select(),
                         // Per-session marks
                         KeyCode::Char('`') => app.begin_set_mark(),
                         KeyCode::Char('\'') => app.begin_jump_mark(),
@@ -530,7 +499,6 @@ fn execute_palette_action(
         ActionId::ToggleGitignored => app.toggle_gitignored(),
         ActionId::ToggleDiffPreview => app.toggle_diff_preview(),
         ActionId::ToggleMetaPreview => app.toggle_meta_preview(),
-        ActionId::ToggleHashPreview => app.toggle_hash_preview(),
         ActionId::ToggleGitLogPreview => app.toggle_git_log_preview(),
         ActionId::ToggleDuPreview => app.toggle_du_preview(),
         ActionId::ToggleWatchMode => app.toggle_watch_mode(),
@@ -564,7 +532,6 @@ fn execute_palette_action(
         ActionId::SelectAll => app.select_all(),
         ActionId::ClearSelections => app.clear_selections(),
         ActionId::QuickRename => app.begin_quick_rename(),
-        ActionId::StartRename => app.start_rename(),
         ActionId::AddBookmark => app.add_bookmark(),
         ActionId::OpenBookmarks => app.open_bookmarks(),
         ActionId::CycleSortMode => app.cycle_sort_mode(),
@@ -576,11 +543,9 @@ fn execute_palette_action(
         ActionId::ScrollPreviewUp => app.scroll_preview_up(5),
         ActionId::ScrollPreviewDown => app.scroll_preview_down(5),
         ActionId::PathJump => app.begin_path_jump(),
-        ActionId::GlobSelect => app.begin_glob_select(),
         ActionId::BeginDup => app.begin_dup(),
         ActionId::BeginSymlink => app.begin_symlink(),
         ActionId::BeginExtract => app.begin_extract(),
-        ActionId::BeginArchiveCreate => app.begin_archive_create(),
         ActionId::InspectClipboard => app.open_clipboard_inspect(),
         ActionId::OpenFrecency => app.open_frecency(),
         ActionId::OpenInCmuxTab => app.open_in_cmux_tab(),

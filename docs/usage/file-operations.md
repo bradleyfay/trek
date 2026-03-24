@@ -70,20 +70,18 @@ Bulk deletion uses `X` (cut all selected entries) combined with a delete confirm
 | Key | Action |
 |-----|--------|
 | `n` / `F2` | Quick rename — opens an inline input bar pre-filled with the current name |
-| `r` | Bulk rename selected files with a regex pattern — opens the rename workflow with live preview |
 
 ---
 
 ## Selection
 
-Build a selection set before running bulk operations like copy, cut, rename, or archive creation.
+Build a selection set before running bulk operations like copy or cut.
 
 | Key | Action |
 |-----|--------|
 | `Space` | Toggle selection on the current entry |
 | `J` (Shift+J) | Select current entry and move cursor down (range select) |
 | `K` (Shift+K) | Select current entry and move cursor up (range select) |
-| `*` | Glob pattern selection — opens an input bar; type a pattern (e.g. `*.rs`, `*.log`) to add all matching files to the selection |
 
 ---
 

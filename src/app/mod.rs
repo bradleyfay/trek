@@ -1,7 +1,6 @@
 use crate::git::GitStatus;
 use crate::highlight::Highlighter;
 use crate::ops::Clipboard;
-use crate::rename::{RenameField, RenamePreviewRow};
 use crate::search::SearchResultGroup;
 use anyhow::Result;
 use frecency::FrecencyEntry;
@@ -25,8 +24,8 @@ pub mod palette;
 mod palette_ops;
 mod preview;
 mod quick_rename;
-mod rename;
 mod search;
+mod selection;
 mod sort;
 mod yank;
 
@@ -170,11 +169,6 @@ pub struct App {
     /// When true the preview pane shows the file metadata card instead of content.
     pub meta_preview_mode: bool,
 
-    // --- Hash preview (H) ---
-    /// When true the preview pane shows the file's SHA-256 checksum card.
-    /// Mutually exclusive with meta_preview_mode and diff_preview_mode.
-    pub hash_preview_mode: bool,
-
     // --- Git log preview (V) ---
     /// When true the preview pane shows `git log --oneline -30 -- <path>`.
     /// Mutually exclusive with diff_preview_mode, meta_preview_mode, hash_preview_mode.
@@ -236,21 +230,9 @@ pub struct App {
     /// True when results have been truncated at MAX_RESULTS.
     pub content_search_truncated: bool,
 
-    // --- Bulk rename ---
-    /// True while the rename input bar is open.
-    pub rename_mode: bool,
-    /// Indices into `entries` that the user has marked for renaming.
+    // --- Multi-file selection (Space / J / K / v) ---
+    /// Indices into `entries` that the user has marked (for copy, delete, etc.).
     pub rename_selected: HashSet<usize>,
-    /// Regex pattern typed by the user.
-    pub rename_pattern: String,
-    /// Replacement template typed by the user.
-    pub rename_replacement: String,
-    /// Which rename field currently has keyboard focus.
-    pub rename_focus: RenameField,
-    /// Live preview rows recomputed on every keystroke.
-    pub rename_preview: Vec<RenamePreviewRow>,
-    /// Set when the pattern is an invalid regex.
-    pub rename_error: Option<String>,
 
     // --- Sort ---
     /// Current sort field.
@@ -353,12 +335,6 @@ pub struct App {
     /// True while the clipboard contents overlay is open.
     pub clipboard_inspect_mode: bool,
 
-    // --- Glob pattern selection (*) ---
-    /// True while the glob pattern input bar is open.
-    pub glob_mode: bool,
-    /// Glob pattern typed by the user.
-    pub glob_input: String,
-
     // --- Symlink creation (L) ---
     /// True while the symlink name input bar is open.
     pub symlink_mode: bool,
@@ -398,12 +374,6 @@ pub struct App {
     pub frecency_selected: usize,
     /// Current filter query typed in the overlay.
     pub frecency_query: String,
-
-    // --- Archive creation (E) ---
-    /// True while the archive-creation filename input bar is shown.
-    pub archive_create_mode: bool,
-    /// Filename being typed for the new archive.
-    pub archive_create_input: String,
 }
 
 #[derive(Clone)]
@@ -459,7 +429,6 @@ impl App {
             diff_preview_mode: false,
             preview_is_diff: false,
             meta_preview_mode: false,
-            hash_preview_mode: false,
             git_log_mode: false,
             file_compare_mode: false,
             hex_view_mode: false,
@@ -480,13 +449,7 @@ impl App {
             content_search_selected: 0,
             content_search_error: None,
             content_search_truncated: false,
-            rename_mode: false,
             rename_selected: HashSet::new(),
-            rename_pattern: String::new(),
-            rename_replacement: String::new(),
-            rename_focus: RenameField::Pattern,
-            rename_preview: Vec::new(),
-            rename_error: None,
             sort_mode: SortMode::default(),
             sort_order: SortOrder::default(),
             bookmark_mode: false,
@@ -523,8 +486,6 @@ impl App {
             preview_wrap: false,
             show_dir_counts: true,
             show_timestamps: false,
-            glob_mode: false,
-            glob_input: String::new(),
             symlink_mode: false,
             symlink_input: String::new(),
             symlink_target: None,
@@ -541,8 +502,6 @@ impl App {
             frecency_filtered: Vec::new(),
             frecency_selected: 0,
             frecency_query: String::new(),
-            archive_create_mode: false,
-            archive_create_input: String::new(),
         };
         app.load_dir();
         Ok(app)

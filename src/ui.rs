@@ -2,7 +2,6 @@ use crate::app::{format_dir_count, format_listing_date, format_size, App, SortMo
 use crate::git::FileStatus;
 use crate::icons::icon_for_entry;
 use crate::ops::ClipboardOp;
-use crate::rename::{RenameField, RenameResult};
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
@@ -15,16 +14,12 @@ use ratatui::{
 /// then renders parent pane, current-dir pane, and preview pane.
 pub fn draw(f: &mut Frame, app: &mut App) {
     let size = f.size();
-    // Rename mode needs 3 rows at the bottom (pattern, replacement, error/hint).
-    let bottom_height: u16 = if app.rename_mode { 3 } else { 1 };
-    // mkdir mode also needs 1 row (reuses the 1-row bottom area).
-    // delete confirmation and mkdir both fit in 1 row.
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(1),             // path bar
-            Constraint::Min(3),                // main panes
-            Constraint::Length(bottom_height), // status / search / rename bar
+            Constraint::Length(1), // path bar
+            Constraint::Min(3),    // main panes
+            Constraint::Length(1), // status bar
         ])
         .split(size);
 
@@ -81,9 +76,7 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     app.ensure_parent_visible(pane_chunks[0].height);
 
     draw_parent_pane(f, app, pane_chunks[0]);
-    if app.rename_mode {
-        draw_rename_preview_pane(f, app, pane_chunks[1]);
-    } else if app.content_search_mode {
+    if app.content_search_mode {
         draw_content_search_pane(f, app, pane_chunks[1]);
     } else if app.find_mode {
         draw_find_pane(f, app, pane_chunks[1]);
@@ -95,20 +88,14 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     }
 
     // Draw bottom bar.
-    if app.rename_mode {
-        draw_rename_bar(f, app, bottom_area);
-    } else if !app.pending_delete.is_empty() {
+    if !app.pending_delete.is_empty() {
         draw_delete_confirm_bar(f, app, bottom_area);
     } else if let Some(ref path) = app.pending_extract {
         draw_extract_bar(f, bottom_area, path);
-    } else if app.archive_create_mode {
-        draw_archive_create_bar(f, app, bottom_area);
     } else if app.quick_rename_mode {
         draw_quick_rename_bar(f, app, bottom_area);
     } else if app.path_mode {
         draw_path_jump_bar(f, app, bottom_area);
-    } else if app.glob_mode {
-        draw_glob_select_bar(f, app, bottom_area);
     } else if app.dup_mode {
         draw_dup_bar(f, app, bottom_area);
     } else if app.symlink_mode {
@@ -157,7 +144,7 @@ pub fn draw(f: &mut Frame, app: &mut App) {
                     .add_modifier(Modifier::BOLD),
             ),
             Span::styled(
-                "  — r: rename   v: all   Esc: clear",
+                "  — v: all   Esc: clear",
                 Style::default().fg(Color::DarkGray),
             ),
         ]));
@@ -528,29 +515,6 @@ fn draw_touch_bar(f: &mut Frame, app: &App, area: Rect) {
     f.render_widget(para, area);
 }
 
-fn draw_archive_create_bar(f: &mut Frame, app: &App, area: Rect) {
-    let para = Paragraph::new(Line::from(vec![
-        Span::styled(
-            "Archive:  ",
-            Style::default()
-                .fg(Color::Yellow)
-                .add_modifier(Modifier::BOLD),
-        ),
-        Span::styled(
-            &app.archive_create_input,
-            Style::default()
-                .fg(Color::White)
-                .add_modifier(Modifier::BOLD),
-        ),
-        Span::styled("\u{2588}", Style::default().fg(Color::White)),
-        Span::styled(
-            "  Enter: create   Esc: cancel",
-            Style::default().fg(Color::DarkGray),
-        ),
-    ]));
-    f.render_widget(para, area);
-}
-
 fn draw_dup_bar(f: &mut Frame, app: &App, area: Rect) {
     let para = Paragraph::new(Line::from(vec![
         Span::styled(
@@ -597,29 +561,6 @@ fn draw_symlink_bar(f: &mut Frame, app: &App, area: Rect) {
         Span::styled("\u{2588}", Style::default().fg(Color::White)),
         Span::styled(
             "  Enter: create   Esc: cancel",
-            Style::default().fg(Color::DarkGray),
-        ),
-    ]));
-    f.render_widget(para, area);
-}
-
-fn draw_glob_select_bar(f: &mut Frame, app: &App, area: Rect) {
-    let para = Paragraph::new(Line::from(vec![
-        Span::styled(
-            "Glob select: ",
-            Style::default()
-                .fg(Color::Magenta)
-                .add_modifier(Modifier::BOLD),
-        ),
-        Span::styled(
-            &app.glob_input,
-            Style::default()
-                .fg(Color::White)
-                .add_modifier(Modifier::BOLD),
-        ),
-        Span::styled("\u{2588}", Style::default().fg(Color::White)),
-        Span::styled(
-            "  Enter: select   Esc: cancel  (e.g. *.rs  *.log  test_?)",
             Style::default().fg(Color::DarkGray),
         ),
     ]));
@@ -850,8 +791,6 @@ fn draw_preview_pane(f: &mut Frame, app: &App, area: Rect) {
                 format!("{} [hex]", e.name)
             } else if app.preview_is_diff {
                 format!("{} [diff]", e.name)
-            } else if app.hash_preview_mode {
-                format!("{} [hash]", e.name)
             } else if app.meta_preview_mode {
                 format!("{} [meta]", e.name)
             } else if app.git_log_mode {
@@ -1015,127 +954,6 @@ fn draw_preview_pane(f: &mut Frame, app: &App, area: Rect) {
                 };
                 f.render_widget(Paragraph::new(Line::from(Span::styled(ch, style))), r);
             }
-        }
-    }
-}
-
-/// Render the rename live-preview table in the center pane (shown while rename_mode is active).
-fn draw_rename_preview_pane(f: &mut Frame, app: &App, area: Rect) {
-    let match_count = app
-        .rename_preview
-        .iter()
-        .filter(|r| matches!(r.result, RenameResult::Renamed(_)))
-        .count();
-    let total = app.rename_preview.len();
-    let title = format!(" {}/{} matched ", match_count, total);
-
-    let visible_height = area.height.saturating_sub(2) as usize;
-
-    let items: Vec<ListItem> = app
-        .rename_preview
-        .iter()
-        .take(visible_height)
-        .map(|row| match &row.result {
-            RenameResult::Renamed(new_name) => ListItem::new(Line::from(vec![
-                Span::raw("  "),
-                Span::styled(row.original.clone(), Style::default()),
-                Span::styled("  →  ", Style::default().fg(Color::DarkGray)),
-                Span::styled(
-                    new_name.clone(),
-                    Style::default()
-                        .fg(Color::Green)
-                        .add_modifier(Modifier::BOLD),
-                ),
-            ])),
-            RenameResult::NoMatch => ListItem::new(Line::from(vec![
-                Span::raw("  "),
-                Span::styled(row.original.clone(), Style::default().fg(Color::DarkGray)),
-                Span::styled("  [no match]", Style::default().fg(Color::DarkGray)),
-            ])),
-            RenameResult::Conflict(new_name) => ListItem::new(Line::from(vec![
-                Span::raw("  "),
-                Span::styled(row.original.clone(), Style::default()),
-                Span::styled("  →  ", Style::default().fg(Color::DarkGray)),
-                Span::styled(new_name.clone(), Style::default().fg(Color::Red)),
-                Span::styled(" [conflict]", Style::default().fg(Color::Red)),
-            ])),
-        })
-        .collect();
-
-    let list = List::new(items).block(
-        Block::default()
-            .borders(Borders::TOP | Borders::BOTTOM | Borders::RIGHT)
-            .border_style(Style::default().fg(Color::Yellow))
-            .title(title),
-    );
-    f.render_widget(list, area);
-}
-
-/// Render the two-field Pattern/Replacement input bar at the bottom of the screen.
-fn draw_rename_bar(f: &mut Frame, app: &App, area: Rect) {
-    if area.height < 2 {
-        return;
-    }
-    let pat_area = Rect::new(area.x, area.y, area.width, 1);
-    let rep_area = Rect::new(area.x, area.y + 1, area.width, 1);
-
-    let pat_cursor = if app.rename_focus == RenameField::Pattern {
-        "\u{2588}"
-    } else {
-        ""
-    };
-    let rep_cursor = if app.rename_focus == RenameField::Replacement {
-        "\u{2588}"
-    } else {
-        ""
-    };
-
-    let label_style = Style::default()
-        .fg(Color::Yellow)
-        .add_modifier(Modifier::BOLD);
-
-    f.render_widget(
-        Paragraph::new(Line::from(vec![
-            Span::styled("Pattern  : ", label_style),
-            Span::styled(
-                app.rename_pattern.clone(),
-                Style::default().fg(Color::White),
-            ),
-            Span::styled(pat_cursor, Style::default().fg(Color::White)),
-        ])),
-        pat_area,
-    );
-    f.render_widget(
-        Paragraph::new(Line::from(vec![
-            Span::styled("Replace  : ", label_style),
-            Span::styled(
-                app.rename_replacement.clone(),
-                Style::default().fg(Color::White),
-            ),
-            Span::styled(rep_cursor, Style::default().fg(Color::White)),
-        ])),
-        rep_area,
-    );
-
-    // Third row: error message or hint (only if space allows).
-    if area.height >= 3 {
-        let hint_area = Rect::new(area.x, area.y + 2, area.width, 1);
-        if let Some(ref err) = app.rename_error {
-            f.render_widget(
-                Paragraph::new(Line::from(Span::styled(
-                    format!("  \u{26a0} {}", err),
-                    Style::default().fg(Color::Red),
-                ))),
-                hint_area,
-            );
-        } else {
-            f.render_widget(
-                Paragraph::new(Line::from(Span::styled(
-                    "  Tab: switch field   Enter: apply   Esc: cancel",
-                    Style::default().fg(Color::DarkGray),
-                ))),
-                hint_area,
-            );
         }
     }
 }
