@@ -367,6 +367,8 @@ fn run(
                         KeyCode::Delete => app.begin_delete_current(),
                         KeyCode::Char('X') => app.begin_delete_selected(),
                         KeyCode::Char('M') => app.begin_mkdir(),
+                        KeyCode::Char('S') => app.cycle_sort_mode(),
+                        KeyCode::Char('s') => app.toggle_sort_order(),
                         _ => {}
                     }
                 }

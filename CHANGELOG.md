@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-03-23
+
+### Added
+- Configurable directory sort modes: `S` cycles through Name → Size → Modified → Extension → Name; `s` toggles ascending/descending
+- Size and Modified default to descending (largest/newest first); Name and Extension default to ascending
+- Sort indicator shown in the path bar when not using the default sort (`↓ Size`, `↑ Modified`, etc.)
+- Cursor follows the selected file by name after a sort change — no jump to top
+- Sort mode is applied on every directory navigation and persists for the session
+- `DirEntry` gains a `modified: SystemTime` field populated from filesystem metadata
+- Help overlay documents `S` and `s`
+- 7 new unit tests covering sort mode cycling, labels, sort-by-name/size/modified/extension, and the invariant that directories always precede files
+
 ## [0.8.0] - 2026-03-23
 
 ### Added

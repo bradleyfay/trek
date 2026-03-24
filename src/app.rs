@@ -22,6 +22,45 @@ pub enum DragTarget {
     RightDivider,
 }
 
+/// Which field is used to order directory entries.
+#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
+pub enum SortMode {
+    #[default]
+    Name,
+    Size,
+    Modified,
+    Extension,
+}
+
+impl SortMode {
+    /// Cycle to the next mode: Name → Size → Modified → Extension → Name.
+    pub fn next(self) -> Self {
+        match self {
+            Self::Name => Self::Size,
+            Self::Size => Self::Modified,
+            Self::Modified => Self::Extension,
+            Self::Extension => Self::Name,
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Name => "Name",
+            Self::Size => "Size",
+            Self::Modified => "Modified",
+            Self::Extension => "Extension",
+        }
+    }
+}
+
+/// Sort direction.
+#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
+pub enum SortOrder {
+    #[default]
+    Ascending,
+    Descending,
+}
+
 pub struct App {
     /// Current directory being browsed.
     pub cwd: PathBuf,
@@ -135,6 +174,12 @@ pub struct App {
     pub rename_preview: Vec<RenamePreviewRow>,
     /// Set when the pattern is an invalid regex.
     pub rename_error: Option<String>,
+
+    // --- Sort ---
+    /// Current sort field.
+    pub sort_mode: SortMode,
+    /// Current sort direction.
+    pub sort_order: SortOrder,
 }
 
 #[derive(Clone)]
@@ -143,6 +188,7 @@ pub struct DirEntry {
     pub path: PathBuf,
     pub is_dir: bool,
     pub size: u64,
+    pub modified: std::time::SystemTime,
 }
 
 impl App {
@@ -201,6 +247,8 @@ impl App {
             rename_focus: RenameField::Pattern,
             rename_preview: Vec::new(),
             rename_error: None,
+            sort_mode: SortMode::default(),
+            sort_order: SortOrder::default(),
         };
         app.load_dir();
         Ok(app)
@@ -211,7 +259,7 @@ impl App {
     /// Errors are surfaced via `status_message` rather than propagated, so the
     /// app stays alive even if the working directory becomes unreadable.
     pub fn load_dir(&mut self) {
-        match Self::read_entries(&self.cwd, self.show_hidden) {
+        match Self::read_entries(&self.cwd, self.show_hidden, self.sort_mode, self.sort_order) {
             Ok((entries, truncated)) => {
                 self.entries = entries;
                 self.entries_truncated = truncated;
@@ -228,7 +276,7 @@ impl App {
 
         // Parent entries (errors here are non-fatal; left pane simply stays empty).
         if let Some(parent) = self.cwd.parent() {
-            match Self::read_entries(parent, self.show_hidden) {
+            match Self::read_entries(parent, self.show_hidden, self.sort_mode, self.sort_order) {
                 Ok((entries, _)) => {
                     self.parent_selected =
                         entries.iter().position(|e| e.path == self.cwd).unwrap_or(0);
@@ -258,6 +306,8 @@ impl App {
     fn read_entries(
         dir: &Path,
         show_hidden: bool,
+        sort_mode: SortMode,
+        sort_order: SortOrder,
     ) -> Result<(Vec<DirEntry>, bool), std::io::Error> {
         let rd = fs::read_dir(dir)?;
 
@@ -268,13 +318,18 @@ impl App {
                 if !show_hidden && name.starts_with('.') {
                     return None;
                 }
+                let meta = e.metadata().ok();
                 let is_dir = e.file_type().map(|ft| ft.is_dir()).unwrap_or(false);
-                let size = e.metadata().map(|m| m.len()).unwrap_or(0);
+                let size = meta.as_ref().map(|m| m.len()).unwrap_or(0);
+                let modified = meta
+                    .and_then(|m| m.modified().ok())
+                    .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
                 Some(DirEntry {
                     name,
                     path: e.path(),
                     is_dir,
                     size,
+                    modified,
                 })
             })
             .take(MAX_ENTRIES + 1) // +1 lets us detect truncation
@@ -285,14 +340,44 @@ impl App {
             entries.truncate(MAX_ENTRIES);
         }
 
-        // Sort: directories first, then alphabetical (case-insensitive).
-        entries.sort_by(|a, b| {
-            b.is_dir
-                .cmp(&a.is_dir)
-                .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
-        });
+        Self::sort_entries(&mut entries, sort_mode, sort_order);
 
         Ok((entries, truncated))
+    }
+
+    /// Sort a slice of entries in-place. Directories always appear before files.
+    pub fn sort_entries(entries: &mut [DirEntry], mode: SortMode, order: SortOrder) {
+        entries.sort_by(|a, b| {
+            // Directories always before files regardless of sort mode.
+            let dir_cmp = b.is_dir.cmp(&a.is_dir);
+            if dir_cmp != std::cmp::Ordering::Equal {
+                return dir_cmp;
+            }
+
+            let ord = match mode {
+                SortMode::Name => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
+                SortMode::Size => a.size.cmp(&b.size),
+                SortMode::Modified => a.modified.cmp(&b.modified),
+                SortMode::Extension => {
+                    let ext = |e: &DirEntry| {
+                        Path::new(&e.name)
+                            .extension()
+                            .and_then(|x| x.to_str())
+                            .unwrap_or("")
+                            .to_lowercase()
+                    };
+                    ext(a)
+                        .cmp(&ext(b))
+                        .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+                }
+            };
+
+            if order == SortOrder::Descending {
+                ord.reverse()
+            } else {
+                ord
+            }
+        });
     }
 
     pub fn load_preview(&mut self) {
@@ -303,7 +388,12 @@ impl App {
         if let Some(entry) = self.entries.get(self.selected).cloned() {
             if entry.is_dir {
                 // Directories never show a diff preview.
-                if let Ok((children, _)) = Self::read_entries(&entry.path, self.show_hidden) {
+                if let Ok((children, _)) = Self::read_entries(
+                    &entry.path,
+                    self.show_hidden,
+                    self.sort_mode,
+                    self.sort_order,
+                ) {
                     self.preview_lines = children
                         .iter()
                         .map(|c| {
@@ -704,6 +794,49 @@ impl App {
         } else {
             "Hiding hidden files".to_string()
         });
+    }
+
+    // --- Sort ---
+
+    /// Cycle through Name → Size → Modified → Extension → Name.
+    ///
+    /// Size and Modified default to descending (most useful first); the others
+    /// default to ascending.
+    pub fn cycle_sort_mode(&mut self) {
+        self.sort_mode = self.sort_mode.next();
+        self.sort_order = match self.sort_mode {
+            SortMode::Size | SortMode::Modified => SortOrder::Descending,
+            _ => SortOrder::Ascending,
+        };
+        self.apply_sort();
+        let arrow = if self.sort_order == SortOrder::Descending {
+            "↓"
+        } else {
+            "↑"
+        };
+        self.status_message = Some(format!("Sort: {} {}", self.sort_mode.label(), arrow));
+    }
+
+    /// Toggle the sort direction between ascending and descending.
+    pub fn toggle_sort_order(&mut self) {
+        self.sort_order = match self.sort_order {
+            SortOrder::Ascending => SortOrder::Descending,
+            SortOrder::Descending => SortOrder::Ascending,
+        };
+        self.apply_sort();
+    }
+
+    fn apply_sort(&mut self) {
+        // Capture selected file's name so the cursor follows the file after re-sort.
+        let selected_name = self.entries.get(self.selected).map(|e| e.name.clone());
+        Self::sort_entries(&mut self.entries, self.sort_mode, self.sort_order);
+        Self::sort_entries(&mut self.parent_entries, self.sort_mode, self.sort_order);
+        if let Some(name) = selected_name {
+            if let Some(idx) = self.entries.iter().position(|e| e.name == name) {
+                self.selected = idx;
+            }
+        }
+        self.load_preview();
     }
 
     // --- Mouse handling ---
@@ -1291,4 +1424,141 @@ fn fuzzy_match(name: &str, query: &str) -> bool {
 /// Get the user's home directory without pulling in another crate.
 fn dirs_home() -> Option<PathBuf> {
     std::env::var_os("HOME").map(PathBuf::from)
+}
+
+// ── Tests ──────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_entry(name: &str, is_dir: bool, size: u64, secs: u64) -> DirEntry {
+        DirEntry {
+            name: name.to_string(),
+            path: PathBuf::from(name),
+            is_dir,
+            size,
+            modified: std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(secs),
+        }
+    }
+
+    /// Given: SortMode::Name
+    /// When: next() is called 4 times
+    /// Then: cycles back to Name
+    #[test]
+    fn sort_mode_cycles_all_variants() {
+        let mut m = SortMode::Name;
+        m = m.next();
+        assert_eq!(m, SortMode::Size);
+        m = m.next();
+        assert_eq!(m, SortMode::Modified);
+        m = m.next();
+        assert_eq!(m, SortMode::Extension);
+        m = m.next();
+        assert_eq!(m, SortMode::Name);
+    }
+
+    /// Given: each SortMode
+    /// When: label() is called
+    /// Then: returns a non-empty string matching the mode name
+    #[test]
+    fn sort_mode_labels_are_non_empty() {
+        assert_eq!(SortMode::Name.label(), "Name");
+        assert_eq!(SortMode::Size.label(), "Size");
+        assert_eq!(SortMode::Modified.label(), "Modified");
+        assert_eq!(SortMode::Extension.label(), "Extension");
+    }
+
+    /// Given: mixed files and dirs with various names
+    /// When: sort_entries is called with Name/Ascending
+    /// Then: dirs come first, then files in A-Z order (case-insensitive)
+    #[test]
+    fn sort_by_name_ascending_dirs_first() {
+        let mut entries = vec![
+            make_entry("zebra.rs", false, 100, 0),
+            make_entry("src", true, 0, 0),
+            make_entry("apple.rs", false, 50, 0),
+            make_entry("lib", true, 0, 0),
+        ];
+        App::sort_entries(&mut entries, SortMode::Name, SortOrder::Ascending);
+        assert!(entries[0].is_dir && entries[1].is_dir, "dirs first");
+        assert_eq!(entries[2].name, "apple.rs");
+        assert_eq!(entries[3].name, "zebra.rs");
+    }
+
+    /// Given: files with different sizes
+    /// When: sort_entries is called with Size/Descending
+    /// Then: dirs come first; files sorted largest → smallest
+    #[test]
+    fn sort_by_size_descending_largest_first() {
+        let mut entries = vec![
+            make_entry("small.txt", false, 10, 0),
+            make_entry("large.txt", false, 9999, 0),
+            make_entry("medium.txt", false, 500, 0),
+        ];
+        App::sort_entries(&mut entries, SortMode::Size, SortOrder::Descending);
+        assert_eq!(entries[0].name, "large.txt");
+        assert_eq!(entries[1].name, "medium.txt");
+        assert_eq!(entries[2].name, "small.txt");
+    }
+
+    /// Given: files with different modification times
+    /// When: sort_entries is called with Modified/Descending
+    /// Then: newest file appears first
+    #[test]
+    fn sort_by_modified_descending_newest_first() {
+        let mut entries = vec![
+            make_entry("old.txt", false, 0, 1000),
+            make_entry("new.txt", false, 0, 9999),
+            make_entry("mid.txt", false, 0, 5000),
+        ];
+        App::sort_entries(&mut entries, SortMode::Modified, SortOrder::Descending);
+        assert_eq!(entries[0].name, "new.txt");
+        assert_eq!(entries[1].name, "mid.txt");
+        assert_eq!(entries[2].name, "old.txt");
+    }
+
+    /// Given: files with various extensions
+    /// When: sort_entries is called with Extension/Ascending
+    /// Then: dirs first; files grouped by extension then alphabetically
+    #[test]
+    fn sort_by_extension_groups_by_ext() {
+        let mut entries = vec![
+            make_entry("b.rs", false, 0, 0),
+            make_entry("a.toml", false, 0, 0),
+            make_entry("a.rs", false, 0, 0),
+        ];
+        App::sort_entries(&mut entries, SortMode::Extension, SortOrder::Ascending);
+        // rs < toml alphabetically
+        assert_eq!(entries[0].name, "a.rs");
+        assert_eq!(entries[1].name, "b.rs");
+        assert_eq!(entries[2].name, "a.toml");
+    }
+
+    /// Given: a mix of files and directories under any sort mode
+    /// When: sort_entries is called
+    /// Then: directories always appear before files
+    #[test]
+    fn dirs_always_before_files_regardless_of_sort_mode() {
+        for mode in [
+            SortMode::Name,
+            SortMode::Size,
+            SortMode::Modified,
+            SortMode::Extension,
+        ] {
+            for order in [SortOrder::Ascending, SortOrder::Descending] {
+                let mut entries = vec![
+                    make_entry("z_file.txt", false, 9999, 9999),
+                    make_entry("a_dir", true, 0, 0),
+                    make_entry("b_file.txt", false, 1, 1),
+                ];
+                App::sort_entries(&mut entries, mode, order);
+                assert!(
+                    entries[0].is_dir,
+                    "dir should be first for mode={mode:?} order={order:?}, got {:?}",
+                    entries.iter().map(|e| &e.name).collect::<Vec<_>>()
+                );
+            }
+        }
+    }
 }

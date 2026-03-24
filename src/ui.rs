@@ -1,4 +1,4 @@
-use crate::app::{format_size, App};
+use crate::app::{format_size, App, SortMode, SortOrder};
 use crate::git::FileStatus;
 use crate::icons::icon_for_entry;
 use crate::ops::ClipboardOp;
@@ -177,6 +177,19 @@ fn draw_path_bar(f: &mut Frame, app: &App, area: Rect) {
             Style::default()
                 .fg(Color::Green)
                 .add_modifier(Modifier::BOLD),
+        ));
+    }
+
+    // Show sort indicator when not using the default (Name ascending).
+    if app.sort_mode != SortMode::Name || app.sort_order != SortOrder::Ascending {
+        let arrow = if app.sort_order == SortOrder::Descending {
+            "↓"
+        } else {
+            "↑"
+        };
+        spans.push(Span::styled(
+            format!("  {} {}", arrow, app.sort_mode.label()),
+            Style::default().fg(Color::DarkGray),
         ));
     }
 
@@ -963,6 +976,15 @@ fn draw_help_overlay(f: &mut Frame, size: Rect) {
         Line::from(vec![
             Span::styled("  M         ", Style::default().fg(Color::Cyan)),
             Span::raw("Make new directory"),
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("  S         ", Style::default().fg(Color::Cyan)),
+            Span::raw("Cycle sort: Name / Size / Modified / Extension"),
+        ]),
+        Line::from(vec![
+            Span::styled("  s         ", Style::default().fg(Color::Cyan)),
+            Span::raw("Toggle sort order (ascending / descending)"),
         ]),
         Line::from(vec![
             Span::styled("  Q         ", Style::default().fg(Color::Cyan)),
