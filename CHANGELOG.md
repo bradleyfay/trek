@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-03-24
+
+### Changed
+- `Delete` and `X` now move files to the platform trash (recoverable) instead of permanent deletion; the confirmation prompt now reads `[t/y]trash  [D]delete permanently  [Esc]cancel`
+- Status message after trash shows `Trashed N items [u to undo]` to make the undo path discoverable
+
+### Added
+- **Trash / soft-delete**: files moved to `~/.Trash` (macOS) or `$XDG_DATA_HOME/Trash/files` (Linux/other) instead of being permanently removed
+- **Linux `.trashinfo` sidecars**: written to `$XDG_DATA_HOME/Trash/info/` for Nautilus/Thunar compatibility; deletion timestamp formatted as ISO 8601 UTC using pure Rust arithmetic
+- **Collision handling**: if a same-named file already exists in the trash, appends ` (2)`, ` (3)`, … to the stem (up to 100 attempts)
+- `u` undoes the last trash operation, restoring all items in that group to their original paths; shows `Restored: name` or an error if the trash slot is gone
+- `[D]` in the confirmation prompt permanently deletes immediately (previous `y` behaviour, now explicit)
+- New `src/trash.rs` module: `trash_path`, `restore_path`, `platform_trash_dir`, `unique_trash_dest`; 6 unit tests covering no-collision dest, one-collision dest, dotfile naming, trash→restore roundtrip, missing-file error, and platform dir resolution
+
 ## [0.13.0] - 2026-03-24
 
 
