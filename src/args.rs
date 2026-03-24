@@ -86,6 +86,7 @@ pub fn print_help() {
     println!("    #           Toggle line numbers in preview pane");
     println!("    i           Toggle gitignore filter (hide .gitignored files)");
     println!("    d           Toggle diff preview R           Refresh git status");
+    println!("    V           Toggle git log preview (file/dir commit history)");
     println!("    H           Toggle hash preview (SHA-256 checksum)");
     println!("    w           Toggle preview pane (hide/show right pane)");
     println!("    T           Toggle modification timestamps / file sizes in listing");

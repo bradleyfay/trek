@@ -3025,3 +3025,53 @@ fn frecency_push_char_filters_by_name() {
     assert_eq!(matched, &alpha);
     let _ = std::fs::remove_dir_all(&tmp);
 }
+
+/// Given: a fresh App
+/// When: toggle_git_log_preview is called
+/// Then: git_log_mode becomes true
+#[test]
+fn toggle_git_log_preview_enables_mode() {
+    let tmp = std::env::temp_dir().join(format!("trek_glog_on_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("f.txt"), b"hi").unwrap();
+    let mut app = make_app_at(&tmp);
+    assert!(!app.git_log_mode);
+    app.toggle_git_log_preview();
+    assert!(app.git_log_mode);
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: git_log_mode is already true
+/// When: toggle_git_log_preview is called again
+/// Then: git_log_mode becomes false
+#[test]
+fn toggle_git_log_preview_disables_mode() {
+    let tmp = std::env::temp_dir().join(format!("trek_glog_off_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("f.txt"), b"hi").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.toggle_git_log_preview();
+    app.toggle_git_log_preview();
+    assert!(!app.git_log_mode);
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: diff_preview_mode and meta_preview_mode are active
+/// When: toggle_git_log_preview is called
+/// Then: git_log_mode is true and diff_preview_mode, meta_preview_mode are false
+#[test]
+fn toggle_git_log_preview_clears_other_modes() {
+    let tmp = std::env::temp_dir().join(format!("trek_glog_excl_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("f.txt"), b"hi").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.diff_preview_mode = true;
+    app.meta_preview_mode = true;
+    app.hash_preview_mode = true;
+    app.toggle_git_log_preview();
+    assert!(app.git_log_mode);
+    assert!(!app.diff_preview_mode);
+    assert!(!app.meta_preview_mode);
+    assert!(!app.hash_preview_mode);
+    let _ = std::fs::remove_dir_all(&tmp);
+}

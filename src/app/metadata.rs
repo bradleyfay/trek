@@ -24,6 +24,7 @@ impl App {
         if self.hash_preview_mode {
             self.meta_preview_mode = false;
             self.diff_preview_mode = false;
+            self.git_log_mode = false; // mutually exclusive
         }
         self.load_preview();
     }
@@ -119,6 +120,7 @@ impl App {
         if self.meta_preview_mode {
             self.diff_preview_mode = false;
             self.hash_preview_mode = false; // mutually exclusive
+            self.git_log_mode = false; // mutually exclusive
         }
         self.load_preview();
     }

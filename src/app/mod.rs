@@ -174,6 +174,11 @@ pub struct App {
     /// Mutually exclusive with meta_preview_mode and diff_preview_mode.
     pub hash_preview_mode: bool,
 
+    // --- Git log preview (V) ---
+    /// When true the preview pane shows `git log --oneline -30 -- <path>`.
+    /// Mutually exclusive with diff_preview_mode, meta_preview_mode, hash_preview_mode.
+    pub git_log_mode: bool,
+
     // --- chmod editor (P) ---
     /// True while the chmod input bar is open.
     pub chmod_mode: bool,
@@ -427,6 +432,7 @@ impl App {
             preview_is_diff: false,
             meta_preview_mode: false,
             hash_preview_mode: false,
+            git_log_mode: false,
             chmod_mode: false,
             chmod_input: String::new(),
             highlighter: Highlighter::new(),

@@ -791,6 +791,8 @@ fn draw_preview_pane(f: &mut Frame, app: &App, area: Rect) {
                 format!("{} [hash]", e.name)
             } else if app.meta_preview_mode {
                 format!("{} [meta]", e.name)
+            } else if app.git_log_mode {
+                format!("{} [log]", e.name)
             } else {
                 e.name.clone()
             };
@@ -1930,7 +1932,7 @@ fn draw_yank_picker(f: &mut Frame, app: &App, size: Rect) {
 
 fn draw_help_overlay(f: &mut Frame, size: Rect) {
     let width = 60u16.min(size.width.saturating_sub(4));
-    let height = 86u16.min(size.height.saturating_sub(4));
+    let height = 88u16.min(size.height.saturating_sub(4));
     let x = (size.width.saturating_sub(width)) / 2;
     let y = (size.height.saturating_sub(height)) / 2;
     let area = Rect::new(x, y, width, height);
@@ -1976,6 +1978,7 @@ fn draw_help_overlay(f: &mut Frame, size: Rect) {
         key_line("#", "Toggle line numbers in preview pane"),
         key_line("i", "Toggle gitignore filter (hide ignored files)"),
         key_line("d", "Toggle git diff preview"),
+        key_line("V", "Toggle git log preview (commit history)"),
         key_line("m", "Toggle file metadata view"),
         key_line("H", "Toggle hash preview (SHA-256 checksum)"),
         key_line("w", "Toggle preview pane (hide/show)"),

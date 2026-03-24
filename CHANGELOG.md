@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.40.0] - 2026-03-24
+
+### Added
+- **`V` — git log preview**: press `V` to toggle `git log --oneline -30 -- <path>` in the preview pane for the selected file or directory
+- Works for directories too — shows commits that touched any file in the subtree
+- Preview pane title shows `[log]` when git log mode is active
+- Gracefully degrades outside git repos: shows `"(git log failed — not a git repository?)"` or `"(no commits for this path yet)"`
+- Mutually exclusive with diff (`d`), meta (`m`), and hash (`H`) preview modes
+- `V` scrollable with `[`/`]` like all other preview content
+- `ToggleGitLogPreview` registered in the command palette and `?` help overlay
+
 ## [0.39.0] - 2026-03-24
 
 ### Added
