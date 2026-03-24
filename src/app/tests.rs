@@ -999,3 +999,155 @@ fn hide_gitignored_field_toggles() {
 
     let _ = std::fs::remove_dir_all(&tmp);
 }
+
+// ── path jump bar tests ──────────────────────────────────────────────────────
+
+/// Given: normal mode
+/// When: begin_path_jump() is called
+/// Then: path_mode is true, path_input is empty
+#[test]
+fn begin_path_jump_opens_bar() {
+    let tmp = std::env::temp_dir().join(format!("trek_pj_begin_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let mut app = make_app_at(&tmp);
+    assert!(!app.path_mode);
+    app.begin_path_jump();
+    assert!(app.path_mode);
+    assert!(app.path_input.is_empty());
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: path jump bar is open
+/// When: cancel_path_jump() is called
+/// Then: path_mode is false, input cleared, cwd unchanged
+#[test]
+fn cancel_path_jump_clears_without_navigating() {
+    let tmp = std::env::temp_dir().join(format!("trek_pj_cancel_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let mut app = make_app_at(&tmp);
+    let original_cwd = app.cwd.clone();
+    app.begin_path_jump();
+    app.path_push_char('/');
+    app.path_push_char('t');
+    app.path_push_char('m');
+    app.path_push_char('p');
+    app.cancel_path_jump();
+    assert!(!app.path_mode);
+    assert!(app.path_input.is_empty());
+    assert_eq!(app.cwd, original_cwd);
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: path jump bar with empty input
+/// When: confirm_path_jump() is called
+/// Then: bar closes silently (no crash, no navigation)
+#[test]
+fn confirm_path_jump_empty_input_cancels_silently() {
+    let tmp = std::env::temp_dir().join(format!("trek_pj_empty_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let mut app = make_app_at(&tmp);
+    app.begin_path_jump();
+    app.confirm_path_jump();
+    assert!(!app.path_mode);
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: path jump bar with a valid absolute directory path
+/// When: confirm_path_jump() is called
+/// Then: cwd changes to the target directory, history entry pushed
+#[test]
+fn confirm_path_jump_absolute_dir_navigates() {
+    let tmp = std::env::temp_dir().join(format!("trek_pj_abs_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let target = std::env::temp_dir().join(format!("trek_pj_target_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&target);
+    let canonical_target = target.canonicalize().unwrap();
+
+    let mut app = make_app_at(&tmp);
+    app.begin_path_jump();
+    for c in canonical_target.to_string_lossy().chars() {
+        app.path_push_char(c);
+    }
+    app.confirm_path_jump();
+
+    assert!(!app.path_mode, "bar should be closed after navigation");
+    assert_eq!(app.cwd, canonical_target, "cwd should be the target dir");
+
+    let _ = std::fs::remove_dir_all(&tmp);
+    let _ = std::fs::remove_dir_all(&target);
+}
+
+/// Given: path jump bar with a path to an existing file
+/// When: confirm_path_jump() is called
+/// Then: cwd becomes the file's parent directory and the file is selected
+#[test]
+fn confirm_path_jump_file_path_navigates_to_parent() {
+    let tmp = std::env::temp_dir().join(format!("trek_pj_file_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let file = tmp.join("target_file.txt");
+    std::fs::write(&file, b"content").unwrap();
+    let canonical_file = file.canonicalize().unwrap();
+    let canonical_dir = tmp.canonicalize().unwrap();
+
+    let start = std::env::temp_dir().join(format!("trek_pj_start_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&start);
+    let mut app = make_app_at(&start);
+    app.begin_path_jump();
+    for c in canonical_file.to_string_lossy().chars() {
+        app.path_push_char(c);
+    }
+    app.confirm_path_jump();
+
+    assert!(!app.path_mode, "bar should be closed");
+    assert_eq!(app.cwd, canonical_dir, "cwd should be file's parent");
+    // Cursor should be on target_file.txt
+    let selected_name = app.entries.get(app.selected).map(|e| e.name.as_str());
+    assert_eq!(
+        selected_name,
+        Some("target_file.txt"),
+        "cursor should land on the file"
+    );
+
+    let _ = std::fs::remove_dir_all(&tmp);
+    let _ = std::fs::remove_dir_all(&start);
+}
+
+/// Given: path jump bar with a nonexistent path
+/// When: confirm_path_jump() is called
+/// Then: status message is shown and bar stays open
+#[test]
+fn confirm_path_jump_nonexistent_path_shows_error() {
+    let tmp = std::env::temp_dir().join(format!("trek_pj_noex_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let mut app = make_app_at(&tmp);
+    app.begin_path_jump();
+    // Type a path that cannot exist
+    for c in "/absolutely/does/not/exist/xyz_99999".chars() {
+        app.path_push_char(c);
+    }
+    app.confirm_path_jump();
+
+    // Bar stays open for correction
+    assert!(app.path_mode, "bar should stay open on error");
+    assert!(app.status_message.is_some(), "status message should be set");
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: path jump bar with push/pop char
+/// When: characters are added and removed
+/// Then: path_input reflects changes correctly
+#[test]
+fn path_jump_push_pop_char() {
+    let tmp = std::env::temp_dir().join(format!("trek_pj_chars_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let mut app = make_app_at(&tmp);
+    app.begin_path_jump();
+    app.path_push_char('/');
+    app.path_push_char('t');
+    app.path_push_char('m');
+    app.path_push_char('p');
+    assert_eq!(app.path_input, "/tmp");
+    app.path_pop_char();
+    assert_eq!(app.path_input, "/tm");
+    let _ = std::fs::remove_dir_all(&tmp);
+}

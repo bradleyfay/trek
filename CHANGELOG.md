@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-03-24
+
+### Added
+- **`e` — path jump bar**: opens a bottom input bar where the user can type any absolute path, relative path, or `~/…` path; `Enter` navigates there, `Esc` cancels; if the target is a file, trek navigates to its parent directory and places the cursor on the file
+- Non-existent paths show an error in the status bar and leave the bar open for correction
+- `e` registered in the command palette as `"Jump to path (path jump bar)"`
+- `e` documented in help overlay (`?`) under Navigation and in `--help` output
+- 7 new unit tests covering: open/cancel, empty-input silent cancel, absolute dir navigation, file path navigates to parent and selects file, nonexistent path error, push/pop char
+
 ## [0.20.0] - 2026-03-24
 
 ### Added
