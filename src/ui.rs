@@ -915,6 +915,17 @@ fn draw_preview_pane(f: &mut Frame, app: &App, area: Rect) {
             ))
             .right_aligned(),
         );
+    // Show a loading placeholder while the async preview thread is working.
+    if app.preview_loading && app.preview_lines.is_empty() {
+        let placeholder = Paragraph::new(Line::from(Span::styled(
+            " Loading\u{2026}",
+            Style::default().fg(Color::DarkGray),
+        )))
+        .block(block);
+        f.render_widget(placeholder, content_area);
+        return;
+    }
+
     let para = if app.preview_wrap {
         Paragraph::new(lines)
             .wrap(Wrap { trim: false })

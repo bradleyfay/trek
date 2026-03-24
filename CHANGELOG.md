@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.57.0] - 2026-03-24
+
+### Added
+- **Async non-blocking preview rendering** — the preview pane now loads file contents, git diffs, directory listings, hex dumps, and all other preview modes on a background thread. Trek remains fully interactive while large files highlight or diffs are computed. A `"Loading…"` placeholder is shown immediately while the background job runs. Navigating to a new file while a preview is still in flight automatically cancels the in-progress render and starts a fresh one — no stale results are ever displayed.
+
 ## [0.56.1] - 2026-03-24
 
 ### Fixed
