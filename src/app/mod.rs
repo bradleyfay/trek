@@ -13,6 +13,7 @@ mod content;
 mod file_ops;
 mod filter;
 mod find;
+mod gitignore;
 mod layout;
 mod metadata;
 mod mouse;
@@ -271,6 +272,14 @@ pub struct App {
     pub quick_rename_mode: bool,
     /// The text currently in the quick rename input bar.
     pub quick_rename_input: String,
+
+    // --- Gitignore-aware listing (i) ---
+    /// When true, gitignored entries are hidden from the current listing.
+    /// Persists across directory navigation for the session (like show_hidden).
+    pub hide_gitignored: bool,
+    /// Cached set of gitignored entry names for the current directory.
+    /// Populated by load_dir() when hide_gitignored is true.
+    pub gitignored_names: std::collections::HashSet<String>,
 }
 
 #[derive(Clone)]
@@ -368,6 +377,8 @@ impl App {
             palette_filtered: palette::filter_palette(""),
             quick_rename_mode: false,
             quick_rename_input: String::new(),
+            hide_gitignored: false,
+            gitignored_names: std::collections::HashSet::new(),
         };
         app.load_dir();
         Ok(app)
@@ -395,6 +406,17 @@ impl App {
             let pattern = self.filter_input.to_lowercase();
             self.entries
                 .retain(|e| e.name.to_lowercase().contains(&pattern));
+        }
+
+        // Hide gitignored entries when the toggle is active.
+        if self.hide_gitignored {
+            self.gitignored_names = crate::git::load_ignored(&self.cwd);
+            if !self.gitignored_names.is_empty() {
+                self.entries
+                    .retain(|e| !self.gitignored_names.contains(&e.name));
+            }
+        } else {
+            self.gitignored_names.clear();
         }
 
         if self.selected >= self.entries.len() {

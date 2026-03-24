@@ -12,6 +12,7 @@ pub enum ActionId {
     HistoryBack,
     HistoryForward,
     ToggleHidden,
+    ToggleGitignored,
     ToggleDiffPreview,
     ToggleMetaPreview,
     RefreshGitStatus,
@@ -82,6 +83,11 @@ pub static PALETTE_ACTIONS: &[PaletteAction] = &[
         id: ActionId::ToggleHidden,
         name: "Toggle hidden files",
         keys: ".",
+    },
+    PaletteAction {
+        id: ActionId::ToggleGitignored,
+        name: "Toggle gitignore filter (hide ignored files)",
+        keys: "i",
     },
     PaletteAction {
         id: ActionId::ToggleDiffPreview,

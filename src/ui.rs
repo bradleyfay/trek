@@ -207,6 +207,16 @@ fn draw_path_bar(f: &mut Frame, app: &App, area: Rect) {
         spans.push(Span::styled("  [H]", Style::default().fg(Color::DarkGray)));
     }
 
+    // Gitignore filter badge — shown next to the git branch indicator.
+    if app.hide_gitignored {
+        spans.push(Span::styled(
+            "  [ignore]",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ));
+    }
+
     if let Some(branch) = app.git_status.as_ref().and_then(|g| g.branch.as_ref()) {
         spans.push(Span::styled(
             format!("  ({})", branch),
@@ -1416,7 +1426,7 @@ fn draw_palette_overlay(f: &mut Frame, app: &App, size: Rect) {
 
 fn draw_help_overlay(f: &mut Frame, size: Rect) {
     let width = 60u16.min(size.width.saturating_sub(4));
-    let height = 51u16.min(size.height.saturating_sub(4));
+    let height = 52u16.min(size.height.saturating_sub(4));
     let x = (size.width.saturating_sub(width)) / 2;
     let y = (size.height.saturating_sub(height)) / 2;
     let area = Rect::new(x, y, width, height);
@@ -1448,6 +1458,7 @@ fn draw_help_overlay(f: &mut Frame, size: Rect) {
         Line::from(""),
         // ── View ────────────────────────────────────────────────────────────
         section_header("View"),
+        key_line("i", "Toggle gitignore filter (hide ignored files)"),
         key_line("d", "Toggle git diff preview"),
         key_line("m", "Toggle file metadata view"),
         key_line("P", "Edit file permissions (chmod)"),

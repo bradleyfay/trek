@@ -75,6 +75,7 @@ pub fn print_help() {
     println!("    ~           Go to home         .           Toggle hidden files");
     println!("    /           Fuzzy search       Ctrl+F      Content search (rg)");
     println!("    y / Y       Yank relative / absolute path");
+    println!("    i           Toggle gitignore filter (hide .gitignored files)");
     println!("    d           Toggle diff preview R           Refresh git status");
     println!("    Space       Toggle file selection v          Select all files");
     println!("    n / F2      Quick rename (inline bar pre-filled with current name)");
