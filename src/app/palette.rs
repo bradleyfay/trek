@@ -65,6 +65,8 @@ pub enum ActionId {
     OpenFrecency,
     ToggleChangeFeed,
     ToggleTaskManager,
+    ToggleSessionSummary,
+    ResetSessionCheckpoint,
     ShowHelp,
     OpenInCmuxTab,
     OpenToTheRight,
@@ -385,6 +387,16 @@ pub static PALETTE_ACTIONS: &[PaletteAction] = &[
         id: ActionId::ToggleTaskManager,
         name: "Toggle task manager (background file operations)",
         keys: "Ctrl+T",
+    },
+    PaletteAction {
+        id: ActionId::ToggleSessionSummary,
+        name: "Session summary (files changed since checkpoint)",
+        keys: "Ctrl+S",
+    },
+    PaletteAction {
+        id: ActionId::ResetSessionCheckpoint,
+        name: "Reset session checkpoint (start tracking changes from now)",
+        keys: "C (in session summary)",
     },
     PaletteAction {
         id: ActionId::ShowHelp,

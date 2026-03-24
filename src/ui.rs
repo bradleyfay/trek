@@ -1,3 +1,5 @@
+use crate::app::session_snapshot::ChangeKind;
+use crate::app::session_summary::count_by_kind;
 use crate::app::{format_dir_count, format_listing_date, format_size, App, SortMode, SortOrder};
 use crate::git::FileStatus;
 use crate::icons::icon_for_entry;
@@ -76,7 +78,9 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     app.ensure_parent_visible(pane_chunks[0].height);
 
     draw_parent_pane(f, app, pane_chunks[0]);
-    if app.content_search_mode {
+    if app.session_summary_mode {
+        draw_session_summary_pane(f, app, pane_chunks[1]);
+    } else if app.content_search_mode {
         draw_content_search_pane(f, app, pane_chunks[1]);
     } else if app.find_mode {
         draw_find_pane(f, app, pane_chunks[1]);
@@ -120,6 +124,20 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         draw_filter_bar(f, app, bottom_area);
     } else if app.search_mode {
         draw_search_bar(f, app, bottom_area);
+    } else if app.session_summary_mode {
+        let para = Paragraph::new(Line::from(vec![
+            Span::styled(
+                " [session summary] ",
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                "j/k: navigate  l/Enter: go to file  C: reset checkpoint  R: refresh  Esc: exit",
+                Style::default().fg(Color::DarkGray),
+            ),
+        ]));
+        f.render_widget(para, bottom_area);
     } else if let Some(ref msg) = app.status_message {
         let para = Paragraph::new(Line::from(Span::styled(
             msg.as_str(),
@@ -2328,4 +2346,170 @@ fn draw_task_manager_pane(f: &mut Frame, app: &App, area: Rect) {
         };
         f.render_widget(Paragraph::new(footer), footer_area);
     }
+}
+
+/// Render the session change summary in the center pane.
+///
+/// Shows files grouped as NEW / MODIFIED / DELETED with a checkpoint header.
+fn draw_session_summary_pane(f: &mut Frame, app: &App, area: Rect) {
+    use std::time::{Duration, SystemTime};
+
+    // ── Build header ──────────────────────────────────────────────────────────
+    let (checkpoint_label, file_count) = if let Some(ref snap) = app.session_snapshot {
+        let elapsed = SystemTime::now()
+            .duration_since(snap.taken_at)
+            .unwrap_or(Duration::ZERO);
+        let mins = elapsed.as_secs() / 60;
+        let elapsed_str = if mins == 0 {
+            "just now".to_string()
+        } else if mins < 60 {
+            format!("{} min ago", mins)
+        } else {
+            format!("{} hr ago", mins / 60)
+        };
+        let total = app.session_summary_total;
+        (
+            format!("checkpoint: {} — {} files changed", elapsed_str, total),
+            total,
+        )
+    } else {
+        ("no checkpoint yet".to_string(), 0)
+    };
+
+    let title = format!(" SESSION CHANGES  ({}) ", checkpoint_label);
+
+    let block = Block::default()
+        .title(title.as_str())
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::Cyan));
+
+    let inner = block.inner(area);
+    f.render_widget(block, area);
+
+    if inner.height == 0 {
+        return;
+    }
+
+    let empty_cache = Vec::new();
+    let cache = app.session_summary_cache.as_deref().unwrap_or(&empty_cache);
+
+    if file_count == 0 {
+        let para = Paragraph::new(Line::from(Span::styled(
+            "  No changes since checkpoint",
+            Style::default().fg(Color::DarkGray),
+        )));
+        f.render_widget(para, inner);
+        return;
+    }
+
+    // ── Build list items ──────────────────────────────────────────────────────
+    let new_count = count_by_kind(cache, &ChangeKind::New);
+    let mod_count = count_by_kind(cache, &ChangeKind::Modified);
+    let del_count = count_by_kind(cache, &ChangeKind::Deleted);
+    let sel = app.session_summary_selected;
+
+    let mut items: Vec<ListItem> = Vec::new();
+
+    if new_count > 0 {
+        items.push(ListItem::new(Line::from(Span::styled(
+            format!("  NEW ({})", new_count),
+            Style::default()
+                .fg(Color::Green)
+                .add_modifier(Modifier::BOLD),
+        ))));
+        for (idx, entry) in cache.iter().enumerate() {
+            if entry.kind == ChangeKind::New {
+                let name = entry.path.to_string_lossy();
+                let size_label = format_size(entry.size);
+                let style = if sel == idx {
+                    Style::default()
+                        .fg(Color::Black)
+                        .bg(Color::Green)
+                        .add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().fg(Color::Green)
+                };
+                let text = format!(
+                    "  ├── {:48}  {}",
+                    truncate_with_ellipsis(&name, 48),
+                    size_label
+                );
+                items.push(ListItem::new(Line::from(Span::styled(text, style))));
+            }
+        }
+    }
+
+    if mod_count > 0 {
+        items.push(ListItem::new(Line::from(Span::styled(
+            format!("  MODIFIED ({})", mod_count),
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ))));
+        for (idx, entry) in cache.iter().enumerate() {
+            if entry.kind == ChangeKind::Modified {
+                let name = entry.path.to_string_lossy();
+                let delta = entry.size as i64 - entry.old_size as i64;
+                let delta_label = if delta >= 0 {
+                    format!("+{}", format_size(delta as u64))
+                } else {
+                    format!("-{}", format_size((-delta) as u64))
+                };
+                let style = if sel == idx {
+                    Style::default()
+                        .fg(Color::Black)
+                        .bg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().fg(Color::Yellow)
+                };
+                let text = format!(
+                    "  ├── {:48}  {}",
+                    truncate_with_ellipsis(&name, 48),
+                    delta_label
+                );
+                items.push(ListItem::new(Line::from(Span::styled(text, style))));
+            }
+        }
+    }
+
+    if del_count > 0 {
+        items.push(ListItem::new(Line::from(Span::styled(
+            format!("  DELETED ({})", del_count),
+            Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+        ))));
+        for (idx, entry) in cache.iter().enumerate() {
+            if entry.kind == ChangeKind::Deleted {
+                let name = entry.path.to_string_lossy();
+                let size_label = format!("was {}", format_size(entry.old_size));
+                let style = if sel == idx {
+                    Style::default()
+                        .fg(Color::Black)
+                        .bg(Color::Red)
+                        .add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().fg(Color::Red)
+                };
+                let text = format!(
+                    "  ├── {:48}  {}",
+                    truncate_with_ellipsis(&name, 48),
+                    size_label
+                );
+                items.push(ListItem::new(Line::from(Span::styled(text, style))));
+            }
+        }
+    }
+
+    if app.session_summary_total > crate::app::session_snapshot::MAX_DIFF_ENTRIES {
+        items.push(ListItem::new(Line::from(Span::styled(
+            format!(
+                "  … and {} more",
+                app.session_summary_total - crate::app::session_snapshot::MAX_DIFF_ENTRIES
+            ),
+            Style::default().fg(Color::DarkGray),
+        ))));
+    }
+
+    let list = List::new(items);
+    f.render_widget(list, inner);
 }

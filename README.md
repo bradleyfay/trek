@@ -25,8 +25,13 @@ Adds an `m` function to your shell that launches trek and `cd`s into whatever di
 ## What it does
 
 - Three-pane layout: parent directory, current directory, file preview
+- Browse archive contents without extracting — press `l`/`Enter` on any `.zip`, `.jar`, `.tar.gz`, `.tgz`, or similar archive to enter a virtual filesystem browser with the same three-pane layout; navigate inside it exactly like the real filesystem and press `Esc` to return
+- Preview pane renders on a background thread — Trek stays interactive while large files highlight or diffs compute; navigating away cancels any in-flight render so stale results are never shown
+- Images (`.png`, `.jpg`, `.gif`, `.webp`, and others) show a metadata card with format, file size, and pixel dimensions; when `chafa` is installed, they also render as inline Unicode/sixel art at 72 columns
+- PDFs show format, PDF version, and file size; when `pdfinfo` (poppler-utils) is installed, full document metadata is shown instead
 - File tree auto-refreshes when the filesystem changes (watch mode on by default)
 - Live change feed shows real-time filesystem events as they happen (`F`)
+- Copy, move, and archive extraction run on background threads — Trek stays interactive during large transfers; monitor progress in the task manager (`Ctrl+T`)
 - Git status shown inline — modified, staged, untracked, deleted
 - Full-text search across the project via ripgrep (`Ctrl+F`)
 - Fuzzy file name filtering (`/`)
@@ -93,19 +98,56 @@ If no config file exists, Trek falls back to:
 | `Ctrl+F` | Full-text search (ripgrep) |
 | `y` / `Y` | Yank relative / absolute path |
 | `F` | Toggle live change feed |
+| `Ctrl+T` | Task manager (background copy/move/extract operations) |
 | `F9` | Clipboard inspector |
 | `I` | Toggle watch mode (pauses change feed when off) |
 | `?` | Help overlay |
 | `:` | Command palette |
+| `Esc` | Exit archive mode / dismiss overlay |
 | `q` | Quit |
 
 Press `:` or `?` to see everything else.
+
+## Archive navigation
+
+Pressing `l` or `Enter` on any supported archive enters a virtual filesystem browser. The three-pane layout, preview pane, and all navigation keys work exactly as they do on the real filesystem.
+
+**Supported formats**
+
+| Format | Extensions | Implementation |
+|--------|------------|----------------|
+| Zip-family | `.zip`, `.jar`, `.war`, `.ear` | Bundled `zip` crate — no external tools needed |
+| Tar (uncompressed) | `.tar` | System `tar` |
+| Tar + Gzip | `.tar.gz`, `.tgz` | System `tar` |
+| Tar + Bzip2 | `.tar.bz2` | System `tar` |
+| Tar + XZ | `.tar.xz` | System `tar` |
+| Tar + Zstandard | `.tar.zst` | System `tar` |
+
+**Navigating inside an archive**
+
+- `j` / `k` — move down / up through entries
+- `l` / `Enter` — step into a virtual directory, or extract a file to a temp directory and show its preview
+- `h` / `←` — step back out to the parent virtual directory
+- `Esc` — exit archive mode entirely and return to the real filesystem
+
+The path bar shows a breadcrumb for your position inside the archive, for example `archive.zip / src / utils`, with navigation hints while archive mode is active.
 
 ## Build from source
 
 ```sh
 cargo build --release
 ```
+
+### Optional tools
+
+These tools are not required but enhance the preview pane when present:
+
+| Tool | What it enables |
+|------|-----------------|
+| `chafa` | Renders raster images as inline Unicode/sixel art in the preview pane |
+| `pdfinfo` (poppler-utils) | Shows full document metadata for PDF files |
+
+Trek detects both at runtime. If either is absent, it falls back gracefully and shows a short install hint in the preview pane.
 
 ## License
 
