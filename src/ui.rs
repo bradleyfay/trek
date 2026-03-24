@@ -192,6 +192,11 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         draw_yank_picker(f, app, size);
     }
 
+    // Clipboard inspector overlay.
+    if app.clipboard_inspect_mode {
+        draw_clipboard_inspect_overlay(f, app, size);
+    }
+
     // Command palette overlay (rendered on top of everything else).
     if app.palette_mode {
         draw_palette_overlay(f, app, size);
@@ -1618,6 +1623,87 @@ fn draw_palette_overlay(f: &mut Frame, app: &App, size: Rect) {
     f.render_widget(hint, hint_area);
 }
 
+fn draw_clipboard_inspect_overlay(f: &mut Frame, app: &App, size: Rect) {
+    let (op_label, border_color) = match app.clipboard.as_ref().map(|c| c.op) {
+        Some(ClipboardOp::Copy) => (" Clipboard — copy ", Color::Green),
+        Some(ClipboardOp::Cut) => (" Clipboard — cut ", Color::Yellow),
+        None => (" Clipboard — empty ", Color::DarkGray),
+    };
+
+    let truncate = |s: String| -> String {
+        let max = 52usize;
+        if s.chars().count() > max {
+            format!("{}…", s.chars().take(max - 1).collect::<String>())
+        } else {
+            s
+        }
+    };
+
+    let rows: Vec<Line> = if let Some(clip) = &app.clipboard {
+        clip.paths
+            .iter()
+            .map(|p| {
+                let name = p
+                    .file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| p.to_string_lossy().into_owned());
+                Line::from(truncate(name))
+            })
+            .collect()
+    } else {
+        vec![Line::from(Span::styled(
+            " (nothing in clipboard)",
+            Style::default().fg(Color::DarkGray),
+        ))]
+    };
+
+    let hint = Line::from(vec![
+        Span::styled(
+            " p",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::raw(" paste  "),
+        Span::styled(
+            "Esc",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::raw(" close"),
+    ]);
+
+    let content_height = rows.len() as u16 + 1; // items + hint
+    let height = (content_height + 2).min(size.height.saturating_sub(2)); // +2 border
+    let width = 58u16.min(size.width);
+    let x = 0;
+    let y = size.height.saturating_sub(height + 1); // +1 for status bar
+
+    let area = Rect {
+        x,
+        y,
+        width,
+        height,
+    };
+    f.render_widget(Clear, area);
+    let block = Block::default()
+        .title(op_label)
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(border_color));
+    let inner = block.inner(area);
+    f.render_widget(block, area);
+
+    // Split inner area: items on top, hint on bottom
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Min(1), Constraint::Length(1)])
+        .split(inner);
+
+    f.render_widget(Paragraph::new(rows), chunks[0]);
+    f.render_widget(Paragraph::new(hint), chunks[1]);
+}
+
 fn draw_yank_picker(f: &mut Frame, app: &App, size: Rect) {
     let Some(entry) = app.entries.get(app.selected) else {
         return;
@@ -1692,7 +1778,7 @@ fn draw_yank_picker(f: &mut Frame, app: &App, size: Rect) {
 
 fn draw_help_overlay(f: &mut Frame, size: Rect) {
     let width = 60u16.min(size.width.saturating_sub(4));
-    let height = 82u16.min(size.height.saturating_sub(4));
+    let height = 84u16.min(size.height.saturating_sub(4));
     let x = (size.width.saturating_sub(width)) / 2;
     let y = (size.height.saturating_sub(height)) / 2;
     let area = Rect::new(x, y, width, height);
@@ -1764,6 +1850,7 @@ fn draw_help_overlay(f: &mut Frame, size: Rect) {
         key_line("O", "Open with system default (background)"),
         key_line("c / C", "Copy current / selected"),
         key_line("x", "Cut current to clipboard"),
+        key_line("F", "Inspect clipboard contents"),
         key_line("p", "Paste clipboard into current dir"),
         key_line("Delete / X", "Trash current / selected (recoverable)"),
         key_line("u", "Undo last trash operation"),

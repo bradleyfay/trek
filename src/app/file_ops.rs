@@ -491,4 +491,14 @@ impl App {
     pub fn symlink_pop_char(&mut self) {
         self.symlink_input.pop();
     }
+
+    /// Open the clipboard inspector overlay.
+    pub fn open_clipboard_inspect(&mut self) {
+        self.clipboard_inspect_mode = true;
+    }
+
+    /// Close the clipboard inspector overlay without taking any action.
+    pub fn close_clipboard_inspect(&mut self) {
+        self.clipboard_inspect_mode = false;
+    }
 }

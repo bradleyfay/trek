@@ -320,6 +320,10 @@ pub struct App {
     /// When true, the listing shows last-modified dates instead of file sizes.
     pub show_timestamps: bool,
 
+    // --- Clipboard inspector (F) ---
+    /// True while the clipboard contents overlay is open.
+    pub clipboard_inspect_mode: bool,
+
     // --- Glob pattern selection (*) ---
     /// True while the glob pattern input bar is open.
     pub glob_mode: bool,
@@ -478,6 +482,7 @@ impl App {
             dup_mode: false,
             dup_input: String::new(),
             dup_src: None,
+            clipboard_inspect_mode: false,
         };
         app.load_dir();
         Ok(app)

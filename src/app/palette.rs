@@ -58,6 +58,7 @@ pub enum ActionId {
     GlobSelect,
     BeginDup,
     BeginSymlink,
+    InspectClipboard,
     ShowHelp,
     Quit,
 }
@@ -331,6 +332,11 @@ pub static PALETTE_ACTIONS: &[PaletteAction] = &[
         id: ActionId::BeginSymlink,
         name: "Create symlink to selected entry",
         keys: "L",
+    },
+    PaletteAction {
+        id: ActionId::InspectClipboard,
+        name: "Inspect clipboard contents",
+        keys: "F",
     },
     PaletteAction {
         id: ActionId::ShowHelp,

@@ -97,7 +97,7 @@ pub fn print_help() {
     println!("    r           Bulk rename selected files with regex  Esc  Clear selections");
     println!("    o           Open in $EDITOR        O           Open with system default");
     println!("    c           Copy current to clipboard C          Copy selected to clipboard");
-    println!("    x           Cut current to clipboard");
+    println!("    x           Cut current to clipboard  F           Inspect clipboard contents");
     println!("    p           Paste clipboard       Delete      Delete current file/dir");
     println!("    t           New empty file         M           Make new directory");
     println!("    L           Create symlink to selected entry (Unix only)");
