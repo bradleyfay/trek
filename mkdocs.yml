@@ -1,0 +1,79 @@
+site_name: Trek
+site_description: A terminal-first visual file browser with mouse-resizable panes
+site_url: https://bradleyfay.github.io/trek/
+repo_url: https://github.com/bradleyfay/trek
+repo_name: bradleyfay/trek
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: teal
+      accent: cyan
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: teal
+      accent: cyan
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.tracking
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.action.edit
+  icon:
+    repo: fontawesome/brands/github
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Installation: getting-started/installation.md
+    - Quick Start: getting-started/quick-start.md
+  - Usage:
+    - Navigation: usage/navigation.md
+    - File Operations: usage/file-operations.md
+    - Preview Pane: usage/preview.md
+    - Search: usage/search.md
+    - Git Integration: usage/git.md
+    - Archives: usage/archives.md
+    - Watch Mode: usage/watch-mode.md
+  - Reference:
+    - All Keybindings: reference/keybindings.md
+    - Command Palette: reference/command-palette.md
+  - Contributing: contributing/index.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - attr_list
+  - def_list
+  - toc:
+      permalink: true
+
+plugins:
+  - search
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/bradleyfay/trek
