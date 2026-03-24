@@ -3569,3 +3569,97 @@ fn load_preview_replaces_old_rx_on_second_call() {
 
     let _ = std::fs::remove_dir_all(&tmp);
 }
+
+// ── Image / PDF preview tests ─────────────────────────────────────────────
+
+/// Given: a directory containing a 1×1 PNG file
+/// When: the PNG is selected and preview is loaded
+/// Then: preview lines contain format and dimension info (not "[binary file]")
+#[test]
+fn image_preview_shows_metadata_not_binary_placeholder() {
+    let tmp = std::env::temp_dir().join(format!("trek_img_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    // Minimal 1×1 red PNG (valid PNG signature + IHDR chunk)
+    let png_bytes: &[u8] = &[
+        0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, // PNG signature
+        0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52, // IHDR length + type
+        0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, // 1×1
+        0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53, // 8-bit RGB + crc
+        0xde, 0x00, 0x00, 0x00, 0x0c, 0x49, 0x44, 0x41, // IDAT
+        0x54, 0x08, 0xd7, 0x63, 0xf8, 0xcf, 0xc0, 0x00, // compressed pixel
+        0x00, 0x00, 0x02, 0x00, 0x01, 0xe2, 0x21, 0xbc, // crc
+        0x33, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, // IEND
+        0x44, 0xae, 0x42, 0x60, 0x82, // IEND crc
+    ];
+    std::fs::write(tmp.join("photo.png"), png_bytes).unwrap();
+    let mut app = make_app_at(&tmp);
+    app.load_preview();
+    wait_for_preview(&mut app);
+
+    let all_lines = app.preview_lines.join("\n");
+    assert!(
+        !all_lines.contains("[binary file]"),
+        "image preview must not show [binary file] placeholder, got: {all_lines}"
+    );
+    assert!(
+        all_lines.to_lowercase().contains("png"),
+        "image preview should mention the format, got: {all_lines}"
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: a directory containing a PDF file
+/// When: the PDF is selected and preview is loaded
+/// Then: preview lines contain useful info (not "[binary file]")
+#[test]
+fn pdf_preview_shows_info_not_binary_placeholder() {
+    let tmp = std::env::temp_dir().join(format!("trek_pdf_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    // Minimal valid-header PDF
+    let pdf_bytes = b"%PDF-1.4\n%%EOF\n";
+    std::fs::write(tmp.join("document.pdf"), pdf_bytes).unwrap();
+    let mut app = make_app_at(&tmp);
+    app.load_preview();
+    wait_for_preview(&mut app);
+
+    let all_lines = app.preview_lines.join("\n");
+    assert!(
+        !all_lines.contains("[binary file]"),
+        "pdf preview must not show [binary file] placeholder, got: {all_lines}"
+    );
+    assert!(
+        all_lines.to_lowercase().contains("pdf"),
+        "pdf preview should identify the file as PDF, got: {all_lines}"
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: a directory containing a JPEG image
+/// When: the JPEG is selected and preview is loaded
+/// Then: preview lines do not show [binary file]
+#[test]
+fn jpeg_preview_shows_metadata() {
+    let tmp = std::env::temp_dir().join(format!("trek_jpg_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    // Minimal JPEG: SOI marker + APP0 JFIF header + EOI
+    let jpeg_bytes: &[u8] = &[
+        0xff, 0xd8, // SOI
+        0xff, 0xe0, 0x00, 0x10, // APP0 marker + length
+        0x4a, 0x46, 0x49, 0x46, 0x00, // "JFIF\0"
+        0x01, 0x01, // version 1.1
+        0x00, 0x00, 0x01, 0x00, 0x01, // aspect ratio 1:1
+        0x00, 0x00, // thumbnail 0x0
+        0xff, 0xd9, // EOI
+    ];
+    std::fs::write(tmp.join("photo.jpg"), jpeg_bytes).unwrap();
+    let mut app = make_app_at(&tmp);
+    app.load_preview();
+    wait_for_preview(&mut app);
+
+    let all_lines = app.preview_lines.join("\n");
+    assert!(
+        !all_lines.contains("[binary file]"),
+        "jpeg preview must not show [binary file], got: {all_lines}"
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}

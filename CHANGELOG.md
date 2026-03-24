@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.58.0] - 2026-03-24
+
+### Added
+- **Image and PDF preview** — raster image files (`.png`, `.jpg`, `.jpeg`, `.gif`, `.bmp`, `.ico`, `.webp`, `.avif`, `.tiff`) and `.pdf` files now display a rich metadata card in the preview pane instead of the previous `[binary file]` placeholder. The card shows format, file size, and pixel dimensions (for images) or PDF version (for PDFs). When [`chafa`](https://hpjansson.org/chafa/) is installed, images are additionally rendered as full-color Unicode/sixel art inline in the preview pane at 72 columns. When [`pdfinfo`](https://poppler.freedesktop.org/) (poppler-utils) is installed, PDFs display their full document metadata. Both tools degrade gracefully when absent — a short install hint is shown instead. SVG files continue to preview as plain-text XML through the existing text path.
+
 ## [0.57.0] - 2026-03-24
 
 ### Added
