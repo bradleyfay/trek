@@ -1,4 +1,4 @@
-use crate::app::{format_listing_date, format_size, App, SortMode, SortOrder};
+use crate::app::{format_dir_count, format_listing_date, format_size, App, SortMode, SortOrder};
 use crate::git::FileStatus;
 use crate::icons::icon_for_entry;
 use crate::ops::ClipboardOp;
@@ -654,11 +654,17 @@ fn draw_current_pane(f: &mut Frame, app: &App, area: Rect) {
             });
 
             let icon = icon_for_entry(&entry.name, entry.is_dir);
-            // Right column: either file size or last-modified timestamp.
-            let right_col_str: String = if entry.is_dir {
+            // Right column priority: timestamps > dir counts > file size.
+            let right_col_str: String = if app.show_timestamps {
+                if entry.is_dir {
+                    String::new()
+                } else {
+                    format_listing_date(entry.modified)
+                }
+            } else if entry.is_dir && app.show_dir_counts {
+                format_dir_count(entry.child_count)
+            } else if entry.is_dir {
                 String::new()
-            } else if app.show_timestamps {
-                format_listing_date(entry.modified)
             } else {
                 format_size(entry.size)
             };
@@ -1686,7 +1692,7 @@ fn draw_yank_picker(f: &mut Frame, app: &App, size: Rect) {
 
 fn draw_help_overlay(f: &mut Frame, size: Rect) {
     let width = 60u16.min(size.width.saturating_sub(4));
-    let height = 80u16.min(size.height.saturating_sub(4));
+    let height = 82u16.min(size.height.saturating_sub(4));
     let x = (size.width.saturating_sub(width)) / 2;
     let y = (size.height.saturating_sub(height)) / 2;
     let area = Rect::new(x, y, width, height);
@@ -1736,6 +1742,7 @@ fn draw_help_overlay(f: &mut Frame, size: Rect) {
         key_line("w", "Toggle preview pane (hide/show)"),
         key_line("T", "Toggle timestamps / sizes in listing"),
         key_line("U", "Toggle preview word wrap"),
+        key_line("N", "Toggle directory item counts"),
         key_line("P", "Edit file permissions (chmod)"),
         key_line("R", "Refresh git status"),
         key_line("S", "Cycle sort: Name/Size/Modified/Ext"),

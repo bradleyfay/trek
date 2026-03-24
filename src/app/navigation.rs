@@ -394,6 +394,18 @@ impl App {
         self.status_message = Some(format!("\u{2192} {} (mark '{}')", short, c));
     }
 
+    // --- Directory item counts (N) ---
+
+    /// Toggle directory child count display between item counts and raw block sizes.
+    pub fn toggle_dir_counts(&mut self) {
+        self.show_dir_counts = !self.show_dir_counts;
+        self.status_message = Some(if self.show_dir_counts {
+            "Dir sizes: item counts".to_string()
+        } else {
+            "Dir sizes: block size".to_string()
+        });
+    }
+
     // --- Preview word wrap (U) ---
 
     /// Toggle soft line-wrapping in the preview pane.

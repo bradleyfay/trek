@@ -312,6 +312,10 @@ pub struct App {
     /// When true, the preview pane soft-wraps long lines at the pane boundary.
     pub preview_wrap: bool,
 
+    // --- Directory item counts (N) ---
+    /// When true, directory entries show child item counts instead of block sizes.
+    pub show_dir_counts: bool,
+
     // --- Listing timestamps (T) ---
     /// When true, the listing shows last-modified dates instead of file sizes.
     pub show_timestamps: bool,
@@ -358,6 +362,9 @@ pub struct DirEntry {
     pub is_dir: bool,
     pub size: u64,
     pub modified: std::time::SystemTime,
+    /// Number of direct children for directory entries; `None` if unreadable.
+    /// Capped at 1001 — a value of 1001 means ">1000 items".
+    pub child_count: Option<u32>,
 }
 
 impl App {
@@ -457,6 +464,7 @@ impl App {
             touch_input: String::new(),
             show_line_numbers: false,
             preview_wrap: false,
+            show_dir_counts: true,
             show_timestamps: false,
             glob_mode: false,
             glob_input: String::new(),
@@ -564,12 +572,20 @@ impl App {
                 let modified = meta
                     .and_then(|m| m.modified().ok())
                     .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+                let child_count = if is_dir {
+                    fs::read_dir(e.path())
+                        .ok()
+                        .map(|rd| rd.take(1001).count() as u32)
+                } else {
+                    None
+                };
                 Some(DirEntry {
                     name,
                     path: e.path(),
                     is_dir,
                     size,
                     modified,
+                    child_count,
                 })
             })
             .take(MAX_ENTRIES + 1) // +1 lets us detect truncation
@@ -764,6 +780,21 @@ pub fn format_listing_date(t: std::time::SystemTime) -> String {
     } else {
         // "2023 Nov  8 " — 12 chars (trailing space for alignment)
         format!("{} {} {:2} ", fy, mon, fd)
+    }
+}
+
+/// Format a directory's child item count for display in the listing.
+///
+/// - `None`: unreadable directory → `"? items"`
+/// - `Some(1001)`: sentinel for >1000 → `">1000 items"`
+/// - `Some(1)`: singular → `"  1 item"`
+/// - Otherwise: `"  N items"` right-aligned in a 3-char number field
+pub fn format_dir_count(count: Option<u32>) -> String {
+    match count {
+        None => "? items".to_string(),
+        Some(n) if n >= 1001 => ">1000 items".to_string(),
+        Some(1) => "  1 item".to_string(),
+        Some(n) => format!("{:>3} items", n),
     }
 }
 
