@@ -100,6 +100,22 @@ impl App {
         Vec::new()
     }
 
+    /// Scroll the preview pane up by `lines` lines.
+    ///
+    /// Clamps at 0 — no-op and no panic when already at the top.
+    pub fn scroll_preview_up(&mut self, lines: usize) {
+        self.preview_scroll = self.preview_scroll.saturating_sub(lines);
+    }
+
+    /// Scroll the preview pane down by `lines` lines.
+    ///
+    /// Clamps at `preview_lines.len() - 1` — no-op when at the bottom or
+    /// when the preview is empty.
+    pub fn scroll_preview_down(&mut self, lines: usize) {
+        let max_scroll = self.preview_lines.len().saturating_sub(1);
+        self.preview_scroll = (self.preview_scroll + lines).min(max_scroll);
+    }
+
     /// Toggle diff preview mode for the currently selected file.
     ///
     /// Has no effect outside a git repo or when the selected item is a

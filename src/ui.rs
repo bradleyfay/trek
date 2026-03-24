@@ -1451,7 +1451,7 @@ fn draw_palette_overlay(f: &mut Frame, app: &App, size: Rect) {
 
 fn draw_help_overlay(f: &mut Frame, size: Rect) {
     let width = 60u16.min(size.width.saturating_sub(4));
-    let height = 56u16.min(size.height.saturating_sub(4));
+    let height = 58u16.min(size.height.saturating_sub(4));
     let x = (size.width.saturating_sub(width)) / 2;
     let y = (size.height.saturating_sub(height)) / 2;
     let area = Rect::new(x, y, width, height);
@@ -1470,6 +1470,7 @@ fn draw_help_overlay(f: &mut Frame, size: Rect) {
         key_line("~", "Go to home directory"),
         key_line(".", "Toggle hidden files"),
         key_line("e", "Jump to path (type any absolute/relative path)"),
+        key_line("[ / ]", "Scroll preview pane up / down (5 lines)"),
         key_line("Ctrl+O", "Go back in directory history"),
         key_line("Ctrl+I", "Go forward in directory history"),
         Line::from(""),

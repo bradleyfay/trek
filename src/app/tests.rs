@@ -1288,3 +1288,109 @@ fn select_move_down_includes_directories() {
     );
     let _ = std::fs::remove_dir_all(&tmp);
 }
+
+// ── preview scroll ([ / ]) tests ─────────────────────────────────────────────
+
+/// Given: a file with 20 lines loaded in preview, scroll at 0
+/// When: scroll_preview_down(5) is called
+/// Then: preview_scroll is 5
+#[test]
+fn scroll_preview_down_advances_offset() {
+    let tmp = std::env::temp_dir().join(format!("trek_pscroll_dn_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let content: String = (1..=20).map(|i| format!("line {}\n", i)).collect();
+    std::fs::write(tmp.join("big.txt"), content.as_bytes()).unwrap();
+    let mut app = make_app_at(&tmp);
+    let idx = app
+        .entries
+        .iter()
+        .position(|e| e.name == "big.txt")
+        .unwrap();
+    app.selected = idx;
+    app.load_preview();
+    assert!(app.preview_lines.len() >= 10, "preview should have lines");
+    app.scroll_preview_down(5);
+    assert_eq!(app.preview_scroll, 5);
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: preview_scroll is 5
+/// When: scroll_preview_up(3) is called
+/// Then: preview_scroll is 2
+#[test]
+fn scroll_preview_up_decreases_offset() {
+    let tmp = std::env::temp_dir().join(format!("trek_pscroll_up_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let content: String = (1..=20).map(|i| format!("line {}\n", i)).collect();
+    std::fs::write(tmp.join("big.txt"), content.as_bytes()).unwrap();
+    let mut app = make_app_at(&tmp);
+    let idx = app
+        .entries
+        .iter()
+        .position(|e| e.name == "big.txt")
+        .unwrap();
+    app.selected = idx;
+    app.load_preview();
+    app.preview_scroll = 5;
+    app.scroll_preview_up(3);
+    assert_eq!(app.preview_scroll, 2);
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: preview_scroll is 0
+/// When: scroll_preview_up(5) is called
+/// Then: preview_scroll stays at 0 (no underflow)
+#[test]
+fn scroll_preview_up_at_top_does_not_underflow() {
+    let tmp = std::env::temp_dir().join(format!("trek_pscroll_top_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("f.txt"), b"hello\nworld\n").unwrap();
+    let mut app = make_app_at(&tmp);
+    let idx = app.entries.iter().position(|e| e.name == "f.txt").unwrap();
+    app.selected = idx;
+    app.load_preview();
+    app.preview_scroll = 0;
+    app.scroll_preview_up(5);
+    assert_eq!(app.preview_scroll, 0);
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: preview_scroll is already at or near max
+/// When: scroll_preview_down(100) is called
+/// Then: preview_scroll does not exceed preview_lines.len() - 1
+#[test]
+fn scroll_preview_down_at_bottom_clamps() {
+    let tmp = std::env::temp_dir().join(format!("trek_pscroll_bot_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let content: String = (1..=10).map(|i| format!("line {}\n", i)).collect();
+    std::fs::write(tmp.join("short.txt"), content.as_bytes()).unwrap();
+    let mut app = make_app_at(&tmp);
+    let idx = app
+        .entries
+        .iter()
+        .position(|e| e.name == "short.txt")
+        .unwrap();
+    app.selected = idx;
+    app.load_preview();
+    let max = app.preview_lines.len().saturating_sub(1);
+    app.scroll_preview_down(100);
+    assert_eq!(app.preview_scroll, max);
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: an empty preview (no file selected / empty file)
+/// When: scroll_preview_down and scroll_preview_up are called
+/// Then: no panic; preview_scroll stays at 0
+#[test]
+fn scroll_preview_on_empty_preview_is_noop() {
+    let tmp = std::env::temp_dir().join(format!("trek_pscroll_empty_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("empty.txt"), b"").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.preview_lines.clear();
+    app.preview_scroll = 0;
+    app.scroll_preview_down(5);
+    app.scroll_preview_up(5);
+    assert_eq!(app.preview_scroll, 0);
+    let _ = std::fs::remove_dir_all(&tmp);
+}

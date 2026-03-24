@@ -74,6 +74,7 @@ pub fn print_help() {
     println!("    g           Go to top          G           Go to bottom");
     println!("    ~           Go to home         .           Toggle hidden files");
     println!("    e           Jump to typed path (absolute, relative, or ~/…)");
+    println!("    [           Scroll preview up 5 lines  ]  Scroll preview down 5 lines");
     println!("    /           Fuzzy search       Ctrl+F      Content search (rg)");
     println!("    y / Y       Yank relative / absolute path");
     println!("    i           Toggle gitignore filter (hide .gitignored files)");
