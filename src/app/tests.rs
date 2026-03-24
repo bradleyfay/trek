@@ -3778,3 +3778,157 @@ fn check_task_rx_delivers_result_and_drains_channel() {
         "task status should be Done"
     );
 }
+
+// ── Archive navigation tests ──────────────────────────────────────────────
+
+/// Given: a directory containing a zip archive with known contents
+/// When: enter_archive is called on the zip file
+/// Then: archive_mode is true and entries list shows archive root contents
+#[test]
+fn enter_archive_loads_root_entries() {
+    use std::io::Write;
+    let tmp = std::env::temp_dir().join(format!("trek_arcnav_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+
+    // Create a minimal zip containing hello.txt and src/main.rs
+    let zip_path = tmp.join("test.zip");
+    {
+        let file = std::fs::File::create(&zip_path).unwrap();
+        let mut zip = zip::ZipWriter::new(file);
+        let opts = zip::write::SimpleFileOptions::default();
+        zip.start_file("hello.txt", opts).unwrap();
+        zip.write_all(b"hello world").unwrap();
+        zip.add_directory("src/", opts).unwrap();
+        zip.start_file("src/main.rs", opts).unwrap();
+        zip.write_all(b"fn main() {}").unwrap();
+        zip.finish().unwrap();
+    }
+
+    let mut app = make_app_at(&tmp);
+    app.enter_archive(zip_path.clone());
+
+    assert!(
+        app.archive_mode,
+        "archive_mode should be true after entering archive"
+    );
+    assert_eq!(app.archive_path, Some(zip_path.clone()));
+    assert_eq!(app.archive_virt_dir, "");
+
+    // Root level should contain hello.txt and src/ (directory)
+    let names: Vec<&str> = app.entries.iter().map(|e| e.name.as_str()).collect();
+    assert!(
+        names.contains(&"hello.txt"),
+        "entries should contain hello.txt, got: {:?}",
+        names
+    );
+    assert!(
+        names.contains(&"src"),
+        "entries should contain src/ directory, got: {:?}",
+        names
+    );
+
+    // src should be a directory
+    let src = app.entries.iter().find(|e| e.name == "src").unwrap();
+    assert!(src.is_dir, "src should be marked as a directory");
+
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: an app browsing the root of a zip archive with a src/ directory
+/// When: archive_enter_dir("src") is called
+/// Then: archive_virt_dir becomes "src/" and entries shows src/main.rs
+#[test]
+fn archive_enter_dir_navigates_into_subdirectory() {
+    use std::io::Write;
+    let tmp = std::env::temp_dir().join(format!("trek_arcdir_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+
+    let zip_path = tmp.join("test.zip");
+    {
+        let file = std::fs::File::create(&zip_path).unwrap();
+        let mut zip = zip::ZipWriter::new(file);
+        let opts = zip::write::SimpleFileOptions::default();
+        zip.add_directory("src/", opts).unwrap();
+        zip.start_file("src/main.rs", opts).unwrap();
+        zip.write_all(b"fn main() {}").unwrap();
+        zip.finish().unwrap();
+    }
+
+    let mut app = make_app_at(&tmp);
+    app.enter_archive(zip_path.clone());
+    app.archive_enter_dir("src".to_string());
+
+    assert_eq!(app.archive_virt_dir, "src/", "virt_dir should be src/");
+    let names: Vec<&str> = app.entries.iter().map(|e| e.name.as_str()).collect();
+    assert!(
+        names.contains(&"main.rs"),
+        "entries should contain main.rs, got: {:?}",
+        names
+    );
+
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: an app browsing src/ inside a zip archive
+/// When: archive_go_up is called
+/// Then: returns to root (virt_dir = "") and archive_mode remains true
+#[test]
+fn archive_go_up_returns_to_parent_directory() {
+    use std::io::Write;
+    let tmp = std::env::temp_dir().join(format!("trek_arcup_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+
+    let zip_path = tmp.join("test.zip");
+    {
+        let file = std::fs::File::create(&zip_path).unwrap();
+        let mut zip = zip::ZipWriter::new(file);
+        let opts = zip::write::SimpleFileOptions::default();
+        zip.add_directory("src/", opts).unwrap();
+        zip.start_file("src/main.rs", opts).unwrap();
+        zip.write_all(b"").unwrap();
+        zip.finish().unwrap();
+    }
+
+    let mut app = make_app_at(&tmp);
+    app.enter_archive(zip_path.clone());
+    app.archive_enter_dir("src".to_string());
+    assert_eq!(app.archive_virt_dir, "src/");
+
+    app.archive_go_up();
+    assert_eq!(app.archive_virt_dir, "", "should be back at root");
+    assert!(app.archive_mode, "should still be in archive mode");
+
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: an app browsing the root of an archive
+/// When: archive_go_up is called (already at root)
+/// Then: exits archive mode completely
+#[test]
+fn archive_go_up_at_root_exits_archive_mode() {
+    use std::io::Write;
+    let tmp = std::env::temp_dir().join(format!("trek_arcesc_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+
+    let zip_path = tmp.join("test.zip");
+    {
+        let file = std::fs::File::create(&zip_path).unwrap();
+        let mut zip = zip::ZipWriter::new(file);
+        let opts = zip::write::SimpleFileOptions::default();
+        zip.start_file("readme.txt", opts).unwrap();
+        zip.write_all(b"hi").unwrap();
+        zip.finish().unwrap();
+    }
+
+    let mut app = make_app_at(&tmp);
+    app.enter_archive(zip_path.clone());
+    assert!(app.archive_mode);
+
+    app.archive_go_up(); // at root → exit archive
+    assert!(
+        !app.archive_mode,
+        "archive mode should be off after going up from root"
+    );
+
+    let _ = std::fs::remove_dir_all(&tmp);
+}

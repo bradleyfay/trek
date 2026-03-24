@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.60.0] - 2026-03-24
+
+### Added
+- **Archive virtual-filesystem browser** — pressing `l` or `Enter` on any archive file (`.zip`, `.jar`, `.war`, `.ear`, `.tar`, `.tar.gz`, `.tgz`, `.tar.bz2`, `.tar.xz`, `.tar.zst`) enters a virtual directory browser. The archive contents are presented as a navigable three-pane tree identical to the regular filesystem view: directories appear first, files below. Navigate with the usual `j`/`k`/`h`/`l` keys. `l`/`Enter` on a virtual directory steps into it; `h`/Left steps back out; `l`/`Enter` on a file extracts it to a temp directory and shows its preview; `Esc` exits archive mode and returns to the real filesystem. The path bar shows a breadcrumb (`archive.zip / src / utils`) with a hint while in archive mode. Zip-family archives use the bundled `zip` crate with no external dependencies; tar archives delegate to the system `tar` command. The feature is implemented as a new, self-contained `archive_nav` module.
+
 ## [0.59.0] - 2026-03-24
 
 ### Added

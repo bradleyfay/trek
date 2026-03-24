@@ -1,6 +1,6 @@
 [package]
 name = "trek"
-version = "0.59.0"
+version = "0.60.0"
 edition = "2021"
 rust-version = "1.80"
 description = "A terminal file manager with mouse-resizable panes"
@@ -19,3 +19,4 @@ two-face = "0.4"
 notify = "6"
 notify-debouncer-mini = "0.4"
 imagesize = "0.12"
+zip = { version = "2", default-features = false, features = ["deflate"] }
