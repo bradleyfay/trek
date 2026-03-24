@@ -8,6 +8,7 @@ mod icons;
 mod ops;
 mod rename;
 mod search;
+mod trash;
 mod ui;
 
 use anyhow::{bail, Result};
@@ -290,9 +291,12 @@ fn run(
                     // Any key closes help overlay.
                     app.show_help = false;
                 } else if !app.pending_delete.is_empty() {
-                    // Delete confirmation: y confirms, anything else cancels.
+                    // t/y → trash (recoverable); D → permanent delete; anything else → cancel.
                     match key.code {
-                        KeyCode::Char('y') | KeyCode::Char('Y') => app.confirm_delete(),
+                        KeyCode::Char('t') | KeyCode::Char('y') | KeyCode::Char('Y') => {
+                            app.confirm_trash()
+                        }
+                        KeyCode::Char('D') => app.confirm_permanent_delete(),
                         _ => app.cancel_delete(),
                     }
                 } else if app.mkdir_mode {
@@ -401,6 +405,7 @@ fn run(
                         KeyCode::Delete => app.begin_delete_current(),
                         KeyCode::Char('X') => app.begin_delete_selected(),
                         KeyCode::Char('M') => app.begin_mkdir(),
+                        KeyCode::Char('u') => app.undo_trash(),
                         KeyCode::Char('b') => app.add_bookmark(),
                         KeyCode::Char('B') => app.open_bookmarks(),
                         KeyCode::Char('S') => app.cycle_sort_mode(),

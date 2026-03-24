@@ -149,6 +149,8 @@ pub struct App {
     pub clipboard: Option<Clipboard>,
     /// Paths pending deletion (non-empty while confirmation prompt is shown).
     pub pending_delete: Vec<PathBuf>,
+    /// The most recent group of trashed items, available for undo with `u`.
+    pub last_trashed: Vec<crate::trash::TrashedEntry>,
     /// True while the mkdir name input bar is open.
     pub mkdir_mode: bool,
     /// Name typed by the user in mkdir mode.
@@ -273,6 +275,7 @@ impl App {
             highlighter: Highlighter::new(),
             clipboard: None,
             pending_delete: Vec::new(),
+            last_trashed: Vec::new(),
             mkdir_mode: false,
             mkdir_input: String::new(),
             content_search_mode: false,
@@ -1325,8 +1328,40 @@ impl App {
         self.pending_delete = paths;
     }
 
-    /// Execute the pending deletion after user confirmation.
-    pub fn confirm_delete(&mut self) {
+    /// Move pending files to the platform trash (recoverable).
+    pub fn confirm_trash(&mut self) {
+        let paths = std::mem::take(&mut self.pending_delete);
+        let mut done = 0usize;
+        let mut errors: Vec<String> = Vec::new();
+        let mut trashed: Vec<crate::trash::TrashedEntry> = Vec::new();
+        for path in &paths {
+            match crate::trash::trash_path(path) {
+                Ok(entry) => {
+                    done += 1;
+                    trashed.push(entry);
+                }
+                Err(e) => errors.push(e.to_string()),
+            }
+        }
+        if !trashed.is_empty() {
+            self.last_trashed = trashed;
+        }
+        self.rename_selected.clear();
+        if let Some(err) = errors.first() {
+            self.status_message = Some(format!("Error: {}", err));
+        } else {
+            self.status_message = Some(format!(
+                "Trashed {} item{} [u to undo]",
+                done,
+                if done == 1 { "" } else { "s" }
+            ));
+        }
+        self.load_dir();
+        self.git_status = crate::git::GitStatus::load(&self.cwd);
+    }
+
+    /// Permanently delete the pending files (no recovery).
+    pub fn confirm_permanent_delete(&mut self) {
         let paths = std::mem::take(&mut self.pending_delete);
         let mut done = 0usize;
         let mut errors: Vec<String> = Vec::new();
@@ -1341,9 +1376,46 @@ impl App {
             self.status_message = Some(format!("Error: {}", err));
         } else {
             self.status_message = Some(format!(
-                "Deleted {} item{}",
+                "Permanently deleted {} item{}",
                 done,
                 if done == 1 { "" } else { "s" }
+            ));
+        }
+        self.load_dir();
+        self.git_status = crate::git::GitStatus::load(&self.cwd);
+    }
+
+    /// Restore the most recently trashed group back to their original paths.
+    pub fn undo_trash(&mut self) {
+        if self.last_trashed.is_empty() {
+            self.status_message = Some("Nothing to undo".to_string());
+            return;
+        }
+        let entries = std::mem::take(&mut self.last_trashed);
+        let first_name = entries
+            .first()
+            .and_then(|e| e.original.file_name())
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let mut restored = 0usize;
+        let mut errors: Vec<String> = Vec::new();
+        for entry in &entries {
+            match crate::trash::restore_path(entry) {
+                Ok(()) => restored += 1,
+                Err(e) => errors.push(e.to_string()),
+            }
+        }
+        if let Some(err) = errors.first() {
+            self.status_message = Some(format!("Restore failed: {}", err));
+        } else {
+            self.status_message = Some(format!(
+                "Restored: {}{}",
+                first_name,
+                if restored > 1 {
+                    format!(" (+{} more)", restored - 1)
+                } else {
+                    String::new()
+                }
             ));
         }
         self.load_dir();

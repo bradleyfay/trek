@@ -262,13 +262,17 @@ fn draw_delete_confirm_bar(f: &mut Frame, app: &App, area: Rect) {
     };
     let para = Paragraph::new(Line::from(vec![
         Span::styled(
-            format!(" Delete {}? ", subject),
-            Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+            format!(" Trash {}? ", subject),
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
         ),
-        Span::styled(
-            "[y] confirm   [any other key] cancel",
-            Style::default().fg(Color::DarkGray),
-        ),
+        Span::styled("[t/y]", Style::default().fg(Color::Green)),
+        Span::styled("trash  ", Style::default().fg(Color::DarkGray)),
+        Span::styled("[D]", Style::default().fg(Color::Red)),
+        Span::styled("delete permanently  ", Style::default().fg(Color::DarkGray)),
+        Span::styled("[Esc]", Style::default().fg(Color::DarkGray)),
+        Span::styled("cancel", Style::default().fg(Color::DarkGray)),
     ]));
     f.render_widget(para, area);
 }
@@ -1216,7 +1220,8 @@ fn draw_help_overlay(f: &mut Frame, size: Rect) {
         key_line("c / C", "Copy current / selected"),
         key_line("x", "Cut current to clipboard"),
         key_line("p", "Paste clipboard into current dir"),
-        key_line("Delete / X", "Delete current / selected"),
+        key_line("Delete / X", "Trash current / selected (recoverable)"),
+        key_line("u", "Undo last trash operation"),
         key_line("M", "Make new directory"),
         Line::from(""),
         // ── Yank & Misc ─────────────────────────────────────────────────────
