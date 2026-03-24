@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.35.0] - 2026-03-24
+
+### Added
+- **`N` — directory item counts**: directory entries now show child item counts (`"12 items"`, `"0 items"`, `"  1 item"`, `">1000 items"`) by default instead of meaningless filesystem block sizes
+- Press `N` to toggle back to raw block sizes; press `N` again to restore counts
+- Counting uses `read_dir().take(1001)` capped at 1001 to prevent UI hangs on huge directories — directories with >1000 items display `">1000 items"`
+- Unreadable directories (permission denied) display `"? items"`
+- `show_timestamps` (key `T`) takes priority over counts — when timestamps are active, all entries show dates regardless of `show_dir_counts`
+- `N` registered in the command palette as "Toggle directory item counts" and in the `?` help overlay
+
 ## [0.34.0] - 2026-03-24
 
 ### Added

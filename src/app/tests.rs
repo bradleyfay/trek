@@ -10,6 +10,7 @@ fn make_entry(name: &str, is_dir: bool, size: u64, secs: u64) -> DirEntry {
         is_dir,
         size,
         modified: std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(secs),
+        child_count: None,
     }
 }
 
@@ -2628,4 +2629,107 @@ fn preview_wrap_and_line_numbers_compose() {
     assert!(app.show_line_numbers);
     assert!(app.preview_wrap);
     let _ = std::fs::remove_dir_all(&tmp);
+}
+
+// ── Directory item count tests (issue #69) ───────────────────────────────────
+
+/// Given: show_dir_counts is true (default)
+/// When: toggle_dir_counts is called
+/// Then: show_dir_counts becomes false and status contains "block size"
+#[test]
+fn toggle_dir_counts_disables() {
+    let tmp = std::env::temp_dir().join(format!("trek_nc_off_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("f.txt"), b"hi").unwrap();
+    let mut app = make_app_at(&tmp);
+    assert!(app.show_dir_counts);
+    app.toggle_dir_counts();
+    assert!(!app.show_dir_counts);
+    let msg = app.status_message.clone().unwrap_or_default();
+    assert!(msg.contains("block size"), "got: {msg}");
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: show_dir_counts is false
+/// When: toggle_dir_counts is called
+/// Then: show_dir_counts becomes true and status contains "item counts"
+#[test]
+fn toggle_dir_counts_enables() {
+    let tmp = std::env::temp_dir().join(format!("trek_nc_on_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    std::fs::write(tmp.join("f.txt"), b"hi").unwrap();
+    let mut app = make_app_at(&tmp);
+    app.toggle_dir_counts();
+    app.toggle_dir_counts();
+    assert!(app.show_dir_counts);
+    let msg = app.status_message.clone().unwrap_or_default();
+    assert!(msg.contains("item counts"), "got: {msg}");
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Given: format_dir_count is called with None
+/// When: the count is unavailable
+/// Then: returns "? items"
+#[test]
+fn format_dir_count_none_shows_question() {
+    assert_eq!(format_dir_count(None), "? items");
+}
+
+/// Given: format_dir_count is called with Some(0)
+/// When: directory is empty
+/// Then: returns "  0 items"
+#[test]
+fn format_dir_count_zero_shows_zero_items() {
+    let result = format_dir_count(Some(0));
+    assert!(
+        result.contains('0') && result.contains("items"),
+        "got: {:?}",
+        result
+    );
+}
+
+/// Given: format_dir_count is called with Some(1)
+/// When: directory has one child
+/// Then: returns singular "item" (not "items")
+#[test]
+fn format_dir_count_one_is_singular() {
+    let result = format_dir_count(Some(1));
+    assert!(result.contains("item"), "got: {:?}", result);
+    assert!(
+        !result.ends_with("items"),
+        "should be singular, got: {:?}",
+        result
+    );
+}
+
+/// Given: format_dir_count is called with Some(1001)
+/// When: directory exceeds the 1000-item cap
+/// Then: returns ">1000 items"
+#[test]
+fn format_dir_count_cap_shows_overflow() {
+    let result = format_dir_count(Some(1001));
+    assert_eq!(result, ">1000 items");
+}
+
+/// Given: a directory with 3 files is loaded
+/// When: read_entries returns entries
+/// Then: the directory entry's child_count is Some(3)
+#[test]
+fn read_entries_populates_child_count_for_dir() {
+    let parent = std::env::temp_dir().join(format!("trek_cc_parent_{}", std::process::id()));
+    let subdir = parent.join("subdir");
+    let _ = std::fs::create_dir_all(&subdir);
+    std::fs::write(subdir.join("a.txt"), b"a").unwrap();
+    std::fs::write(subdir.join("b.txt"), b"b").unwrap();
+    std::fs::write(subdir.join("c.txt"), b"c").unwrap();
+    let mut app = make_app_at(&parent);
+    // subdir should be the only entry in parent
+    let entry = app.entries.iter().find(|e| e.name == "subdir").unwrap();
+    assert_eq!(
+        entry.child_count,
+        Some(3),
+        "expected 3 children, got {:?}",
+        entry.child_count
+    );
+    let _ = std::fs::remove_dir_all(&parent);
 }

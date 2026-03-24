@@ -89,6 +89,7 @@ pub fn print_help() {
     println!("    w           Toggle preview pane (hide/show right pane)");
     println!("    T           Toggle modification timestamps / file sizes in listing");
     println!("    U           Toggle preview word wrap (soft-wrap long lines)");
+    println!("    N           Toggle directory item counts (vs raw block size)");
     println!("    J           Extend selection down  K           Extend selection up");
     println!("    Space       Toggle file selection v          Select all files");
     println!("    *           Select files by glob pattern (e.g. *.rs, *.log, test_?)");

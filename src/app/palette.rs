@@ -21,6 +21,7 @@ pub enum ActionId {
     TogglePreviewPane,
     ToggleTimestamps,
     TogglePreviewWrap,
+    ToggleDirCounts,
     RefreshGitStatus,
     StartSearch,
     StartFilter,
@@ -145,6 +146,11 @@ pub static PALETTE_ACTIONS: &[PaletteAction] = &[
         id: ActionId::TogglePreviewWrap,
         name: "Toggle preview word wrap",
         keys: "U",
+    },
+    PaletteAction {
+        id: ActionId::ToggleDirCounts,
+        name: "Toggle directory item counts",
+        keys: "N",
     },
     PaletteAction {
         id: ActionId::RefreshGitStatus,
