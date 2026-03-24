@@ -294,6 +294,19 @@ pub fn run(
                         KeyCode::Char(c) if c.is_alphabetic() => app.jump_to_mark(c),
                         _ => app.mark_jump_mode = false,
                     }
+                } else if app.archive_mode {
+                    match key.code {
+                        KeyCode::Esc | KeyCode::Char('q') => app.exit_archive(),
+                        KeyCode::Up | KeyCode::Char('k') => app.move_up(),
+                        KeyCode::Down | KeyCode::Char('j') => app.move_down(),
+                        KeyCode::Left | KeyCode::Char('h') => app.archive_go_up(),
+                        KeyCode::Right | KeyCode::Char('l') | KeyCode::Enter => {
+                            app.archive_enter_selected()
+                        }
+                        KeyCode::Char('g') => app.go_top(),
+                        KeyCode::Char('G') => app.go_bottom(),
+                        _ => {}
+                    }
                 } else if app.search_mode {
                     match key.code {
                         KeyCode::Esc => app.cancel_search(),

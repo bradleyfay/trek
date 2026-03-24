@@ -59,6 +59,9 @@ impl App {
                 self.selected = 0;
                 self.current_scroll = 0;
                 self.load_dir();
+            } else if crate::archive::is_archive(&entry.path) {
+                // Enter archive browsing mode for archive files.
+                self.enter_archive(entry.path.clone());
             } else {
                 // For files, open in a new cmux tab (consistent with the
                 // "right means go deeper / act on this" navigation model).

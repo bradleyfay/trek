@@ -207,6 +207,109 @@ fn run_extract(bin: &str, args: &[&str]) -> Result<(), String> {
     }
 }
 
+/// Return a flat, normalized list of all entry paths in an archive.
+///
+/// Paths use forward slashes regardless of platform.  Directory entries are
+/// represented with a trailing `/`; file entries have no trailing slash.
+/// Returns an empty `Vec` when the archive cannot be read or the format is
+/// not recognised.
+///
+/// Used by the archive virtual-filesystem navigator to build the directory
+/// tree without shelling out for zip files (uses the `zip` crate directly).
+pub fn list_archive_paths(path: &Path) -> Vec<String> {
+    let ext = match archive_ext(path) {
+        Some(e) => e,
+        None => return Vec::new(),
+    };
+    let path_str = match path.to_str() {
+        Some(s) => s,
+        None => return Vec::new(),
+    };
+
+    match ext {
+        ArchiveExt::Zip => {
+            // Use the zip crate directly — no subprocess needed.
+            let file = match std::fs::File::open(path) {
+                Ok(f) => f,
+                Err(_) => return Vec::new(),
+            };
+            let mut archive = match zip::ZipArchive::new(file) {
+                Ok(a) => a,
+                Err(_) => return Vec::new(),
+            };
+            let mut paths = Vec::new();
+            for i in 0..archive.len() {
+                if let Ok(entry) = archive.by_index(i) {
+                    let name = entry.name().to_string();
+                    // Normalize: ensure directories end with /
+                    let normalized = if entry.is_dir() && !name.ends_with('/') {
+                        format!("{}/", name)
+                    } else {
+                        name
+                    };
+                    paths.push(normalized);
+                }
+            }
+            paths
+        }
+        ArchiveExt::Tar => run_cmd("tar", &["-tf", path_str])
+            .map(|o| parse_tar_paths(&o))
+            .unwrap_or_default(),
+        ArchiveExt::TarGz => run_cmd("tar", &["-tzf", path_str])
+            .map(|o| parse_tar_paths(&o))
+            .unwrap_or_default(),
+        ArchiveExt::TarBz2 => run_cmd("tar", &["-tjf", path_str])
+            .map(|o| parse_tar_paths(&o))
+            .unwrap_or_default(),
+        ArchiveExt::TarXz => run_cmd("tar", &["-tJf", path_str])
+            .map(|o| parse_tar_paths(&o))
+            .unwrap_or_default(),
+        ArchiveExt::TarZst => run_cmd("tar", &["--zstd", "-tf", path_str])
+            .map(|o| parse_tar_paths(&o))
+            .unwrap_or_default(),
+        // .gz and .7z are single-file compressed; no directory tree.
+        ArchiveExt::Gz | ArchiveExt::SevenZip => Vec::new(),
+    }
+}
+
+/// Parse raw `tar -t` output into normalized path strings.
+///
+/// Keeps trailing slashes on directories, strips blank lines.
+fn parse_tar_paths(output: &str) -> Vec<String> {
+    output
+        .lines()
+        .filter(|l| !l.is_empty())
+        .map(|l| l.to_string())
+        .collect()
+}
+
+/// Extract a single file from a zip archive into `dest_dir`.
+///
+/// Returns the path of the extracted file on success.
+pub fn extract_zip_entry(
+    archive_path: &Path,
+    entry_virt_path: &str,
+    dest_dir: &Path,
+) -> Option<std::path::PathBuf> {
+    let file = std::fs::File::open(archive_path).ok()?;
+    let mut archive = zip::ZipArchive::new(file).ok()?;
+    let mut entry = archive.by_name(entry_virt_path).ok()?;
+    if entry.is_dir() {
+        return None;
+    }
+    let dest = dest_dir.join(
+        std::path::Path::new(entry_virt_path)
+            .file_name()
+            .unwrap_or_else(|| std::ffi::OsStr::new("file")),
+    );
+    if let Some(parent) = dest.parent() {
+        std::fs::create_dir_all(parent).ok()?;
+    }
+    let mut out = std::fs::File::create(&dest).ok()?;
+    std::io::copy(&mut entry, &mut out).ok()?;
+    Some(dest)
+}
+
 /// Returns `Some(lines)` if `path` is a recognized archive and the listing
 /// tool is available. Returns `None` to signal "fall back to normal preview."
 pub fn try_list_archive(path: &Path) -> Option<Vec<String>> {

@@ -218,6 +218,31 @@ pub fn draw(f: &mut Frame, app: &mut App) {
 }
 
 fn draw_path_bar(f: &mut Frame, app: &App, area: Rect) {
+    // In archive mode show the virtual breadcrumb instead of the real cwd.
+    if app.archive_mode {
+        let crumb = app.archive_breadcrumb();
+        let spans = vec![
+            Span::styled(
+                " \u{1f4e6} ",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                crumb,
+                Style::default()
+                    .fg(Color::White)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                "  [archive]  Esc: exit  h: up  l: enter",
+                Style::default().fg(Color::DarkGray),
+            ),
+        ];
+        f.render_widget(Paragraph::new(Line::from(spans)), area);
+        return;
+    }
+
     // Smart path truncation: keep last 3 components when path is wide.
     let available = area.width.saturating_sub(4) as usize; // rough margin
     let path_str = app.cwd.to_string_lossy();

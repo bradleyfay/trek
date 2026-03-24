@@ -8,6 +8,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
+mod archive_nav;
 mod bookmarks;
 pub mod change_feed;
 mod change_feed_ops;
@@ -415,6 +416,17 @@ pub struct App {
     pub task_manager_mode: bool,
     /// In-flight background tasks awaiting results via their channels.
     pub(super) task_pending: Vec<task_manager::PendingTask>,
+
+    // --- Archive virtual-filesystem browser ---
+    /// True while browsing the contents of an archive as a virtual directory.
+    pub archive_mode: bool,
+    /// Path to the archive file currently being browsed; `None` outside archive mode.
+    pub archive_path: Option<PathBuf>,
+    /// Current virtual directory path within the archive (e.g. `"src/utils/"`).
+    /// Empty string means the archive root.
+    pub archive_virt_dir: String,
+    /// Flat list of all entry paths within the archive; populated on first load.
+    pub archive_flat_paths: Vec<String>,
 }
 
 #[derive(Clone)]
@@ -573,6 +585,10 @@ impl App {
             task_manager: task_manager::TaskManager::new(),
             task_manager_mode: false,
             task_pending: Vec::new(),
+            archive_mode: false,
+            archive_path: None,
+            archive_virt_dir: String::new(),
+            archive_flat_paths: Vec::new(),
         };
         app.load_dir();
         Ok(app)
