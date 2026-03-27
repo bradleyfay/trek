@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.61.2] - 2026-03-27
+
+### Fixed
+- **Markdown files now open in the cmux viewer by default** — double-clicking or pressing `l`/`Enter` on a `.md` or `.markdown` file was incorrectly falling through to `$EDITOR` instead of the cmux markdown viewer. The built-in default opener rules were missing a markdown entry; `.md`/`.markdown` files now correctly route to `cmux open --md {}` when no `opener.conf` is present. Users with a custom `opener.conf` are unaffected.
+
 ## [0.61.1] - 2026-03-24
 
 ### Fixed

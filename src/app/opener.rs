@@ -152,10 +152,15 @@ impl OpenerConfig {
 /// Built-in default opener rules used when no config file is present.
 ///
 /// These replicate the previous hardcoded routing behaviour:
+/// - Markdown → cmux markdown viewer
 /// - Binary/document types → system default opener (`open` / `xdg-open`)
 /// - Everything else → `$EDITOR`
 pub fn default_rules() -> Vec<OpenerRule> {
     vec![
+        OpenerRule {
+            matcher: Matcher::Ext(vec!["md".into(), "markdown".into()]),
+            command: "cmux open --md {}".into(),
+        },
         OpenerRule {
             matcher: Matcher::Ext(vec![
                 "html".into(),
@@ -481,6 +486,24 @@ mod tests {
     }
 
     // ── default_rules ─────────────────────────────────────────────────────────
+
+    /// Given: the default rules
+    /// When: find_command is called with a Markdown file
+    /// Then: returns the cmux markdown viewer command
+    #[test]
+    fn default_rules_route_markdown_to_cmux_viewer() {
+        let config = OpenerConfig {
+            rules: default_rules(),
+        };
+        assert_eq!(
+            config.find_command(Path::new("README.md")),
+            Some("cmux open --md {}")
+        );
+        assert_eq!(
+            config.find_command(Path::new("notes.markdown")),
+            Some("cmux open --md {}")
+        );
+    }
 
     /// Given: the default rules
     /// When: find_command is called with an HTML file
