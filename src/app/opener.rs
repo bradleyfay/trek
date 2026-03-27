@@ -18,7 +18,7 @@
 /// # Use {} as the placeholder for the file path in the command.
 /// # The command is executed via the system shell (sh -c).
 ///
-/// ext md|markdown : cmux open --md {}
+/// ext md|markdown : cmux markdown open {}
 /// ext html|htm    : open {}
 /// glob *          : $EDITOR {}
 /// ```
@@ -159,7 +159,7 @@ pub fn default_rules() -> Vec<OpenerRule> {
     vec![
         OpenerRule {
             matcher: Matcher::Ext(vec!["md".into(), "markdown".into()]),
-            command: "cmux open --md {}".into(),
+            command: "cmux markdown open {}".into(),
         },
         OpenerRule {
             matcher: Matcher::Ext(vec![
@@ -497,11 +497,11 @@ mod tests {
         };
         assert_eq!(
             config.find_command(Path::new("README.md")),
-            Some("cmux open --md {}")
+            Some("cmux markdown open {}")
         );
         assert_eq!(
             config.find_command(Path::new("notes.markdown")),
-            Some("cmux open --md {}")
+            Some("cmux markdown open {}")
         );
     }
 
@@ -591,10 +591,10 @@ mod tests {
     /// Then: rules are loaded correctly
     #[test]
     fn parse_loads_config_from_text() {
-        let text = "# opener config\next md : cmux open --md {}\nglob * : $EDITOR {}";
+        let text = "# opener config\next md : cmux markdown open {}\nglob * : $EDITOR {}";
         let config = OpenerConfig::parse(text);
         assert_eq!(config.rules.len(), 2);
         assert_eq!(config.rules[0].matcher, Matcher::Ext(vec!["md".into()]));
-        assert_eq!(config.rules[0].command, "cmux open --md {}");
+        assert_eq!(config.rules[0].command, "cmux markdown open {}");
     }
 }

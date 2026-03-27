@@ -7,10 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.61.3] - 2026-03-27
+
+### Fixed
+- **Correct cmux markdown command** — the built-in default rule for `.md`/`.markdown` files was using `cmux open --md {}`, which is not a valid cmux command. The correct invocation is `cmux markdown open {}`. Updated the default rule, the README example, and the module doc comment. Users with a custom `opener.conf` are unaffected.
+
 ## [0.61.2] - 2026-03-27
 
 ### Fixed
-- **Markdown files now open in the cmux viewer by default** — double-clicking or pressing `l`/`Enter` on a `.md` or `.markdown` file was incorrectly falling through to `$EDITOR` instead of the cmux markdown viewer. The built-in default opener rules were missing a markdown entry; `.md`/`.markdown` files now correctly route to `cmux open --md {}` when no `opener.conf` is present. Users with a custom `opener.conf` are unaffected.
+- **Markdown files now open in the cmux viewer by default** — double-clicking or pressing `l`/`Enter` on a `.md` or `.markdown` file was incorrectly falling through to `$EDITOR` instead of the cmux markdown viewer. The built-in default opener rules were missing a markdown entry; `.md`/`.markdown` files now correctly route to `cmux markdown open {}` when no `opener.conf` is present. Users with a custom `opener.conf` are unaffected.
 
 ## [0.61.1] - 2026-03-24
 
@@ -69,7 +74,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.54.0] - 2026-03-24
 
 ### Added
-- **Rifle-style configurable file opener** — Trek now reads `~/.config/trek/opener.conf` (or `$XDG_CONFIG_HOME/trek/opener.conf`) and evaluates rules top-to-bottom; the first match wins. Rules use `ext <ext1|ext2>` or `glob <pattern>` matchers with a `{}` path placeholder in the command. Example: `ext md : cmux open --md {}`.
+- **Rifle-style configurable file opener** — Trek now reads `~/.config/trek/opener.conf` (or `$XDG_CONFIG_HOME/trek/opener.conf`) and evaluates rules top-to-bottom; the first match wins. Rules use `ext <ext1|ext2>` or `glob <pattern>` matchers with a `{}` path placeholder in the command. Example: `ext md : cmux markdown open {}`.
 - Built-in defaults ship as the fallback when no config file is present, preserving existing routing behaviour (system open for HTML/images/PDFs, `$EDITOR` in a new cmux surface for code/text).
 - User-configured commands are executed via `sh -c`, allowing full shell syntax and environment variable expansion.
 

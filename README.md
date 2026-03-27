@@ -31,6 +31,7 @@ Adds an `m` function to your shell that launches trek and `cd`s into whatever di
 - PDFs show format, PDF version, and file size; when `pdfinfo` (poppler-utils) is installed, full document metadata is shown instead
 - File tree auto-refreshes when the filesystem changes (watch mode on by default)
 - Live change feed shows real-time filesystem events as they happen (`F`)
+- Session change summary answers "what changed during this AI session?" — shows new, modified, and deleted files since a checkpoint (`Ctrl+S`)
 - Copy, move, and archive extraction run on background threads — Trek stays interactive during large transfers; monitor progress in the task manager (`Ctrl+T`)
 - Git status shown inline — modified, staged, untracked, deleted
 - Full-text search across the project via ripgrep (`Ctrl+F`)
@@ -60,7 +61,7 @@ glob <pattern>      : <command>
 
 ```
 # Open markdown in the cmux viewer
-ext md|markdown : cmux open --md {}
+ext md|markdown : cmux markdown open {}
 
 # Open HTML in the system browser
 ext html|htm : open {}
@@ -98,6 +99,7 @@ If no config file exists, Trek falls back to:
 | `Ctrl+F` | Full-text search (ripgrep) |
 | `y` / `Y` | Yank relative / absolute path |
 | `F` | Toggle live change feed |
+| `Ctrl+S` | Session change summary |
 | `Ctrl+T` | Task manager (background copy/move/extract operations) |
 | `F9` | Clipboard inspector |
 | `I` | Toggle watch mode (pauses change feed when off) |
@@ -107,6 +109,37 @@ If no config file exists, Trek falls back to:
 | `q` | Quit |
 
 Press `:` or `?` to see everything else.
+
+## Session change summary
+
+Press `Ctrl+S` to open the session change summary. It answers the question: "what changed during this AI coding session?"
+
+The center pane lists every file that was created, modified, or deleted since the session checkpoint, grouped under **NEW**, **MODIFIED**, and **DELETED** headings. Each entry shows the file path, its current size, and the byte delta since the checkpoint.
+
+**Checkpoint behavior**
+
+The checkpoint is taken lazily the first time you open the summary, so Trek does not consume resources until you need it. Two keys let you manage it:
+
+| Key | Action |
+|-----|--------|
+| `C` | Reset the checkpoint to now — use this at the start of a new conversation |
+| `R` | Refresh the summary against the existing checkpoint without resetting it |
+
+Both `C` and `R` are also available in the command palette (`:`) as "Reset session checkpoint" and "Session summary".
+
+**Navigating the summary**
+
+| Key | Action |
+|-----|--------|
+| `j` / `k` | Move down / up through the list |
+| `l` / `Enter` | Exit summary mode and jump to that file in the tree |
+| `Esc` | Return to normal navigation without jumping |
+
+**Notes**
+
+- The summary always includes hidden files, so toggling `.` mid-session does not create gaps in what is tracked.
+- Results are capped at 200 entries for performance.
+- The session change summary complements the live change feed (`F`) and git diff (`d`). The change feed shows events as they stream in; git diff reflects what git knows about; the session summary gives you a clean end-of-session review of everything that touched the filesystem.
 
 ## Archive navigation
 
