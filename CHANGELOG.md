@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.62.1] - 2026-03-27
+
+### Changed
+- **Markdown and HTML files reuse existing viewer surfaces instead of opening new panes** — when double-clicking (or pressing `l`/`Enter` on) a `.md`/`.markdown` file, Trek now calls `cmux list-surfaces --json` to check whether a markdown viewer surface is already open. If one is found, the file opens as a new tab inside that surface (`cmux markdown open --surface <id>`). If none is found, a fresh surface is created as before. The same logic applies to HTML files: an existing browser surface receives a new tab (`cmux browser <id> tab new <url>`), otherwise `cmux browser open` creates one. This prevents cmux workspaces from filling up with duplicate viewer panes during a session.
+
 ## [0.62.0] - 2026-03-27
 
 ### Changed

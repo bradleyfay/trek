@@ -1,26 +1,80 @@
 use super::opener::{default_rules, OpenerConfig};
 /// cmux integration — open files in a new surface or via a configured opener.
 ///
-/// File-open routing is now driven by the opener config
-/// (`~/.config/trek/opener.conf`).  When a user config is present, commands
-/// are read from it and executed via `sh -c`.  When no config exists the
-/// built-in defaults from `opener::default_rules` are used, which replicates
-/// the previous hardcoded behaviour:
+/// File-open routing is driven by the opener config
+/// (`~/.config/trek/opener.conf`). When a user config is present, commands
+/// are read from it and executed via `sh -c`. When no config exists the
+/// built-in defaults from `opener::default_rules` are used:
 ///
-/// - HTML / images / PDFs → system default opener (`open` / `xdg-open`)
-/// - All other text/code  → new cmux terminal surface running `$EDITOR`
+/// - Markdown → cmux markdown viewer
+/// - HTML     → cmux embedded browser
+/// - Images / PDFs → system default opener (`open` / `xdg-open`)
+/// - All other text/code → new cmux terminal surface running `$EDITOR`
+///
+/// For the two cmux-native viewer types (markdown and browser), Trek checks
+/// whether a surface of that type is already open in the current workspace
+/// using `cmux list-surfaces --json`. If one is found the file is opened as a
+/// new tab inside the existing surface instead of spawning a fresh pane.
 ///
 /// When Trek is not running inside cmux and the built-in `$EDITOR` fallback
 /// applies, a status-bar hint is shown instead.
 use super::App;
+use std::path::Path;
+
+// ── Viewer type ──────────────────────────────────────────────────────────────
+
+/// A cmux-native viewer that supports multi-tab surfaces.
+enum CmuxViewer {
+    Markdown,
+    Browser,
+}
+
+impl CmuxViewer {
+    /// The surface type string used in `cmux list-surfaces --json` output.
+    fn surface_type(&self) -> &'static str {
+        match self {
+            CmuxViewer::Markdown => "markdown",
+            CmuxViewer::Browser => "browser",
+        }
+    }
+
+    /// Command to open `escaped_path` as a new tab in an existing `surface_id`.
+    fn reuse_command(&self, surface_id: &str, escaped_path: &str) -> String {
+        match self {
+            CmuxViewer::Markdown => {
+                format!(
+                    "cmux markdown open {} --surface {}",
+                    escaped_path, surface_id
+                )
+            }
+            CmuxViewer::Browser => {
+                format!("cmux browser {} tab new {}", surface_id, escaped_path)
+            }
+        }
+    }
+
+    /// Command to open `escaped_path` in a brand-new viewer surface.
+    fn new_command(&self, escaped_path: &str) -> String {
+        match self {
+            CmuxViewer::Markdown => format!("cmux markdown open {}", escaped_path),
+            CmuxViewer::Browser => format!("cmux browser open {}", escaped_path),
+        }
+    }
+}
+
+// ── App methods ──────────────────────────────────────────────────────────────
 
 impl App {
     /// Open the selected file using the configured opener rules.
     ///
     /// Resolution order:
     /// 1. User opener config (`~/.config/trek/opener.conf`) — first match wins.
-    /// 2. Built-in defaults — system open for binary types, `$EDITOR` in a new
-    ///    cmux surface for code/text.
+    /// 2. Built-in defaults — cmux viewers for markdown/HTML, system open for
+    ///    binary types, `$EDITOR` in a new cmux surface for code/text.
+    ///
+    /// For `cmux markdown open {}` and `cmux browser open {}` commands, Trek
+    /// first checks whether a surface of that type already exists and reuses it
+    /// (opening a new tab) rather than creating a fresh pane.
     ///
     /// Does nothing when the selected entry is a directory.
     pub fn open_in_cmux_tab(&mut self) {
@@ -29,7 +83,6 @@ impl App {
             _ => return,
         };
 
-        // Prefer user config; fall back to built-in rules.
         let config = OpenerConfig::load().unwrap_or_else(|| OpenerConfig {
             rules: default_rules(),
         });
@@ -44,11 +97,12 @@ impl App {
 
         let expanded = OpenerConfig::expand_command(&command_template, &entry.path);
 
-        // Built-in `$EDITOR {}` — use cmux surface creation so the editor gets
-        // an interactive terminal.  All other commands (including user-config
-        // rules) are spawned via `sh -c` directly.
         if command_template == "$EDITOR {}" {
             self.open_in_editor_surface(&entry.name, &entry.path.to_string_lossy());
+        } else if command_template == "cmux markdown open {}" {
+            self.open_in_viewer(CmuxViewer::Markdown, &entry.name, &entry.path);
+        } else if command_template == "cmux browser open {}" {
+            self.open_in_viewer(CmuxViewer::Browser, &entry.name, &entry.path);
         } else {
             self.spawn_opener_command(&entry.name, &expanded);
         }
@@ -57,11 +111,12 @@ impl App {
     /// Open the selected file in a new cmux terminal pane to the right of the
     /// current Trek pane.
     ///
-    /// Uses the same opener-config routing as [`open_in_cmux_tab`].  When the
+    /// Uses the same opener-config routing as [`open_in_cmux_tab`]. When the
     /// matched command is the built-in `$EDITOR {}` rule the file is opened in
-    /// a brand-new terminal pane split to the right (`cmux new-pane --direction
-    /// right`).  For all other commands (system open, custom rules) the command
-    /// is spawned normally — those openers don't live inside a specific pane.
+    /// a brand-new terminal pane split to the right. For cmux viewer types
+    /// (markdown, browser) the same surface-reuse logic applies as in
+    /// [`open_in_cmux_tab`] — viewer surfaces don't have a meaningful "right
+    /// pane" concept, so they always reuse or create a viewer surface.
     ///
     /// When Trek is not running inside cmux a status-bar hint is shown instead.
     pub fn open_to_the_right(&mut self) {
@@ -86,15 +141,32 @@ impl App {
 
         if command_template == "$EDITOR {}" {
             self.open_in_right_pane(&entry.name, &entry.path.to_string_lossy());
+        } else if command_template == "cmux markdown open {}" {
+            self.open_in_viewer(CmuxViewer::Markdown, &entry.name, &entry.path);
+        } else if command_template == "cmux browser open {}" {
+            self.open_in_viewer(CmuxViewer::Browser, &entry.name, &entry.path);
         } else {
             self.spawn_opener_command(&entry.name, &expanded);
         }
     }
 
-    /// Open `path` in a new cmux terminal pane split to the right.
+    /// Open `path` in a cmux viewer surface, reusing an existing surface of
+    /// the correct type when one is available.
     ///
-    /// Uses `cmux new-pane --type terminal --direction right` to create a
-    /// vertical split, then sends `$EDITOR <path>` to the resulting surface.
+    /// - If a surface of the viewer type exists: opens `path` as a new tab
+    ///   inside that surface (`cmux markdown open --surface` /
+    ///   `cmux browser <id> tab new`).
+    /// - If no surface of that type exists: opens a fresh viewer surface.
+    fn open_in_viewer(&mut self, viewer: CmuxViewer, name: &str, path: &Path) {
+        let escaped = shell_escape(&path.to_string_lossy());
+        let cmd = match find_cmux_surface_of_type(viewer.surface_type()) {
+            Some(surface_id) => viewer.reuse_command(&surface_id, &escaped),
+            None => viewer.new_command(&escaped),
+        };
+        self.spawn_opener_command(name, &cmd);
+    }
+
+    /// Open `path` in a new cmux terminal pane split to the right.
     fn open_in_right_pane(&mut self, name: &str, path: &str) {
         if std::env::var("CMUX_WORKSPACE_ID").is_err() {
             self.status_message = Some("Not in cmux — use 'o' to open in editor".to_string());
@@ -146,9 +218,6 @@ impl App {
     }
 
     /// Execute `command` via `sh -c` as a background subprocess.
-    ///
-    /// Used for all user-configured opener rules and for system-open commands
-    /// from the built-in defaults.
     fn spawn_opener_command(&mut self, name: &str, command: &str) {
         match std::process::Command::new("sh")
             .args(["-c", command])
@@ -164,8 +233,6 @@ impl App {
     }
 
     /// Open `path` in a new cmux terminal surface running `$EDITOR`.
-    ///
-    /// Shows a status-bar hint when Trek is not running inside cmux.
     fn open_in_editor_surface(&mut self, name: &str, path: &str) {
         if std::env::var("CMUX_WORKSPACE_ID").is_err() {
             self.status_message = Some("Not in cmux — use 'o' to open in editor".to_string());
@@ -183,7 +250,6 @@ impl App {
         {
             Ok(out) if out.status.success() => {
                 let stdout = String::from_utf8_lossy(&out.stdout);
-                // Output format: "OK surface:N pane:N workspace:N"
                 let surface_ref = stdout
                     .split_whitespace()
                     .find(|s| s.starts_with("surface:"))
@@ -218,7 +284,54 @@ impl App {
     }
 }
 
-/// Escape a path for safe use in a shell command string sent via `cmux send`.
+// ── Surface discovery ─────────────────────────────────────────────────────────
+
+/// Query `cmux list-surfaces --json` and return the ID of the first surface
+/// whose type matches `surface_type` (e.g. `"markdown"`, `"browser"`).
+///
+/// Returns `None` when cmux is unavailable, the command fails, or no surface
+/// of the requested type exists.
+fn find_cmux_surface_of_type(surface_type: &str) -> Option<String> {
+    let out = std::process::Command::new("cmux")
+        .args(["list-surfaces", "--json"])
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    parse_surface_of_type(&String::from_utf8_lossy(&out.stdout), surface_type)
+}
+
+/// Parse the JSON output of `cmux list-surfaces --json` and return the `id`
+/// field of the first object whose `type` field equals `surface_type`.
+///
+/// Handles both compact and pretty-printed JSON. Uses simple string scanning
+/// rather than a full JSON parser — sufficient for the well-structured output
+/// produced by the cmux CLI.
+fn parse_surface_of_type(json: &str, surface_type: &str) -> Option<String> {
+    use regex::Regex;
+
+    let type_pat = format!(r#""type"\s*:\s*"{}""#, regex::escape(surface_type));
+    let type_re = Regex::new(&type_pat).ok()?;
+    let id_re = Regex::new(r#""id"\s*:\s*"([^"]+)""#).ok()?;
+
+    let m = type_re.find(json)?;
+
+    // Scan back to the opening brace of this object.
+    let obj_start = json[..m.start()].rfind('{').unwrap_or(0);
+    // Scan forward to the closing brace.
+    let obj_end = json[m.start()..]
+        .find('}')
+        .map(|i| m.start() + i + 1)
+        .unwrap_or(json.len());
+
+    let obj = &json[obj_start..obj_end];
+    id_re.captures(obj)?.get(1).map(|c| c.as_str().to_string())
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/// Escape a path for safe use in a shell command string.
 fn shell_escape(s: &str) -> String {
     if s.contains([' ', '\'', '"', '\\', '(', ')', '[', ']', '{', '}', '&', ';']) {
         format!("'{}'", s.replace('\'', "'\\''"))
@@ -227,9 +340,125 @@ fn shell_escape(s: &str) -> String {
     }
 }
 
+// ── Tests ─────────────────────────────────────────────────────────────────────
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ── parse_surface_of_type ─────────────────────────────────────────────────
+
+    /// Given: compact JSON containing a browser surface
+    /// When: parse_surface_of_type("browser") is called
+    /// Then: returns the surface ID
+    #[test]
+    fn parse_surface_finds_browser_in_compact_json() {
+        let json = r#"[{"id":"surface:1","type":"terminal"},{"id":"surface:2","type":"browser"}]"#;
+        assert_eq!(
+            parse_surface_of_type(json, "browser"),
+            Some("surface:2".to_string())
+        );
+    }
+
+    /// Given: compact JSON containing a markdown surface
+    /// When: parse_surface_of_type("markdown") is called
+    /// Then: returns the surface ID
+    #[test]
+    fn parse_surface_finds_markdown_in_compact_json() {
+        let json = r#"[{"id":"surface:1","type":"terminal"},{"id":"surface:3","type":"markdown"}]"#;
+        assert_eq!(
+            parse_surface_of_type(json, "markdown"),
+            Some("surface:3".to_string())
+        );
+    }
+
+    /// Given: JSON with no surface of the requested type
+    /// When: parse_surface_of_type("browser") is called
+    /// Then: returns None
+    #[test]
+    fn parse_surface_returns_none_when_type_absent() {
+        let json = r#"[{"id":"surface:1","type":"terminal"},{"id":"surface:2","type":"markdown"}]"#;
+        assert_eq!(parse_surface_of_type(json, "browser"), None);
+    }
+
+    /// Given: an empty JSON array
+    /// When: parse_surface_of_type is called
+    /// Then: returns None
+    #[test]
+    fn parse_surface_returns_none_for_empty_array() {
+        assert_eq!(parse_surface_of_type("[]", "browser"), None);
+    }
+
+    /// Given: JSON with multiple surfaces of the same type
+    /// When: parse_surface_of_type("browser") is called
+    /// Then: returns the first match
+    #[test]
+    fn parse_surface_returns_first_match() {
+        let json = r#"[{"id":"surface:2","type":"browser"},{"id":"surface:5","type":"browser"}]"#;
+        assert_eq!(
+            parse_surface_of_type(json, "browser"),
+            Some("surface:2".to_string())
+        );
+    }
+
+    /// Given: pretty-printed JSON
+    /// When: parse_surface_of_type("markdown") is called
+    /// Then: still finds the surface ID
+    #[test]
+    fn parse_surface_handles_pretty_printed_json() {
+        let json = "[\n  {\n    \"id\": \"surface:4\",\n    \"type\": \"markdown\"\n  }\n]";
+        assert_eq!(
+            parse_surface_of_type(json, "markdown"),
+            Some("surface:4".to_string())
+        );
+    }
+
+    // ── CmuxViewer commands ───────────────────────────────────────────────────
+
+    /// Given: a Markdown viewer and an existing surface ID
+    /// When: reuse_command is called
+    /// Then: produces the correct cmux markdown open --surface command
+    #[test]
+    fn markdown_viewer_reuse_command_includes_surface_flag() {
+        let viewer = CmuxViewer::Markdown;
+        let cmd = viewer.reuse_command("surface:3", "/home/user/README.md");
+        assert_eq!(
+            cmd,
+            "cmux markdown open /home/user/README.md --surface surface:3"
+        );
+    }
+
+    /// Given: a Browser viewer and an existing surface ID
+    /// When: reuse_command is called
+    /// Then: produces the correct cmux browser tab new command
+    #[test]
+    fn browser_viewer_reuse_command_uses_tab_new() {
+        let viewer = CmuxViewer::Browser;
+        let cmd = viewer.reuse_command("surface:2", "/home/user/index.html");
+        assert_eq!(cmd, "cmux browser surface:2 tab new /home/user/index.html");
+    }
+
+    /// Given: a Markdown viewer with no existing surface
+    /// When: new_command is called
+    /// Then: produces a plain cmux markdown open command
+    #[test]
+    fn markdown_viewer_new_command_is_plain_open() {
+        let viewer = CmuxViewer::Markdown;
+        let cmd = viewer.new_command("/home/user/README.md");
+        assert_eq!(cmd, "cmux markdown open /home/user/README.md");
+    }
+
+    /// Given: a Browser viewer with no existing surface
+    /// When: new_command is called
+    /// Then: produces a plain cmux browser open command
+    #[test]
+    fn browser_viewer_new_command_is_plain_open() {
+        let viewer = CmuxViewer::Browser;
+        let cmd = viewer.new_command("/home/user/index.html");
+        assert_eq!(cmd, "cmux browser open /home/user/index.html");
+    }
+
+    // ── shell_escape ──────────────────────────────────────────────────────────
 
     /// Given: a path with a space in it
     /// When: shell_escape is called
