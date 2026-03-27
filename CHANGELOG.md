@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.62.0] - 2026-03-27
+
+### Changed
+- **HTML files now open in the cmux browser by default** — `.html` and `.htm` files previously routed to the system default opener (`open` / `xdg-open`). They now open in the cmux embedded browser via `cmux browser open {}`, keeping the rendered view inside the cmux workspace alongside Trek and the editor. Images, PDFs, and other binary types continue to use the system opener. Users with a custom `opener.conf` are unaffected.
+
 ## [0.61.3] - 2026-03-27
 
 ### Fixed

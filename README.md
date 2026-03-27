@@ -63,8 +63,8 @@ glob <pattern>      : <command>
 # Open markdown in the cmux viewer
 ext md|markdown : cmux markdown open {}
 
-# Open HTML in the system browser
-ext html|htm : open {}
+# Open HTML in the cmux browser
+ext html|htm : cmux browser open {}
 
 # Open images in Preview
 ext png|jpg|jpeg|gif|webp : open {}
@@ -80,7 +80,8 @@ If no config file exists, Trek falls back to:
 | File type | Default action |
 |-----------|----------------|
 | Markdown (`.md`) | cmux markdown viewer |
-| HTML / images / PDFs | System default (`open` / `xdg-open`) |
+| HTML (`.html`, `.htm`) | cmux embedded browser |
+| Images / PDFs | System default (`open` / `xdg-open`) |
 | Code / text | `$EDITOR` in a new cmux surface |
 | Directories | Navigate in-place |
 

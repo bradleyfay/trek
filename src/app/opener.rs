@@ -151,8 +151,8 @@ impl OpenerConfig {
 
 /// Built-in default opener rules used when no config file is present.
 ///
-/// These replicate the previous hardcoded routing behaviour:
-/// - Markdown → cmux markdown viewer
+/// - Markdown → cmux markdown viewer (`cmux markdown open`)
+/// - HTML → cmux embedded browser (`cmux browser open`)
 /// - Binary/document types → system default opener (`open` / `xdg-open`)
 /// - Everything else → `$EDITOR`
 pub fn default_rules() -> Vec<OpenerRule> {
@@ -162,9 +162,11 @@ pub fn default_rules() -> Vec<OpenerRule> {
             command: "cmux markdown open {}".into(),
         },
         OpenerRule {
+            matcher: Matcher::Ext(vec!["html".into(), "htm".into()]),
+            command: "cmux browser open {}".into(),
+        },
+        OpenerRule {
             matcher: Matcher::Ext(vec![
-                "html".into(),
-                "htm".into(),
                 "pdf".into(),
                 "png".into(),
                 "jpg".into(),
@@ -507,17 +509,19 @@ mod tests {
 
     /// Given: the default rules
     /// When: find_command is called with an HTML file
-    /// Then: returns a system-open command
+    /// Then: returns the cmux browser command
     #[test]
-    fn default_rules_route_html_to_system_open() {
+    fn default_rules_route_html_to_cmux_browser() {
         let config = OpenerConfig {
             rules: default_rules(),
         };
-        let cmd = config.find_command(Path::new("index.html")).unwrap_or("");
-        assert!(
-            cmd.starts_with("open") || cmd.starts_with("xdg-open"),
-            "expected system open command, got: {}",
-            cmd
+        assert_eq!(
+            config.find_command(Path::new("index.html")),
+            Some("cmux browser open {}")
+        );
+        assert_eq!(
+            config.find_command(Path::new("page.htm")),
+            Some("cmux browser open {}")
         );
     }
 
