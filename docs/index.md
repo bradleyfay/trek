@@ -25,11 +25,11 @@ When you open a file, Trek routes it to the appropriate tool — your editor for
 - **Watch mode** — the file tree refreshes automatically when the filesystem changes; see what the AI created in real time
 - **Git status overlays** — modified, staged, untracked, and deleted files are marked inline in the tree as the AI works
 - **File preview** — inspect what was written without opening an editor; the right pane updates as you navigate
-- **Content search** — ripgrep-powered full-text search across the project
-- **Fuzzy file search** — locate any file instantly with `/` or `Ctrl+F`
+- **Content search** — ripgrep-powered full-text search across the project (`Ctrl+F`)
+- **Fuzzy file search** — locate any file in the current directory instantly (`/`)
 - **Mouse-resizable panes** — drag dividers to reconfigure the layout; mouse and keyboard are both first-class
 - **Archive browsing** — navigate into `.zip`, `.tar.gz`, and other archives as virtual directories
-- **Command palette** — press `?` to see every available action with its keybinding, searchable by name
+- **Command palette** — press `:` to see every available action with its keybinding, searchable by name
 - **Shell integration** — the `m` function launches Trek and `cd`s your shell to the directory you exit from
 
 ---

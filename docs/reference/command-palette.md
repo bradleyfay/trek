@@ -1,6 +1,6 @@
 # Command Palette
 
-Trek v0.53.0
+Trek v0.62.1
 
 The command palette is Trek's primary discoverability surface. It lists every
 action available in the current context, lets you filter by name, and executes
