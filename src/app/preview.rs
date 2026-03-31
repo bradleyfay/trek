@@ -707,6 +707,7 @@ fn build_image_preview_lines(path: &Path) -> Vec<String> {
         .args([
             "--size=72x36",
             "--colors=256",
+            "--animate=off", // prevent animated GIF corruption
             "--",
             &path.to_string_lossy(),
         ])
