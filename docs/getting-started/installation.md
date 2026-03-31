@@ -63,6 +63,19 @@ This means Trek acts as a navigation tool for your shell, not just a file viewer
 
 ---
 
+## Optional Dependencies
+
+These tools are not required but enhance certain preview pane features when present:
+
+| Tool | Purpose | Install (macOS) |
+|------|---------|-----------------|
+| `chafa` | Inline image rendering — renders raster images as Unicode block characters or sixels in the preview pane | `brew install chafa` |
+| `pdfinfo` (poppler-utils) | Full document metadata for PDF files | `brew install poppler` |
+
+Trek detects both tools at runtime. If either is absent, it falls back gracefully and shows a short install hint in the preview pane.
+
+---
+
 ## Verify the Installation
 
 Run Trek directly to confirm it is working:

@@ -8,6 +8,8 @@ The right pane in Trek continuously previews the selected entry. By default it s
 
 - **Text files** — displayed with syntax highlighting
 - **Directories** — show their contents as a listing
+- **Raster images** (PNG, JPEG, GIF, BMP, ICO, WEBP, AVIF, TIFF) — show a metadata card with format, file size, and pixel dimensions. When `chafa` is installed, Trek also renders an inline image using Unicode block characters or sixels directly in the preview pane.
+- **SVG** — previewed as syntax-highlighted XML, the same as any text file
 - **Binary files** — show a placeholder message
 
 ---
@@ -67,3 +69,14 @@ The preview pane title bar shows a badge identifying the active mode or display 
 | `[wrap]` | Word wrap enabled |
 
 Multiple badges can appear at once when a mode and a display option are both active — for example `[log]` and `[wrap]` together.
+
+---
+
+## Optional Dependencies
+
+Some preview features require external tools. Trek detects them at runtime and falls back gracefully when they are absent, showing a short install hint in the preview pane.
+
+| Tool | Purpose | Install (macOS) |
+|------|---------|-----------------|
+| `chafa` | Inline image rendering — renders raster images as Unicode block characters or sixels in the preview pane | `brew install chafa` |
+| `pdfinfo` (poppler-utils) | Full document metadata for PDF files | `brew install poppler` |
