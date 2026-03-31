@@ -85,8 +85,8 @@ Trek supports mouse input throughout. In addition to clicking to select entries 
 
 | Action | Effect |
 |--------|--------|
-| Right-click | Selects the entry and opens it in a new cmux tab — the same routing used by `l` / `Enter` (code and text in `$EDITOR`; images, HTML, and PDFs via the system opener) |
-| Double-click | Opens the file in a new cmux pane split to the right (`cmux new-pane --direction right`); falls back to the system opener for images, HTML, and PDFs |
+| Right-click | Selects the entry and opens it in a new cmux tab — the same routing used by `l` / `Enter` (HTML in the cmux browser; images and PDFs via the system opener; code and text in `$EDITOR`) |
+| Double-click | Opens the file in a new cmux pane split to the right (`cmux new-pane --direction right`); falls back to the system opener for images and PDFs |
 
 When Trek is not running inside cmux, both actions show a hint in the status bar instead of launching an external surface. Use `o` or `O` as keyboard alternatives in that case.
 

@@ -10,7 +10,7 @@ Trek handles the full range of day-to-day file management tasks: creating, copyi
 |-------|--------|
 | `l` / `→` / `Enter` | Enter a directory; for files, open in a new cmux tab (routes by file type — see below) |
 | Right-click | Select the file and open it in a new cmux tab (same routing as `l` / `Enter`) |
-| Double-click | Open the file in a new cmux pane split to the right (`cmux new-pane --direction right`); falls back to system opener for images, HTML, and PDFs |
+| Double-click | Open the file in a new cmux pane split to the right (`cmux new-pane --direction right`); falls back to system opener for images and PDFs |
 | `o` | Open in terminal editor — checks `$VISUAL`, then `$EDITOR`, then falls back to `vi` |
 | `O` | Open with system default — `open` on macOS, `xdg-open` on Linux |
 
@@ -20,9 +20,9 @@ When you press `l`, `→`, or `Enter` on a file, right-click a file, or double-c
 
 | File type | `l` / `Enter` / right-click opens with | Double-click opens with |
 |-----------|----------------------------------------|------------------------|
-| HTML (`.html`, `.htm`) | System default opener (`open` / `xdg-open`) | System default opener |
-| Images (`.png`, `.jpg`, `.gif`, etc.) | System default opener | System default opener |
-| PDFs (`.pdf`) | System default opener | System default opener |
+| HTML (`.html`, `.htm`) | cmux embedded browser (`cmux browser open`) | cmux embedded browser |
+| Images (`.png`, `.jpg`, `.gif`, etc.) | System default opener (`open` / `xdg-open`) | System default opener |
+| PDFs (`.pdf`) | System default opener (`open` / `xdg-open`) | System default opener |
 | All other text / code files | `$EDITOR` in a new cmux tab | `$EDITOR` in a new cmux pane split right |
 
 This requires Trek to be running inside cmux. When Trek is not running inside cmux, all three open methods show a hint in the status bar instead. Use `o` or `O` as alternatives in that case.
@@ -53,7 +53,7 @@ Trek uses a clipboard model: copy or cut entries first, then paste them into the
 | `x` | Cut the current entry |
 | `X` | Cut all selected entries |
 | `p` | Paste clipboard contents into the current directory |
-| `F` | Open the clipboard inspector — shows queued items color-coded by operation (green = copy, yellow = cut); press `p` inside to paste, `Esc` to close |
+| `F9` | Open the clipboard inspector — shows queued items color-coded by operation (green = copy, yellow = cut); press `p` inside to paste, `Esc` to close |
 
 ---
 
@@ -61,9 +61,10 @@ Trek uses a clipboard model: copy or cut entries first, then paste them into the
 
 | Key | Action |
 |-----|--------|
-| `d` | Delete or trash the current entry — requires confirmation |
+| `Delete` | Trash the current entry — requires confirmation |
+| `u` | Undo the last trash operation |
 
-Bulk deletion uses `X` (cut all selected entries) combined with a delete confirmation, or select entries first and then use `d`.
+Bulk deletion: select entries first (see Selection below), then press `Delete` or `X` to trash them all.
 
 ---
 
@@ -72,6 +73,7 @@ Bulk deletion uses `X` (cut all selected entries) combined with a delete confirm
 | Key | Action |
 |-----|--------|
 | `n` / `F2` | Quick rename — opens an inline input bar pre-filled with the current name |
+| `P` | Edit file permissions — opens an octal chmod input bar |
 
 ---
 
@@ -84,6 +86,8 @@ Build a selection set before running bulk operations like copy or cut.
 | `Space` | Toggle selection on the current entry |
 | `J` (Shift+J) | Select current entry and move cursor down (range select) |
 | `K` (Shift+K) | Select current entry and move cursor up (range select) |
+| `v` | Select all files in the current directory |
+| `Esc` | Clear all selections (when no search filter is active) |
 
 ---
 
