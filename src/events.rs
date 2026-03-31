@@ -252,6 +252,27 @@ pub fn run(
                         }
                         _ => {}
                     }
+                } else if app.context_bundle_picker_mode {
+                    use crate::app::context_bundle::ContextBundleFormat;
+                    match key.code {
+                        KeyCode::Esc => app.close_context_bundle_picker(),
+                        KeyCode::Char('p') => {
+                            app.export_context_bundle(ContextBundleFormat::PathsOnly)
+                        }
+                        KeyCode::Char('c') => {
+                            app.export_context_bundle(ContextBundleFormat::PathsAndContents)
+                        }
+                        KeyCode::Char('d') => {
+                            app.export_context_bundle(ContextBundleFormat::PathsAndDiff)
+                        }
+                        _ => {}
+                    }
+                } else if app.context_bundle_confirm_mode {
+                    match key.code {
+                        KeyCode::Char('y') | KeyCode::Char('Y') => app.confirm_context_bundle(),
+                        KeyCode::Char('n') | KeyCode::Esc => app.cancel_context_bundle_confirm(),
+                        _ => {}
+                    }
                 } else if app.change_feed_mode {
                     match key.code {
                         KeyCode::Esc | KeyCode::Char('F') => app.toggle_change_feed(),
@@ -335,6 +356,9 @@ pub fn run(
                     }
                 } else {
                     match key.code {
+                        KeyCode::Char('b') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                            app.open_context_bundle_picker()
+                        }
                         KeyCode::Char('f') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                             app.start_content_search()
                         }
@@ -621,6 +645,7 @@ fn execute_palette_action(
         ActionId::ResetSessionCheckpoint => app.reset_session_snapshot(),
         ActionId::OpenInCmuxTab => app.open_in_cmux_tab(),
         ActionId::OpenToTheRight => app.open_to_the_right(),
+        ActionId::ExportContextBundle => app.open_context_bundle_picker(),
         ActionId::ShowHelp => app.show_help = true,
         // Quit appears in the palette for discoverability but cannot break out
         // of the event loop from here — use q directly.

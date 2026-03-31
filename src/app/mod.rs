@@ -14,6 +14,7 @@ pub mod change_feed;
 mod change_feed_ops;
 mod cmux;
 mod content;
+pub mod context_bundle;
 mod file_ops;
 mod filter;
 mod find;
@@ -371,6 +372,14 @@ pub struct App {
     /// True while the yank format picker overlay is open.
     pub yank_picker_mode: bool,
 
+    // --- AI context bundle (Ctrl+B) ---
+    /// True while the context bundle format picker overlay is open.
+    pub context_bundle_picker_mode: bool,
+    /// True while waiting for the user to confirm copying an oversized bundle.
+    pub context_bundle_confirm_mode: bool,
+    /// The assembled bundle string awaiting confirmation (> 512 KB).
+    pub context_bundle_pending: Option<String>,
+
     // --- File duplication (W) ---
     /// True while the duplicate name input bar is open.
     pub dup_mode: bool,
@@ -580,6 +589,9 @@ impl App {
             mark_jump_mode: false,
             marks: HashMap::new(),
             yank_picker_mode: false,
+            context_bundle_picker_mode: false,
+            context_bundle_confirm_mode: false,
+            context_bundle_pending: None,
             dup_mode: false,
             dup_input: String::new(),
             dup_src: None,

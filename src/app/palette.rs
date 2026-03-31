@@ -70,6 +70,7 @@ pub enum ActionId {
     ShowHelp,
     OpenInCmuxTab,
     OpenToTheRight,
+    ExportContextBundle,
     Quit,
 }
 
@@ -397,6 +398,11 @@ pub static PALETTE_ACTIONS: &[PaletteAction] = &[
         id: ActionId::ResetSessionCheckpoint,
         name: "Reset session checkpoint (start tracking changes from now)",
         keys: "C (in session summary)",
+    },
+    PaletteAction {
+        id: ActionId::ExportContextBundle,
+        name: "Export context bundle (copy selected files to clipboard for AI chat)",
+        keys: "Ctrl+B",
     },
     PaletteAction {
         id: ActionId::ShowHelp,

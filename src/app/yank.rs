@@ -60,7 +60,7 @@ impl App {
     }
 
     /// Write an OSC 52 sequence to set the system clipboard.
-    fn osc52_copy(&self, text: &str) {
+    pub(super) fn osc52_copy(&self, text: &str) {
         use base64::Engine;
         let encoded = base64::engine::general_purpose::STANDARD.encode(text.as_bytes());
         // OSC 52 ; c ; <base64> ST

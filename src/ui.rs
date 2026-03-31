@@ -224,6 +224,11 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         draw_yank_picker(f, app, size);
     }
 
+    // Context bundle picker overlay.
+    if app.context_bundle_picker_mode {
+        draw_context_bundle_picker(f, size);
+    }
+
     // Clipboard inspector overlay.
     if app.clipboard_inspect_mode {
         draw_clipboard_inspect_overlay(f, app, size);
@@ -2006,6 +2011,47 @@ fn draw_yank_picker(f: &mut Frame, app: &App, size: Rect) {
     f.render_widget(Paragraph::new(rows), inner);
 }
 
+fn draw_context_bundle_picker(f: &mut Frame, size: Rect) {
+    let key_style = Style::default()
+        .fg(Color::Yellow)
+        .add_modifier(Modifier::BOLD);
+    let rows = vec![
+        Line::from(vec![
+            Span::styled(" p ", key_style),
+            Span::raw("  paths only"),
+        ]),
+        Line::from(vec![
+            Span::styled(" c ", key_style),
+            Span::raw("  paths + contents"),
+        ]),
+        Line::from(vec![
+            Span::styled(" d ", key_style),
+            Span::raw("  paths + diff"),
+        ]),
+        Line::from(vec![Span::styled(" Esc ", key_style), Span::raw(" cancel")]),
+    ];
+
+    let width = 34u16.min(size.width);
+    let height = 6u16; // border top + 4 rows + border bottom
+    let x = 0;
+    let y = size.height.saturating_sub(height + 1); // +1 for status bar row
+
+    let area = Rect {
+        x,
+        y,
+        width,
+        height,
+    };
+    f.render_widget(Clear, area);
+    let block = Block::default()
+        .title(" Export context bundle ")
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::Cyan));
+    let inner = block.inner(area);
+    f.render_widget(block, area);
+    f.render_widget(Paragraph::new(rows), inner);
+}
+
 fn draw_help_overlay(f: &mut Frame, size: Rect) {
     let width = 60u16.min(size.width.saturating_sub(4));
     let height = 100u16.min(size.height.saturating_sub(4));
@@ -2111,6 +2157,13 @@ fn draw_help_overlay(f: &mut Frame, size: Rect) {
         key_line(":", "Open command palette"),
         key_line("Q", "Quit"),
         key_line("?", "Toggle this help"),
+        Line::from(""),
+        // ── AI workflow ─────────────────────────────────────────────────────
+        section_header("AI workflow"),
+        key_line(
+            "Ctrl+B",
+            "Export context bundle (selected files → clipboard for AI chat)",
+        ),
         Line::from(""),
         Line::from(Span::styled(
             "  Right-click: open file in new cmux tab",
