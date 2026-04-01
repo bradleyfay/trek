@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.63.0] - 2026-04-01
+
+### Added
+- **Toggle left parent-directory pane** (`\`) — press `\` to collapse the left pane to zero width, giving the current-directory listing and preview pane the full terminal width. Press `\` again to restore it. The pane's previous width is saved and restored exactly, including any custom drag-resized widths. Accessible via the command palette as "Toggle parent pane (hide/show left pane)".
+
 ## [0.62.1] - 2026-03-27
 
 ### Changed

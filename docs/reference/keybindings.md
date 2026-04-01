@@ -137,6 +137,7 @@ Supported formats depend on the archive tools available on the system.
 | `N` | Toggle directory item counts |
 | `i` | Toggle gitignore filter |
 | `w` | Collapse / expand preview pane |
+| `\` | Collapse / expand parent directory pane |
 | `I` | Toggle watch mode off/on (on by default; disables auto-refresh when toggled off) |
 
 ---

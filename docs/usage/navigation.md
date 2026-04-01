@@ -107,6 +107,7 @@ These keys change what the center pane shows without navigating anywhere:
 | `N` | Switch the size column to show directory item counts instead of block size |
 | `i` | Gitignore filter — hide gitignored entries; shows a yellow `[ignore]` badge in the path bar when active |
 | `w` | Collapse or expand the right preview pane |
+| `\` | Collapse or expand the left parent-directory pane |
 
 ---
 
