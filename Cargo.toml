@@ -1,6 +1,6 @@
 [package]
 name = "trek"
-version = "0.63.0"
+version = "0.64.0"
 edition = "2021"
 rust-version = "1.80"
 description = "A terminal file manager with mouse-resizable panes"

@@ -7,10 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.63.0] - 2026-04-01
+## [0.64.0] - 2026-04-01
 
 ### Added
 - **Toggle left parent-directory pane** (`\`) — press `\` to collapse the left pane to zero width, giving the current-directory listing and preview pane the full terminal width. Press `\` again to restore it. The pane's previous width is saved and restored exactly, including any custom drag-resized widths. Accessible via the command palette as "Toggle parent pane (hide/show left pane)".
+
+## [0.63.0] - 2026-03-31
+
+### Added
+- **AI context bundle builder** (`Ctrl+B`) — select files and export them as a formatted Markdown bundle to the clipboard, ready to paste into an AI chat. Supports three formats: paths only (`p`), paths + file contents (`c`), and paths + git diff (`d`). Accessible via command palette and the `?` help overlay. Bundles over 512 KB prompt for confirmation before copying.
+
+### Fixed
+- **Animated GIF preview** — `chafa` now receives `--animate=off` so only the first frame is rendered as a static image, preventing GIF corruption in the preview pane.
+
+### Docs
+- Documented image preview (raster formats, inline `chafa` rendering, SVG as text) and added `chafa` to the optional dependencies table.
 
 ## [0.62.1] - 2026-03-27
 
