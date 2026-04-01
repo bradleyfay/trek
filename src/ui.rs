@@ -33,7 +33,11 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     draw_path_bar(f, app, path_area);
 
     // Compute column positions of the two dividers.
-    let left_cols = ((app.left_div * main_area.width as f64).round() as u16).max(3);
+    let left_cols = if app.left_collapsed {
+        0
+    } else {
+        ((app.left_div * main_area.width as f64).round() as u16).max(3)
+    };
     let right_cols = ((app.right_div * main_area.width as f64).round() as u16).max(left_cols + 4);
     let mid_cols = right_cols.saturating_sub(left_cols);
     let preview_cols = main_area.width.saturating_sub(right_cols);
@@ -2065,6 +2069,7 @@ fn draw_help_overlay(f: &mut Frame, size: Rect) {
         key_line("H", "Toggle hash preview (SHA-256 checksum)"),
         key_line("a", "Toggle hex dump view (binary inspection)"),
         key_line("w", "Toggle preview pane (hide/show)"),
+        key_line("\\", "Toggle parent pane (hide/show)"),
         key_line("T", "Toggle timestamps / sizes in listing"),
         key_line("U", "Toggle preview word wrap"),
         key_line("N", "Toggle directory item counts"),

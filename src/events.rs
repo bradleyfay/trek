@@ -370,6 +370,7 @@ pub fn run(
                         KeyCode::Char('f') => app.toggle_file_compare(),
                         KeyCode::Char('a') => app.toggle_hex_view(),
                         KeyCode::Char('w') => app.toggle_preview_pane(),
+                        KeyCode::Char('\\') => app.toggle_left_pane(),
                         KeyCode::Char('T') => app.toggle_timestamps(),
                         KeyCode::Char('t') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                             app.toggle_task_manager()
@@ -572,6 +573,7 @@ fn execute_palette_action(
         ActionId::CompareFiles => app.toggle_file_compare(),
         ActionId::ToggleHexView => app.toggle_hex_view(),
         ActionId::TogglePreviewPane => app.toggle_preview_pane(),
+        ActionId::ToggleLeftPane => app.toggle_left_pane(),
         ActionId::ToggleTimestamps => app.toggle_timestamps(),
         ActionId::TogglePreviewWrap => app.toggle_preview_wrap(),
         ActionId::ToggleDirCounts => app.toggle_dir_counts(),

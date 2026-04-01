@@ -18,6 +18,7 @@ pub enum ActionId {
     ToggleDiffPreview,
     ToggleMetaPreview,
     TogglePreviewPane,
+    ToggleLeftPane,
     ToggleTimestamps,
     TogglePreviewWrap,
     ToggleDirCounts,
@@ -167,6 +168,11 @@ pub static PALETTE_ACTIONS: &[PaletteAction] = &[
         id: ActionId::TogglePreviewPane,
         name: "Toggle preview pane (hide/show right pane)",
         keys: "w",
+    },
+    PaletteAction {
+        id: ActionId::ToggleLeftPane,
+        name: "Toggle parent pane (hide/show left pane)",
+        keys: "\\",
     },
     PaletteAction {
         id: ActionId::ToggleTimestamps,
