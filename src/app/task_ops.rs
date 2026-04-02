@@ -90,10 +90,11 @@ impl App {
         };
         let task_id = self.task_manager.push(kind.clone(), label.clone());
 
+        // Extract tasks arrive via a separate code path; arm retained for exhaustiveness.
         let verb = match kind {
             TaskKind::Copy => "Copying",
             TaskKind::Move => "Moving",
-            _ => "Working on",
+            TaskKind::Extract => "Extracting",
         };
         let short_label = if pairs.len() == 1 {
             pairs[0]
