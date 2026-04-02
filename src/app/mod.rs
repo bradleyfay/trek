@@ -465,6 +465,18 @@ pub struct App {
     pub preview_cursor: usize,
     /// Start of a selection range; None means no active range selection.
     pub preview_selection_anchor: Option<usize>,
+
+    // --- cmux surface picker (Tab in preview focus mode) ---
+    /// True while the "send to surface" picker overlay is open.
+    pub cmux_surface_picker_mode: bool,
+    /// Discovered surfaces populated when picker opens.
+    pub cmux_surfaces: Vec<crate::app::cmux::CmuxSurface>,
+    /// Index into `cmux_surface_filtered` of the highlighted row.
+    pub cmux_surface_selected: usize,
+    /// Filter string typed while the picker is open.
+    pub cmux_surface_query: String,
+    /// Indices into `cmux_surfaces` that pass the current filter.
+    pub cmux_surface_filtered: Vec<usize>,
 }
 
 #[derive(Clone)]
@@ -640,6 +652,11 @@ impl App {
             preview_focused: false,
             preview_cursor: 0,
             preview_selection_anchor: None,
+            cmux_surface_picker_mode: false,
+            cmux_surfaces: Vec::new(),
+            cmux_surface_selected: 0,
+            cmux_surface_query: String::new(),
+            cmux_surface_filtered: Vec::new(),
         };
         app.load_dir();
         Ok(app)

@@ -284,6 +284,219 @@ impl App {
     }
 }
 
+// ── Surface picker ────────────────────────────────────────────────────────────
+
+/// A cmux surface entry used by the surface picker overlay.
+#[derive(Clone, Debug)]
+pub struct CmuxSurface {
+    pub id: String,
+    pub kind: String,
+    pub title: String,
+}
+
+/// Discover all cmux surfaces in the current workspace, excluding Trek itself.
+///
+/// Tries `cmux list-pane-surfaces --workspace <id> --json` first; falls back
+/// to `cmux list-surfaces --json` when `CMUX_WORKSPACE_ID` is absent or the
+/// workspace-scoped command fails.  The current surface (`CMUX_SURFACE_ID`) is
+/// filtered out so Trek cannot send text to itself.
+pub fn discover_workspace_surfaces() -> Vec<CmuxSurface> {
+    let current_id = std::env::var("CMUX_SURFACE_ID").unwrap_or_default();
+    let workspace_id = std::env::var("CMUX_WORKSPACE_ID").unwrap_or_default();
+
+    // Try the workspace-scoped command first when we have a workspace ID.
+    let json: Option<String> = if !workspace_id.is_empty() {
+        std::process::Command::new("cmux")
+            .args(["list-pane-surfaces", "--workspace", &workspace_id, "--json"])
+            .output()
+            .ok()
+            .and_then(|o| {
+                if o.status.success() && !o.stdout.is_empty() {
+                    String::from_utf8(o.stdout).ok()
+                } else {
+                    None
+                }
+            })
+    } else {
+        None
+    };
+
+    // Fall back to the global list.
+    let json = match json {
+        Some(j) => j,
+        None => match std::process::Command::new("cmux")
+            .args(["list-surfaces", "--json"])
+            .output()
+            .ok()
+            .and_then(|o| {
+                if o.status.success() {
+                    String::from_utf8(o.stdout).ok()
+                } else {
+                    None
+                }
+            }) {
+            Some(j) => j,
+            None => return Vec::new(),
+        },
+    };
+
+    parse_all_surfaces(&json)
+        .into_iter()
+        .filter(|s| s.id != current_id)
+        .collect()
+}
+
+/// Parse the JSON output of a `cmux list-*-surfaces --json` command into a
+/// `Vec<CmuxSurface>`.  Uses simple regex scanning — no external JSON crate.
+fn parse_all_surfaces(json: &str) -> Vec<CmuxSurface> {
+    use regex::Regex;
+
+    let id_re = Regex::new(r#""id"\s*:\s*"([^"]+)""#).unwrap();
+    let type_re = Regex::new(r#""type"\s*:\s*"([^"]+)""#).unwrap();
+    let title_re = Regex::new(r#""title"\s*:\s*"([^"]+)""#).unwrap();
+
+    // Split on object boundaries so we process each surface independently.
+    let mut surfaces = Vec::new();
+    let mut depth: i32 = 0;
+    let mut obj_start: Option<usize> = None;
+
+    for (i, ch) in json.char_indices() {
+        match ch {
+            '{' => {
+                if depth == 0 {
+                    obj_start = Some(i);
+                }
+                depth += 1;
+            }
+            '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    if let Some(start) = obj_start.take() {
+                        let obj = &json[start..=i];
+                        let id = id_re
+                            .captures(obj)
+                            .and_then(|c| c.get(1))
+                            .map(|m| m.as_str().to_string())
+                            .unwrap_or_default();
+                        if id.is_empty() {
+                            continue;
+                        }
+                        let kind = type_re
+                            .captures(obj)
+                            .and_then(|c| c.get(1))
+                            .map(|m| m.as_str().to_string())
+                            .unwrap_or_else(|| "unknown".to_string());
+                        let title = title_re
+                            .captures(obj)
+                            .and_then(|c| c.get(1))
+                            .map(|m| m.as_str().to_string())
+                            .unwrap_or_else(|| id.clone());
+                        surfaces.push(CmuxSurface { id, kind, title });
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    surfaces
+}
+
+impl App {
+    /// Open the cmux surface picker overlay.  Discovers workspace surfaces,
+    /// then enters picker mode so the user can choose where to send lines.
+    ///
+    /// Does nothing (shows status hint) when no surfaces are found.
+    pub fn open_cmux_surface_picker(&mut self) {
+        let surfaces = discover_workspace_surfaces();
+        if surfaces.is_empty() {
+            self.status_message = Some("No cmux surfaces found in this workspace".to_string());
+            return;
+        }
+        self.cmux_surfaces = surfaces;
+        self.cmux_surface_query = String::new();
+        self.cmux_surface_filtered = (0..self.cmux_surfaces.len()).collect();
+        self.cmux_surface_selected = 0;
+        self.cmux_surface_picker_mode = true;
+    }
+
+    /// Close the surface picker without sending anything.
+    pub fn close_cmux_surface_picker(&mut self) {
+        self.cmux_surface_picker_mode = false;
+    }
+
+    /// Re-filter `cmux_surface_filtered` against `cmux_surface_query`.
+    pub fn filter_cmux_surfaces(&mut self) {
+        let q = self.cmux_surface_query.to_lowercase();
+        self.cmux_surface_filtered = (0..self.cmux_surfaces.len())
+            .filter(|&i| {
+                let s = &self.cmux_surfaces[i];
+                q.is_empty()
+                    || s.id.to_lowercase().contains(&q)
+                    || s.kind.to_lowercase().contains(&q)
+                    || s.title.to_lowercase().contains(&q)
+            })
+            .collect();
+        self.cmux_surface_selected = 0;
+    }
+
+    /// Send the currently selected preview lines to the chosen cmux surface.
+    ///
+    /// The text is sent without a trailing newline so the user can review it
+    /// before pressing Enter in their terminal.
+    pub fn send_lines_to_cmux_surface(&mut self) {
+        let surface = match self
+            .cmux_surface_filtered
+            .get(self.cmux_surface_selected)
+            .and_then(|&i| self.cmux_surfaces.get(i))
+            .cloned()
+        {
+            Some(s) => s,
+            None => {
+                self.close_cmux_surface_picker();
+                return;
+            }
+        };
+
+        let (lo, hi) = match self.preview_selection_anchor {
+            Some(anchor) => (
+                anchor.min(self.preview_cursor),
+                anchor.max(self.preview_cursor),
+            ),
+            None => (self.preview_cursor, self.preview_cursor),
+        };
+        let lo = lo.min(self.preview_lines.len().saturating_sub(1));
+        let hi = hi.min(self.preview_lines.len().saturating_sub(1));
+        let text: String = self.preview_lines[lo..=hi].join("\n");
+
+        if text.is_empty() {
+            self.close_cmux_surface_picker();
+            return;
+        }
+
+        // Send without trailing newline — let the user decide to execute.
+        let result = std::process::Command::new("cmux")
+            .args(["send", "--surface", &surface.id, &text])
+            .status();
+
+        let line_count = hi - lo + 1;
+        match result {
+            Ok(_) => {
+                self.status_message = Some(format!(
+                    "[cmux] Sent {} line{} to {}",
+                    line_count,
+                    if line_count == 1 { "" } else { "s" },
+                    surface.title
+                ));
+            }
+            Err(e) => {
+                self.status_message = Some(format!("[cmux] Send failed: {e}"));
+            }
+        }
+
+        self.close_cmux_surface_picker();
+    }
+}
+
 // ── Surface discovery ─────────────────────────────────────────────────────────
 
 /// Query `cmux list-surfaces --json` and return the ID of the first surface

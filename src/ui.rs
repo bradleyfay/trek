@@ -233,6 +233,11 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         draw_context_bundle_picker(f, size);
     }
 
+    // cmux surface picker overlay (send selected lines to a surface).
+    if app.cmux_surface_picker_mode {
+        draw_cmux_surface_picker(f, app, size);
+    }
+
     // Clipboard inspector overlay.
     if app.clipboard_inspect_mode {
         draw_clipboard_inspect_overlay(f, app, size);
@@ -2143,6 +2148,10 @@ fn draw_help_overlay(f: &mut Frame, size: Rect) {
             "Enter (in preview)",
             "Open file in editor from preview focus",
         ),
+        key_line(
+            "Tab (in preview)",
+            "Send selected line(s) to a cmux surface",
+        ),
         key_line("g/G (in preview)", "Jump to top / bottom in preview focus"),
         key_line("Ctrl+O", "Go back in directory history"),
         key_line("Ctrl+I", "Go forward in directory history"),
@@ -2636,4 +2645,184 @@ fn draw_session_summary_pane(f: &mut Frame, app: &App, area: Rect) {
 
     let list = List::new(items);
     f.render_widget(list, inner);
+}
+
+/// Render the cmux surface picker as a centred overlay.
+///
+/// Shows all discoverable surfaces in the current workspace (excluding Trek
+/// itself).  The user can type to filter by id/kind/title and press Enter to
+/// send the selected preview lines.
+fn draw_cmux_surface_picker(f: &mut Frame, app: &App, size: Rect) {
+    const MAX_VISIBLE: usize = 10;
+    let row_count = app.cmux_surface_filtered.len().clamp(1, MAX_VISIBLE);
+    // +5: query row + content preview row + hint row + top/bottom border
+    let width = 62u16.min(size.width.saturating_sub(4));
+    let height = (row_count as u16 + 5)
+        .min(size.height.saturating_sub(4))
+        .max(7);
+    let x = (size.width.saturating_sub(width)) / 2;
+    let y = (size.height.saturating_sub(height)) / 2;
+    let area = Rect::new(x, y, width, height);
+
+    f.render_widget(Clear, area);
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::Cyan))
+        .title(Span::styled(
+            " Send to surface ",
+            Style::default()
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD),
+        ));
+
+    let inner = block.inner(area);
+    f.render_widget(block, area);
+
+    // inner is split into: query row | list rows | content preview row | hint row
+    let inner_chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(1), // query / filter row
+            Constraint::Min(1),    // list
+            Constraint::Length(1), // content preview
+            Constraint::Length(1), // hint
+        ])
+        .split(inner);
+
+    // ── Query row ─────────────────────────────────────────────────────────────
+    let query_para = Paragraph::new(Line::from(vec![
+        Span::styled(" Filter: ", Style::default().fg(Color::DarkGray)),
+        Span::styled(
+            app.cmux_surface_query.as_str(),
+            Style::default().fg(Color::White),
+        ),
+        Span::styled("█", Style::default().fg(Color::Cyan)),
+    ]));
+    f.render_widget(query_para, inner_chunks[0]);
+
+    // ── Surface list ──────────────────────────────────────────────────────────
+    let list_area = inner_chunks[1];
+    let visible_height = list_area.height as usize;
+
+    let scroll = if app.cmux_surface_selected >= visible_height {
+        app.cmux_surface_selected - visible_height + 1
+    } else {
+        0
+    };
+
+    if app.cmux_surface_filtered.is_empty() {
+        let para = Paragraph::new(Line::from(Span::styled(
+            "  (no surfaces match)",
+            Style::default().fg(Color::DarkGray),
+        )));
+        f.render_widget(para, list_area);
+    } else {
+        let title_width = (inner.width as usize).saturating_sub(14);
+        let items: Vec<ListItem> = app
+            .cmux_surface_filtered
+            .iter()
+            .enumerate()
+            .skip(scroll)
+            .take(visible_height)
+            .map(|(display_idx, &real_idx)| {
+                let s = &app.cmux_surfaces[real_idx];
+                let is_selected = display_idx + scroll == app.cmux_surface_selected;
+
+                let icon = match s.kind.as_str() {
+                    "terminal" => ">_",
+                    "browser" => "[B]",
+                    "markdown" => "=",
+                    _ => "?",
+                };
+
+                let title_col = truncate_with_ellipsis(&s.title, title_width);
+
+                if is_selected {
+                    let style = Style::default()
+                        .fg(Color::White)
+                        .bg(Color::Blue)
+                        .add_modifier(Modifier::BOLD);
+                    ListItem::new(Line::from(vec![Span::styled(
+                        format!(" {:<3}  {:<12}  {}", icon, s.id, title_col),
+                        style,
+                    )]))
+                } else {
+                    ListItem::new(Line::from(vec![
+                        Span::styled(format!(" {:<3} ", icon), Style::default().fg(Color::Cyan)),
+                        Span::styled(
+                            format!(" {:<12}  ", s.id),
+                            Style::default().fg(Color::DarkGray),
+                        ),
+                        Span::raw(title_col),
+                    ]))
+                }
+            })
+            .collect();
+
+        let list = List::new(items);
+        f.render_widget(list, list_area);
+    }
+
+    // ── Content preview row ───────────────────────────────────────────────────
+    let (lo, hi) = match app.preview_selection_anchor {
+        Some(anchor) => (
+            anchor.min(app.preview_cursor),
+            anchor.max(app.preview_cursor),
+        ),
+        None => (app.preview_cursor, app.preview_cursor),
+    };
+    let lo = lo.min(app.preview_lines.len().saturating_sub(1));
+    let hi = hi.min(app.preview_lines.len().saturating_sub(1));
+    let line_count = hi - lo + 1;
+    let first_line = app.preview_lines.get(lo).map(|s| s.as_str()).unwrap_or("");
+    let max_preview = (inner.width as usize).saturating_sub(16);
+    let preview_text = truncate_with_ellipsis(first_line.trim(), max_preview);
+    let content_para = Paragraph::new(Line::from(vec![
+        Span::styled(
+            format!(
+                " {} line{}  ",
+                line_count,
+                if line_count == 1 { "" } else { "s" }
+            ),
+            Style::default().fg(Color::DarkGray),
+        ),
+        Span::styled(
+            format!("\"{}\"", preview_text),
+            Style::default()
+                .fg(Color::DarkGray)
+                .add_modifier(Modifier::ITALIC),
+        ),
+    ]));
+    f.render_widget(content_para, inner_chunks[2]);
+
+    // ── Hint row ──────────────────────────────────────────────────────────────
+    let hint = Paragraph::new(Line::from(vec![
+        Span::styled("  ", Style::default()),
+        Span::styled(
+            "Enter",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(" send  ", Style::default().fg(Color::DarkGray)),
+        Span::styled(
+            "Esc",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(" cancel  ", Style::default().fg(Color::DarkGray)),
+        Span::styled(
+            "↑↓",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            " navigate  type to filter",
+            Style::default().fg(Color::DarkGray),
+        ),
+    ]));
+    f.render_widget(hint, inner_chunks[3]);
 }

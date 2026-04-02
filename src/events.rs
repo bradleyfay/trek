@@ -354,6 +354,30 @@ pub fn run(
                         KeyCode::Char(c) => app.search_push_char(c),
                         _ => {}
                     }
+                } else if app.cmux_surface_picker_mode {
+                    match key.code {
+                        KeyCode::Esc => app.close_cmux_surface_picker(),
+                        KeyCode::Enter => app.send_lines_to_cmux_surface(),
+                        KeyCode::Up | KeyCode::Char('k') => {
+                            if app.cmux_surface_selected > 0 {
+                                app.cmux_surface_selected -= 1;
+                            }
+                        }
+                        KeyCode::Down | KeyCode::Char('j') => {
+                            if app.cmux_surface_selected + 1 < app.cmux_surface_filtered.len() {
+                                app.cmux_surface_selected += 1;
+                            }
+                        }
+                        KeyCode::Backspace => {
+                            app.cmux_surface_query.pop();
+                            app.filter_cmux_surfaces();
+                        }
+                        KeyCode::Char(c) if !key.modifiers.contains(KeyModifiers::CONTROL) => {
+                            app.cmux_surface_query.push(c);
+                            app.filter_cmux_surfaces();
+                        }
+                        _ => {}
+                    }
                 } else if app.preview_focused {
                     match key.code {
                         KeyCode::Esc | KeyCode::Left | KeyCode::Char('h') => {
@@ -363,6 +387,7 @@ pub fn run(
                             app.exit_preview_focus();
                             app.enter_selected();
                         }
+                        KeyCode::Tab => app.open_cmux_surface_picker(),
                         KeyCode::Down | KeyCode::Char('j') => app.preview_cursor_down(),
                         KeyCode::Up | KeyCode::Char('k') => app.preview_cursor_up(),
                         KeyCode::Char('J') => app.preview_select_down(),
