@@ -12,14 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Faster directory sorting** — `sort_entries` now uses `sort_by_cached_key` instead of `sort_by`, computing `.to_lowercase()` and extension keys once per entry (O(n)) rather than once per comparison (O(n log n)). Eliminates up to millions of `String` allocations when navigating large directories.
 - **Non-blocking git status** — git status, branch detection, and gitignore filtering no longer run synchronously on the UI thread. All three git subprocesses (`rev-parse`, `branch --show-current`, `status --porcelain`) are now dispatched to a background thread via an `mpsc` channel, matching the existing async preview pattern. Navigation remains fully responsive while git status loads; decorations update on the next event-loop tick. The `R` key (manual refresh) follows the same async path.
 - **Instant startup** — `App::new` no longer blocks on `git rev-parse --show-toplevel` before rendering the first frame. The recursive change-feed watcher starts on `cwd` immediately and is repointed to the true git repo root once the first async git-status result arrives.
-
-### Performance
-
 - **Cached hex-tool probe** — `xxd` / `hexdump` availability is now probed exactly once per session via a `std::sync::LazyLock`, instead of shelling out to `which` on every hex-preview render. The probe spawns the binary directly (no `which`), so it works even when `which` is absent.
 
 ### Fixed
 
 - **No clipboard popups during tests** — `osc52_copy` now checks `IsTerminal` before writing the OSC 52 escape sequence. Prevents macOS clipboard-access permission dialogs when running `cargo test`.
+- **Duplicate name suggestion safe for multi-byte filenames** — `suggest_dup_name` previously used `str::find('.')` and raw byte-offset slicing, which is unsafe for filenames containing multi-byte UTF-8 characters before the first dot (e.g. `café.txt`, `日本語.txt`). Replaced with `str::split_once('.')` which always splits on a valid char boundary.
 
 ## [0.65.0] - 2026-04-01
 

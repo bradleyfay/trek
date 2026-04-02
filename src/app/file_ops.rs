@@ -2,18 +2,20 @@ use super::App;
 use crate::ops::{self, Clipboard, ClipboardOp};
 use std::path::PathBuf;
 
-/// Suggest a duplicate name for `name` by inserting `_copy` before the last extension.
+/// Suggest a duplicate name for `name` by inserting `_copy` before the first extension.
+///
+/// Uses `split_once` to avoid raw byte-offset indexing, which is safe for any
+/// valid UTF-8 filename (including those with multi-byte characters before the dot).
 ///
 /// Examples:
 ///   "config.toml"    → "config_copy.toml"
 ///   "archive.tar.gz" → "archive_copy.tar.gz"  (preserves compound extension)
 ///   "Makefile"       → "Makefile_copy"
+///   "café.txt"       → "café_copy.txt"
 fn suggest_dup_name(name: &str) -> String {
-    if let Some(dot) = name.find('.') {
-        if dot > 0 {
-            let stem = &name[..dot];
-            let ext = &name[dot..]; // includes the leading dot and any compound extension
-            return format!("{}_copy{}", stem, ext);
+    if let Some((stem, ext)) = name.split_once('.') {
+        if !stem.is_empty() {
+            return format!("{}_copy.{}", stem, ext);
         }
     }
     format!("{}_copy", name)
@@ -471,5 +473,55 @@ impl App {
     pub fn cancel_extract(&mut self) {
         self.pending_extract = None;
         self.status_message = Some("Extract cancelled".to_string());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::suggest_dup_name;
+
+    #[test]
+    fn dup_name_simple_extension() {
+        assert_eq!(suggest_dup_name("config.toml"), "config_copy.toml");
+    }
+
+    #[test]
+    fn dup_name_compound_extension() {
+        assert_eq!(suggest_dup_name("archive.tar.gz"), "archive_copy.tar.gz");
+    }
+
+    #[test]
+    fn dup_name_no_extension() {
+        assert_eq!(suggest_dup_name("Makefile"), "Makefile_copy");
+    }
+
+    #[test]
+    fn dup_name_dotfile_no_extension() {
+        // Leading-dot names (e.g. ".hidden") are treated as no-stem — fall through.
+        assert_eq!(suggest_dup_name(".hidden"), ".hidden_copy");
+    }
+
+    #[test]
+    fn dup_name_multibyte_before_dot() {
+        // Multi-byte UTF-8 characters in the stem must not cause a panic.
+        assert_eq!(suggest_dup_name("café.txt"), "café_copy.txt");
+        assert_eq!(suggest_dup_name("日本語.txt"), "日本語_copy.txt");
+    }
+
+    #[test]
+    fn dup_name_multibyte_compound_extension() {
+        assert_eq!(suggest_dup_name("données.tar.gz"), "données_copy.tar.gz");
+    }
+
+    #[test]
+    fn dup_name_double_dot() {
+        // ".." has an empty stem — treated as no-stem, gets _copy suffix.
+        assert_eq!(suggest_dup_name(".."), ".._copy");
+    }
+
+    #[test]
+    fn dup_name_purely_multibyte_no_dot() {
+        // A name with only multi-byte chars and no dot is treated as no-extension.
+        assert_eq!(suggest_dup_name("日本語"), "日本語_copy");
     }
 }
