@@ -59,7 +59,7 @@ impl GitStatus {
             if line.len() < 3 {
                 continue;
             }
-            let idx_char = line.chars().nth(0).unwrap_or(' ');
+            let idx_char = line.chars().next().unwrap_or(' ');
             let wt_char = line.chars().nth(1).unwrap_or(' ');
             let file_part = &line[3..];
             // Porcelain v1 shows renames as "old -> new".

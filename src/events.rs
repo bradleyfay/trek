@@ -224,7 +224,7 @@ pub fn run(
                         KeyCode::Enter | KeyCode::Char('l') | KeyCode::Right => {
                             if let Some(action) = app.palette_selected_action() {
                                 app.close_palette();
-                                execute_palette_action(&mut app, action, terminal)?;
+                                execute_palette_action(&mut app, action)?;
                             }
                         }
                         KeyCode::Backspace => app.palette_pop_char(),
@@ -638,14 +638,10 @@ pub fn run(
     Ok(app.cwd)
 }
 
-/// Dispatch a palette ActionId to the corresponding App method.
-///
-/// Actions that require terminal teardown (open-in-editor) are handled here
-/// because `events.rs` owns the terminal handle.
+/// Dispatch a palette `ActionId` to the corresponding `App` method.
 fn execute_palette_action(
     app: &mut App,
     action: crate::app::palette::ActionId,
-    terminal: &mut ratatui::Terminal<CrosstermBackend<io::Stdout>>,
 ) -> anyhow::Result<()> {
     use crate::app::palette::ActionId;
     match action {
@@ -722,8 +718,6 @@ fn execute_palette_action(
         // of the event loop from here — use q directly.
         ActionId::Quit => {}
     }
-    // terminal is available here for any future actions needing TUI teardown.
-    let _ = terminal;
     Ok(())
 }
 

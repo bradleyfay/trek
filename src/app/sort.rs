@@ -33,7 +33,8 @@ impl App {
         // Capture selected file's name so the cursor follows the file after re-sort.
         let selected_name = self.entries.get(self.selected).map(|e| e.name.clone());
         Self::sort_entries(&mut self.entries, self.sort_mode, self.sort_order);
-        Self::sort_entries(&mut self.parent_entries, self.sort_mode, self.sort_order);
+        // parent_entries is only used as a directory indicator in the left pane;
+        // its display order has no user-visible effect, so we skip sorting it.
         if let Some(name) = selected_name {
             if let Some(idx) = self.entries.iter().position(|e| e.name == name) {
                 self.selected = idx;

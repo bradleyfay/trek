@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Performance
 
+- **Skip sorting parent pane entries** — `apply_sort` no longer calls `sort_entries` on `parent_entries`. The parent listing is used only as a visual directory indicator in the left pane; its order is not user-visible, so sorting it on every sort-mode change and every `load_dir` was pure waste.
 - **Faster directory sorting** — `sort_entries` now uses `sort_by_cached_key` instead of `sort_by`, computing `.to_lowercase()` and extension keys once per entry (O(n)) rather than once per comparison (O(n log n)). Eliminates up to millions of `String` allocations when navigating large directories.
 - **Non-blocking git status** — git status, branch detection, and gitignore filtering no longer run synchronously on the UI thread. All three git subprocesses (`rev-parse`, `branch --show-current`, `status --porcelain`) are now dispatched to a background thread via an `mpsc` channel, matching the existing async preview pattern. Navigation remains fully responsive while git status loads; decorations update on the next event-loop tick. The `R` key (manual refresh) follows the same async path.
 - **Instant startup** — `App::new` no longer blocks on `git rev-parse --show-toplevel` before rendering the first frame. The recursive change-feed watcher starts on `cwd` immediately and is repointed to the true git repo root once the first async git-status result arrives.
@@ -23,6 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Renamed `ContextBundleFormat` variants and removed lint suppressions** — variants `PathsAndContents` and `PathsAndDiff` renamed to `WithContents` and `WithDiff`, eliminating the common `Paths` prefix that triggered `clippy::enum_variant_names`. The `#[allow(dead_code, clippy::enum_variant_names)]` attribute is removed; all three variants are now reachable and the compiler enforces it.
 - **Git diff logic consolidated in `src/git.rs`** — the duplicate subprocess invocations for `git diff` scattered across `context_bundle.rs` and `preview.rs` are replaced by two focused public functions: `git::diff_vs_head(path)` (HEAD diff, used by context-bundle export) and `git::diff_for_preview(path)` (working-tree/staged diff, used by the preview pane). Both callers are now thin delegating wrappers.
 - **Renamed `rename_selected` field to `selection`** — the multi-file selection set was named after one of its consumers (rename), misleading readers of every other feature that uses it (copy, move, delete, file compare, context-bundle export). Renamed to `selection` across all 55 usages in 8 files. Added a doc-comment on the field explaining its purpose and scope. Documented the directory-inclusion policy difference between `toggle_selection` (excludes dirs) and `select_move_down`/`select_move_up` (includes dirs).
+- **Removed unused `terminal` parameter from `execute_palette_action`** — the parameter was never read; its only use was a `let _ = terminal` suppression. Removed from the signature and the single call site.
+- **`chars().nth(0)` → `chars().next()` in `git.rs`** — replaced the unnecessarily iterative form with the idiomatic Rust equivalent.
 
 ## [0.65.0] - 2026-04-01
 
