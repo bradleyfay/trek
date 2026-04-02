@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **No clipboard popups during tests** — `osc52_copy` now checks `IsTerminal` before writing the OSC 52 escape sequence. Prevents macOS clipboard-access permission dialogs when running `cargo test`.
+
 ## [0.65.0] - 2026-04-01
 
 ### Added
