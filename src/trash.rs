@@ -6,10 +6,11 @@
 //!
 //! Platform behaviour:
 //! - **macOS**: `~/.Trash/`
-//! - **Linux**: `$XDG_DATA_HOME/Trash/files/` with `.trashinfo` sidecars in
-//!   `$XDG_DATA_HOME/Trash/info/` for Nautilus/Thunar compatibility.
-//!   (Full FreeDesktop per-device `$TOPDIR/.Trash-<uid>` support is a
-//!   TODO for a future release.)
+//! - **Linux**: conforms to the FreeDesktop Trash Specification.
+//!   - Files on the same filesystem as `$HOME` use
+//!     `$XDG_DATA_HOME/Trash/files/` with `.trashinfo` sidecars.
+//!   - Files on a **different** filesystem use `$TOPDIR/.Trash-<uid>/files/`
+//!     (per-device trash), avoiding a cross-device copy+delete.
 
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
@@ -32,7 +33,11 @@ pub struct TrashedEntry {
 /// Collision handling: appends ` (2)`, ` (3)`, … to the stem until a free
 /// slot is found (up to 100 attempts).
 pub fn trash_path(path: &Path) -> Result<TrashedEntry> {
+    #[cfg(target_os = "macos")]
     let trash_dir = platform_trash_dir()?;
+    #[cfg(not(target_os = "macos"))]
+    let trash_dir = linux_trash_dir_for(path)?;
+
     std::fs::create_dir_all(&trash_dir)
         .with_context(|| format!("create trash dir {:?}", trash_dir))?;
 
@@ -42,16 +47,18 @@ pub fn trash_path(path: &Path) -> Result<TrashedEntry> {
 
     let dest = unique_trash_dest(&trash_dir, file_name)?;
 
-    #[cfg(target_os = "linux")]
-    write_trashinfo(&dest, path)?;
-
     // Attempt atomic rename first; fall back to copy+delete for cross-device.
+    // Write trashinfo only after the file is safely at its destination so we
+    // do not leave an orphan .trashinfo if the move fails.
     if std::fs::rename(path, &dest).is_err() {
         crate::ops::copy_path(path, &dest)
             .with_context(|| format!("cross-device trash copy {:?}", path))?;
         crate::ops::delete_path(path)
             .with_context(|| format!("cross-device trash remove {:?}", path))?;
     }
+
+    #[cfg(target_os = "linux")]
+    write_trashinfo(&dest, path)?;
 
     Ok(TrashedEntry {
         original: path.to_owned(),
@@ -86,6 +93,9 @@ pub fn restore_path(entry: &TrashedEntry) -> Result<()> {
 ///
 /// - **macOS**: `~/.Trash`
 /// - **Linux/other**: `$XDG_DATA_HOME/Trash/files` (default: `~/.local/share/Trash/files`)
+///
+/// On Linux, prefer [`linux_trash_dir_for`] when the file path is known —
+/// it selects between home trash and per-device trash based on `st_dev`.
 pub fn platform_trash_dir() -> Result<PathBuf> {
     #[cfg(target_os = "macos")]
     {
@@ -94,11 +104,105 @@ pub fn platform_trash_dir() -> Result<PathBuf> {
     }
     #[cfg(not(target_os = "macos"))]
     {
-        let base = std::env::var_os("XDG_DATA_HOME")
-            .map(PathBuf::from)
-            .unwrap_or_else(|| home_dir().unwrap_or_default().join(".local/share"));
-        Ok(base.join("Trash/files"))
+        home_trash_dir()
     }
+}
+
+/// Return `$XDG_DATA_HOME/Trash/files` (the home-filesystem trash).
+#[cfg(not(target_os = "macos"))]
+fn home_trash_dir() -> Result<PathBuf> {
+    let base = if let Some(xdg) = std::env::var_os("XDG_DATA_HOME") {
+        PathBuf::from(xdg)
+    } else {
+        home_dir()?.join(".local/share")
+    };
+    Ok(base.join("Trash/files"))
+}
+
+/// Select the correct Linux trash directory for `path`.
+///
+/// Compares `st_dev` of `path` against `st_dev` of `$HOME`:
+/// - Same device → home trash (`$XDG_DATA_HOME/Trash/files/`)
+/// - Different device → per-device trash (`$TOPDIR/.Trash-<uid>/files/`),
+///   created with mode `0700` if it does not already exist.
+///   Falls back to home trash if the mount point cannot be determined or the
+///   per-device directory cannot be created.
+#[cfg(not(target_os = "macos"))]
+fn linux_trash_dir_for(path: &Path) -> Result<PathBuf> {
+    use std::os::unix::fs::MetadataExt;
+
+    let file_dev = std::fs::metadata(path)
+        .with_context(|| format!("stat {:?}", path))?
+        .dev();
+    let home = home_dir()?;
+    let home_dev = std::fs::metadata(&home)
+        .map(|m| m.dev())
+        .unwrap_or(file_dev);
+
+    if file_dev == home_dev {
+        return home_trash_dir();
+    }
+
+    // File is on a different filesystem — use per-device trash.
+    let topdir = match find_mount_point(path) {
+        Some(p) => p,
+        None => return home_trash_dir(), // fallback
+    };
+    let uid = get_uid();
+    let files_dir = topdir.join(format!(".Trash-{}", uid)).join("files");
+
+    // Create with mode 0700 per XDG spec.
+    use std::os::unix::fs::DirBuilderExt;
+    std::fs::DirBuilder::new()
+        .recursive(true)
+        .mode(0o700)
+        .create(&files_dir)
+        .with_context(|| format!("create per-device trash {:?}", files_dir))?;
+
+    Ok(files_dir)
+}
+
+/// Walk up the directory tree until the device ID changes; return the last
+/// directory that still had the same device as `path`.  That directory is
+/// the filesystem mount point.
+///
+/// Returns `None` only if the path cannot be `stat`-ed.
+#[cfg(not(target_os = "macos"))]
+fn find_mount_point(path: &Path) -> Option<PathBuf> {
+    use std::os::unix::fs::MetadataExt;
+    let start = if path.is_dir() {
+        path.to_path_buf()
+    } else {
+        path.parent()?.to_path_buf()
+    };
+    let dev = std::fs::metadata(&start).ok()?.dev();
+    let mut cur = start;
+    loop {
+        let parent = match cur.parent() {
+            Some(p) if p != cur => p.to_path_buf(),
+            _ => return Some(cur), // reached /
+        };
+        let parent_dev = std::fs::metadata(&parent).ok()?.dev();
+        if parent_dev != dev {
+            return Some(cur); // cur is the mount root
+        }
+        cur = parent;
+    }
+}
+
+/// Return the real UID of the running process by reading `/proc/self/status`.
+/// Falls back to `0` if the file is unreadable or the field is missing.
+#[cfg(not(target_os = "macos"))]
+fn get_uid() -> u32 {
+    std::fs::read_to_string("/proc/self/status")
+        .ok()
+        .and_then(|s| {
+            s.lines()
+                .find(|l| l.starts_with("Uid:"))
+                .and_then(|l| l.split_whitespace().nth(1))
+                .and_then(|uid| uid.parse().ok())
+        })
+        .unwrap_or(0)
 }
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
