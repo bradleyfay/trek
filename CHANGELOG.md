@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`read_file_preview` accepts `&Path` instead of `&PathBuf`** — fixes `clippy::ptr_arg`; callers with a `&PathBuf` coerce automatically, no behavioral change (#138).
+- **Removed redundant `cfg(test)` history accessor wrappers** — `history_len()` and `history_position()` in `navigation.rs` were thin wrappers around `pub(super)` fields already accessible from `app::tests`. Removed; tests now access `history.len()` and `history_pos` directly (#145).
+- **History tests exercise `history_back()` instead of mutating fields directly** — `push_history_then_back_restores_position` and `forward_history_discarded_on_new_navigation` previously bypassed `history_back()` by writing to `history_pos` directly. Rewritten to call the public API with real distinct temp directories and assert on observable `cwd` changes (#143).
 - **No clipboard popups during tests** — `osc52_copy` now checks `IsTerminal` before writing the OSC 52 escape sequence. Prevents macOS clipboard-access permission dialogs when running `cargo test`.
 - **Duplicate name suggestion safe for multi-byte filenames** — `suggest_dup_name` previously used `str::find('.')` and raw byte-offset slicing, which is unsafe for filenames containing multi-byte UTF-8 characters before the first dot (e.g. `café.txt`, `日本語.txt`). Replaced with `str::split_once('.')` which always splits on a valid char boundary.
 - **Exhaustive `TaskKind` match in task progress label** — a wildcard `_` arm in `task_ops.rs` was silently swallowing any future `TaskKind` variants. Replaced with an explicit arm for every variant (`Copy`, `Move`, `Extract`) so the compiler will flag unhandled additions at compile time.

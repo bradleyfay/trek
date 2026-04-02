@@ -327,18 +327,6 @@ impl App {
         ));
     }
 
-    /// Return the current history stack depth (number of entries).
-    #[cfg(test)]
-    pub fn history_len(&self) -> usize {
-        self.history.len()
-    }
-
-    /// Return the current position in the history stack.
-    #[cfg(test)]
-    pub fn history_position(&self) -> usize {
-        self.history_pos
-    }
-
     /// Toggle line numbers in the preview pane.
     pub fn toggle_line_numbers(&mut self) {
         self.show_line_numbers = !self.show_line_numbers;

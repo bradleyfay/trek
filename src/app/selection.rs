@@ -1,6 +1,6 @@
 use super::App;
 use std::fs;
-use std::path::PathBuf;
+use std::path::Path;
 
 impl App {
     /// Toggle the selection mark on entry `idx`.
@@ -73,7 +73,7 @@ impl App {
     ///
     /// Returns a flat list of strings, one per display line.
     /// Handles archives, binary files, and oversized files gracefully.
-    pub fn read_file_preview(path: &PathBuf) -> Vec<String> {
+    pub fn read_file_preview(path: &Path) -> Vec<String> {
         // Verify the path is a regular file *before* opening it.
         // Without this check, fs::read can hang indefinitely on FIFOs, device
         // files, and other special filesystem entries — even ones reached through

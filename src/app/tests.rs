@@ -166,8 +166,8 @@ fn wait_for_preview(app: &mut App) {
 fn history_initialized_with_one_entry() {
     let dir = std::env::temp_dir();
     let app = make_app_at(&dir);
-    assert_eq!(app.history_len(), 1);
-    assert_eq!(app.history_position(), 0);
+    assert_eq!(app.history.len(), 1);
+    assert_eq!(app.history_pos, 0);
 }
 
 /// Given: a fresh App
@@ -178,7 +178,7 @@ fn history_back_at_oldest_shows_message() {
     let dir = std::env::temp_dir();
     let mut app = make_app_at(&dir);
     app.history_back();
-    assert_eq!(app.history_position(), 0);
+    assert_eq!(app.history_pos, 0);
     assert_eq!(
         app.status_message.as_deref(),
         Some("Already at oldest location")
@@ -193,7 +193,7 @@ fn history_forward_at_newest_shows_message() {
     let dir = std::env::temp_dir();
     let mut app = make_app_at(&dir);
     app.history_forward();
-    assert_eq!(app.history_position(), 0);
+    assert_eq!(app.history_pos, 0);
     assert_eq!(
         app.status_message.as_deref(),
         Some("Already at newest location")
@@ -202,20 +202,24 @@ fn history_forward_at_newest_shows_message() {
 
 /// Given: two distinct real directories
 /// When: push_history is called twice, then history_back once
-/// Then: position returns to 1 (one step back) and stack still has 3 entries
+/// Then: cwd is restored to sub1 and position is 1; stack still has 3 entries
 #[test]
 fn push_history_then_back_restores_position() {
-    let dir = std::env::temp_dir();
-    let mut app = make_app_at(&dir);
-    let sub1 = std::env::temp_dir();
-    let sub2 = std::env::temp_dir();
+    let base = std::env::temp_dir().join(format!("trek_hist_back_{}", std::process::id()));
+    let sub1 = base.join("a");
+    let sub2 = base.join("b");
+    std::fs::create_dir_all(&sub1).unwrap();
+    std::fs::create_dir_all(&sub2).unwrap();
+    let mut app = make_app_at(&base);
     app.push_history(sub1.clone());
     app.push_history(sub2.clone());
-    assert_eq!(app.history_len(), 3);
-    assert_eq!(app.history_position(), 2);
-    // Go back — position should move to 1.
-    app.history_pos -= 1; // bypass restore (no real dir switch needed)
-    assert_eq!(app.history_position(), 1);
+    assert_eq!(app.history.len(), 3);
+    assert_eq!(app.history_pos, 2);
+    // Go back via the public API — cwd should be restored to sub1.
+    app.history_back();
+    assert_eq!(app.history_pos, 1);
+    assert_eq!(app.cwd, sub1, "history_back should restore cwd to sub1");
+    let _ = std::fs::remove_dir_all(&base);
 }
 
 /// Given: user navigates forward, then goes back, then navigates to a new dir
@@ -223,24 +227,30 @@ fn push_history_then_back_restores_position() {
 /// Then: forward entries are discarded (browser-style)
 #[test]
 fn forward_history_discarded_on_new_navigation() {
-    let dir = std::env::temp_dir();
-    let mut app = make_app_at(&dir);
-    let sub1 = std::env::temp_dir();
-    let sub2 = std::env::temp_dir();
-    let sub3 = std::env::temp_dir();
-    app.push_history(sub1);
+    let base = std::env::temp_dir().join(format!("trek_hist_fwd_{}", std::process::id()));
+    let sub1 = base.join("a");
+    let sub2 = base.join("b");
+    let sub3 = base.join("c");
+    std::fs::create_dir_all(&sub1).unwrap();
+    std::fs::create_dir_all(&sub2).unwrap();
+    std::fs::create_dir_all(&sub3).unwrap();
+    let mut app = make_app_at(&base);
+    app.push_history(sub1.clone());
     app.push_history(sub2);
-    assert_eq!(app.history_len(), 3);
-    // Simulate going back.
-    app.history_pos = 1;
-    // Navigate to a new dir — should discard entry at index 2.
+    assert_eq!(app.history.len(), 3);
+    // Go back via history_back — cwd should restore to sub1.
+    app.history_back();
+    assert_eq!(app.history_pos, 1);
+    assert_eq!(app.cwd, sub1);
+    // Navigate to a new dir — should discard the forward entry (sub2).
     app.push_history(sub3);
     assert_eq!(
-        app.history_len(),
+        app.history.len(),
         3,
         "old forward entry should be replaced, not accumulated"
     );
-    assert_eq!(app.history_position(), 2);
+    assert_eq!(app.history_pos, 2);
+    let _ = std::fs::remove_dir_all(&base);
 }
 
 /// Given: MAX_HISTORY + 5 push_history calls
@@ -253,7 +263,7 @@ fn history_capped_at_max() {
     for _ in 0..(MAX_HISTORY + 5) {
         app.push_history(std::env::temp_dir());
     }
-    assert!(app.history_len() <= MAX_HISTORY);
+    assert!(app.history.len() <= MAX_HISTORY);
 }
 
 // ── Metadata helper tests ─────────────────────────────────────────────────
@@ -2031,10 +2041,10 @@ fn jump_to_mark_pushes_history() {
     app.cwd = dest.clone();
     app.load_dir();
 
-    let pos_before = app.history_position();
+    let pos_before = app.history_pos;
     app.jump_to_mark('h');
     assert!(
-        app.history_position() > pos_before || app.history_len() > 1,
+        app.history_pos > pos_before || app.history.len() > 1,
         "history should grow after mark jump"
     );
     let _ = std::fs::remove_dir_all(&base);
