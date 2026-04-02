@@ -164,16 +164,7 @@ impl App {
     fn open_in_viewer(&mut self, viewer: CmuxViewer, name: &str, path: &Path) {
         let escaped = shell_escape(&path.to_string_lossy());
         let cmd = match find_cmux_surface_of_type(viewer.surface_type()) {
-            Some(existing_id) => match viewer {
-                CmuxViewer::Markdown => format!(
-                    "cmux markdown open {} --surface {} && cmux close-surface --surface {}",
-                    escaped, existing_id, existing_id
-                ),
-                CmuxViewer::Browser => format!(
-                    "cmux browser {} navigate {}",
-                    existing_id, escaped
-                ),
-            },
+            Some(existing_id) => viewer.reuse_command(&existing_id, &escaped),
             None => viewer.new_command(&escaped),
         };
         self.spawn_opener_command(name, &cmd);
