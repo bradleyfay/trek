@@ -553,13 +553,37 @@ impl App {
 /// of the requested type exists.
 fn find_cmux_surface_of_type(surface_type: &str) -> Option<String> {
     let out = std::process::Command::new("cmux")
-        .args(["list-surfaces", "--json"])
+        .args(["tree", "--json"])
         .output()
         .ok()?;
     if !out.status.success() {
         return None;
     }
-    parse_surface_of_type(&String::from_utf8_lossy(&out.stdout), surface_type)
+    let json = String::from_utf8_lossy(&out.stdout);
+    // Extract caller workspace so we only search the current workspace.
+    use regex::Regex;
+    let caller_block_re = Regex::new(r#""caller"\s*:\s*\{([^}]+)\}"#).ok()?;
+    let ref_re = Regex::new(r#""workspace_ref"\s*:\s*"([^"]+)""#).ok()?;
+    let caller_block = caller_block_re
+        .captures(&json)
+        .and_then(|c| c.get(1))
+        .map(|m| m.as_str())
+        .unwrap_or("");
+    let workspace_ref = ref_re
+        .captures(caller_block)
+        .and_then(|c| c.get(1))
+        .map(|m| m.as_str())
+        .unwrap_or("");
+    // Use the plain-text tree for surface parsing (parse_tree_surfaces handles it).
+    let tree_out = std::process::Command::new("cmux")
+        .arg("tree")
+        .output()
+        .ok()?;
+    let tree = String::from_utf8_lossy(&tree_out.stdout).to_string();
+    parse_tree_surfaces(&tree, workspace_ref)
+        .into_iter()
+        .find(|s| s.kind == surface_type)
+        .map(|s| s.id)
 }
 
 /// Parse the JSON output of `cmux list-surfaces --json` and return the `id`
