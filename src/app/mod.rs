@@ -882,38 +882,57 @@ impl App {
     }
 
     /// Sort a slice of entries in-place. Directories always appear before files.
+    ///
+    /// Uses `sort_by_cached_key` so any allocating key (e.g. `.to_lowercase()`)
+    /// is computed once per element rather than once per comparison, reducing
+    /// allocations from O(n log n) to O(n).
     pub fn sort_entries(entries: &mut [DirEntry], mode: SortMode, order: SortOrder) {
-        entries.sort_by(|a, b| {
-            // Directories always before files regardless of sort mode.
-            let dir_cmp = b.is_dir.cmp(&a.is_dir);
-            if dir_cmp != std::cmp::Ordering::Equal {
-                return dir_cmp;
-            }
+        use std::cmp::Reverse;
 
-            let ord = match mode {
-                SortMode::Name => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
-                SortMode::Size => a.size.cmp(&b.size),
-                SortMode::Modified => a.modified.cmp(&b.modified),
-                SortMode::Extension => {
-                    let ext = |e: &DirEntry| {
-                        Path::new(&e.name)
-                            .extension()
-                            .and_then(|x| x.to_str())
-                            .unwrap_or("")
-                            .to_lowercase()
-                    };
-                    ext(a)
-                        .cmp(&ext(b))
-                        .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
-                }
-            };
-
-            if order == SortOrder::Descending {
-                ord.reverse()
-            } else {
-                ord
+        // Primary key `!is_dir` keeps directories before files in all modes:
+        // `false` (dir) sorts before `true` (file) in ascending order.
+        // Secondary keys are wrapped in `Reverse` for descending order while
+        // leaving the primary key unaffected.
+        match (mode, order) {
+            (SortMode::Name, SortOrder::Ascending) => {
+                entries.sort_by_cached_key(|e| (!e.is_dir, e.name.to_lowercase()));
             }
-        });
+            (SortMode::Name, SortOrder::Descending) => {
+                entries.sort_by_cached_key(|e| (!e.is_dir, Reverse(e.name.to_lowercase())));
+            }
+            (SortMode::Size, SortOrder::Ascending) => {
+                entries.sort_by_cached_key(|e| (!e.is_dir, e.size));
+            }
+            (SortMode::Size, SortOrder::Descending) => {
+                entries.sort_by_cached_key(|e| (!e.is_dir, Reverse(e.size)));
+            }
+            (SortMode::Modified, SortOrder::Ascending) => {
+                entries.sort_by_cached_key(|e| (!e.is_dir, e.modified));
+            }
+            (SortMode::Modified, SortOrder::Descending) => {
+                entries.sort_by_cached_key(|e| (!e.is_dir, Reverse(e.modified)));
+            }
+            (SortMode::Extension, SortOrder::Ascending) => {
+                entries.sort_by_cached_key(|e| {
+                    let ext = Path::new(&e.name)
+                        .extension()
+                        .and_then(|x| x.to_str())
+                        .unwrap_or("")
+                        .to_lowercase();
+                    (!e.is_dir, ext, e.name.to_lowercase())
+                });
+            }
+            (SortMode::Extension, SortOrder::Descending) => {
+                entries.sort_by_cached_key(|e| {
+                    let ext = Path::new(&e.name)
+                        .extension()
+                        .and_then(|x| x.to_str())
+                        .unwrap_or("")
+                        .to_lowercase();
+                    (!e.is_dir, Reverse(ext), Reverse(e.name.to_lowercase()))
+                });
+            }
+        }
     }
 }
 

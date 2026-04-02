@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Performance
 
+- **Faster directory sorting** — `sort_entries` now uses `sort_by_cached_key` instead of `sort_by`, computing `.to_lowercase()` and extension keys once per entry (O(n)) rather than once per comparison (O(n log n)). Eliminates up to millions of `String` allocations when navigating large directories.
 - **Non-blocking git status** — git status, branch detection, and gitignore filtering no longer run synchronously on the UI thread. All three git subprocesses (`rev-parse`, `branch --show-current`, `status --porcelain`) are now dispatched to a background thread via an `mpsc` channel, matching the existing async preview pattern. Navigation remains fully responsive while git status loads; decorations update on the next event-loop tick. The `R` key (manual refresh) follows the same async path.
 - **Instant startup** — `App::new` no longer blocks on `git rev-parse --show-toplevel` before rendering the first frame. The recursive change-feed watcher starts on `cwd` immediately and is repointed to the true git repo root once the first async git-status result arrives.
 
