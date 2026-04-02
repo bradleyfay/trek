@@ -93,6 +93,9 @@ impl App {
 
     pub fn toggle_hidden(&mut self) {
         self.show_hidden = !self.show_hidden;
+        // The parent pane uses the same show_hidden flag; invalidate the cache
+        // so load_dir re-reads parent entries with the new visibility setting.
+        self.invalidate_parent_cache();
         self.load_dir();
         self.status_message = Some(if self.show_hidden {
             "Showing hidden files".to_string()
@@ -718,6 +721,9 @@ impl App {
 
         if has_events {
             let selected_name = self.entries.get(self.selected).map(|e| e.name.clone());
+            // Filesystem events may have affected the parent directory too; invalidate
+            // the parent cache so load_dir re-reads it instead of serving stale data.
+            self.invalidate_parent_cache();
             self.load_dir();
             if let Some(name) = selected_name {
                 if let Some(idx) = self.entries.iter().position(|e| e.name == name) {

@@ -114,6 +114,9 @@ pub struct App {
     pub parent_selected: usize,
     /// Scroll offset for the parent pane.
     pub parent_scroll: usize,
+    /// Parent directory last loaded into `parent_entries`; used to skip
+    /// redundant disk reads when `cwd` stays within the same parent.
+    cached_parent_path: Option<PathBuf>,
     /// Lines of the previewed file (right pane).
     pub preview_lines: Vec<String>,
     /// Preview scroll offset (line index of top visible line).
@@ -523,6 +526,7 @@ impl App {
             parent_entries: Vec::new(),
             parent_selected: 0,
             parent_scroll: 0,
+            cached_parent_path: None,
             preview_lines: Vec::new(),
             preview_scroll: 0,
             term_height: 0,
@@ -661,6 +665,16 @@ impl App {
         Ok(app)
     }
 
+    /// Invalidate the cached parent directory so the next `load_dir` call
+    /// re-reads it from disk.
+    ///
+    /// Called by `check_watcher` so that watcher-triggered reloads always
+    /// produce a fresh parent listing. Filter and sort changes do not call
+    /// this — they reuse the cached parent because `cwd` did not change.
+    pub fn invalidate_parent_cache(&mut self) {
+        self.cached_parent_path = None;
+    }
+
     /// Reload the current directory listing and parent listing.
     ///
     /// Errors are surfaced via `status_message` rather than propagated, so the
@@ -699,21 +713,37 @@ impl App {
         }
 
         // Parent entries (errors here are non-fatal; left pane simply stays empty).
+        //
+        // Skip the disk read when cwd has not crossed a directory boundary since
+        // the last load — only the highlight position may have changed.
         if let Some(parent) = self.cwd.parent() {
-            match Self::read_entries(parent, self.show_hidden, self.sort_mode, self.sort_order) {
-                Ok((entries, _)) => {
-                    self.parent_selected =
-                        entries.iter().position(|e| e.path == self.cwd).unwrap_or(0);
-                    self.parent_entries = entries;
-                }
-                Err(_) => {
-                    self.parent_entries.clear();
-                    self.parent_selected = 0;
+            if self.cached_parent_path.as_deref() == Some(parent) {
+                // Same parent: just refresh the highlight position.
+                self.parent_selected = self
+                    .parent_entries
+                    .iter()
+                    .position(|e| e.path == self.cwd)
+                    .unwrap_or(0);
+            } else {
+                match Self::read_entries(parent, self.show_hidden, self.sort_mode, self.sort_order)
+                {
+                    Ok((entries, _)) => {
+                        self.parent_selected =
+                            entries.iter().position(|e| e.path == self.cwd).unwrap_or(0);
+                        self.parent_entries = entries;
+                        self.cached_parent_path = Some(parent.to_path_buf());
+                    }
+                    Err(_) => {
+                        self.parent_entries.clear();
+                        self.parent_selected = 0;
+                        self.cached_parent_path = None;
+                    }
                 }
             }
         } else {
             self.parent_entries.clear();
             self.parent_selected = 0;
+            self.cached_parent_path = None;
         }
 
         // Reset diff-preview mode on navigation; kick off async git-status load
