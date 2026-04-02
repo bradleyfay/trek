@@ -834,7 +834,7 @@ dependencies = [
 
 [[package]]
 name = "trek"
-version = "0.65.0"
+version = "0.65.1"
 dependencies = [
  "anyhow",
  "base64",

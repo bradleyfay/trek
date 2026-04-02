@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.65.1] - 2026-04-02
+
 ### Performance
 
 - **Cache parent directory listing across in-place reloads** — `load_dir` now skips re-reading the parent directory when `cwd` has not changed (e.g. on filter changes, watcher-triggered refreshes within the same directory). The parent is re-read only when crossing a directory boundary (`cwd` parent changes) or when `invalidate_parent_cache()` is called explicitly (e.g. on `toggle_hidden` or watcher-fired events where the parent may also have changed).
