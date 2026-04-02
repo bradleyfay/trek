@@ -654,6 +654,24 @@ impl App {
         }
     }
 
+    /// Toggle the left parent-directory pane between visible and hidden.
+    ///
+    /// When collapsing, `left_div` is saved and set to `0.0`; the layout
+    /// math then gives the left pane zero columns. When expanding,
+    /// `left_div` is restored from `left_div_saved`.
+    pub fn toggle_left_pane(&mut self) {
+        if self.left_collapsed {
+            self.left_div = self.left_div_saved;
+            self.left_collapsed = false;
+            self.status_message = Some("Parent pane: shown".to_string());
+        } else {
+            self.left_div_saved = self.left_div;
+            self.left_div = 0.0;
+            self.left_collapsed = true;
+            self.status_message = Some("Parent pane: hidden".to_string());
+        }
+    }
+
     // --- Filesystem watcher (I toggles off/on) ---
 
     /// Toggle the filesystem watcher off or on.

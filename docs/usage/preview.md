@@ -22,7 +22,6 @@ Preview modes are toggled by key and are mutually exclusive with each other. Pre
 |-----|------|-------------|
 | `d` | Diff preview | Shows `git diff HEAD -- <file>` for the selected file |
 | `m` | Meta card | Shows file metadata: permissions, size, and timestamps. For text files also shows line, word, and character counts. For symlinks shows the target path and whether it resolves. |
-| `H` | Hash preview | Shows the SHA-256 checksum using `shasum -a 256` or `sha256sum`. Files larger than 512 MB show a size-limit message instead. |
 | `V` | Git log preview | Shows `git log --oneline -30 -- <path>`. Works for directories as well as files — directories show commits that touched any file in the subtree. |
 | `a` | Hex dump | Shows a hex dump via `xxd`, falling back to `hexdump -C` if `xxd` is not available. Files larger than 4 MB show a size-limit message. |
 | `D` | Disk usage | For directories: shows immediate children sorted largest-first with Unicode block bars representing relative size. Pressing `D` on a file shows an error. |
@@ -61,7 +60,6 @@ The preview pane title bar shows a badge identifying the active mode or display 
 |-------|---------|
 | `[diff]` | Git diff mode active |
 | `[meta]` | Metadata view active |
-| `[hash]` | Hash view active |
 | `[log]` | Git log mode active |
 | `[hex]` | Hex dump mode active |
 | `[du]` | Disk usage mode active |

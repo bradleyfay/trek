@@ -13,7 +13,7 @@ Press `I` (uppercase) to disable watch mode. Press `I` again to re-enable it.
 | Enabled (default) | `"Watch mode ON — listing auto-refreshes on changes"` |
 | Disabled | `"Watch mode OFF"` |
 
-When watch mode is active, a cyan `[watch]` badge appears in the path bar. When you disable it, the badge disappears and the listing no longer auto-refreshes — use `R` to refresh manually.
+When watch mode is active, a cyan `[watch]` badge appears in the path bar. When you disable it, the badge disappears and the listing no longer auto-refreshes. Use `R` to refresh the git status overlay at any time.
 
 ---
 

@@ -8,12 +8,13 @@ Trek surfaces git information inline in the file listing and preview pane. It do
 
 When Trek detects a git repository, each entry in the listing shows a colored status indicator alongside its name:
 
-| Indicator | Meaning |
-|-----------|---------|
-| `M` | Modified — tracked file with unstaged changes |
-| `S` | Staged — changes added to the index |
-| `??` | Untracked — new file not yet known to git |
-| `D` | Deleted — tracked file removed from disk |
+| Indicator | Color | Meaning |
+|-----------|-------|---------|
+| `●` | Yellow | Modified — tracked file with unstaged changes |
+| `✚` | Green | Staged — changes added to the index (also shown for files with both staged and unstaged changes) |
+| `+` | Cyan | Untracked — new file not yet known to git |
+| `✖` | Red | Deleted — tracked file removed from disk |
+| `✖` | Red | Conflict — file in an unmerged state |
 
 The path bar also shows the current branch name so you always know which branch you are on.
 

@@ -1,6 +1,6 @@
 # Keybinding Reference
 
-Trek v0.55.0
+Trek v0.62.1
 
 This page lists every keybinding available in Trek, organized by category.
 If you can't find what you need here, press `:` to open the command palette and
@@ -40,9 +40,9 @@ Pressing `l`, `→`, or `Enter` on a **file** opens it in a new cmux surface. Tr
 
 | File type | Opens with |
 |-----------|-----------|
-| HTML (`.html`, `.htm`) | System default opener (`open` / `xdg-open`) |
-| Images (`.png`, `.jpg`, `.gif`, etc.) | System default opener |
-| PDFs (`.pdf`) | System default opener |
+| HTML (`.html`, `.htm`) | cmux embedded browser (`cmux browser open`) |
+| Images (`.png`, `.jpg`, `.gif`, etc.) | System default opener (`open` / `xdg-open`) |
+| PDFs (`.pdf`) | System default opener (`open` / `xdg-open`) |
 | All other text / code files | `$EDITOR` in a new terminal surface |
 
 **Mouse actions also trigger cmux routing:**
@@ -69,13 +69,15 @@ To copy a file path without opening the file, use `y` (relative path) or `Y` (ab
 | `n` / `F2` | Quick rename current entry |
 | `W` | Duplicate current entry in place |
 | `L` | Create symlink to current entry |
+| `P` | Edit file permissions (chmod) |
 | `c` | Copy to clipboard |
 | `C` | Copy all selected entries to clipboard |
 | `x` | Cut to clipboard |
 | `X` | Cut all selected entries to clipboard |
 | `p` | Paste from clipboard |
-| `F` | Open clipboard inspector |
-| `d` | Delete / trash current entry |
+| `F9` | Open clipboard inspector |
+| `Delete` | Trash current entry (requires confirmation) |
+| `u` | Undo last trash operation |
 
 ---
 
@@ -86,6 +88,8 @@ To copy a file path without opening the file, use `y` (relative path) or `Y` (ab
 | `Space` | Toggle selection on current entry |
 | `J` | Select current entry and move down (range select) |
 | `K` | Select current entry and move up (range select) |
+| `v` | Select all files in the current directory |
+| `Esc` | Clear all selections (when no search filter is active) |
 
 Selected entries are highlighted in the file listing and used by bulk
 operations such as `C` and `X`.
@@ -107,6 +111,8 @@ key again to return to the default file content preview.
 | `f` | Compare two selected files (select exactly 2 first) |
 | `#` | Toggle line numbers in preview pane |
 | `U` | Toggle word wrap in preview pane |
+
+> **Note:** Hash preview (`H`) is not yet available.
 
 ---
 
@@ -131,6 +137,7 @@ Supported formats depend on the archive tools available on the system.
 | `N` | Toggle directory item counts |
 | `i` | Toggle gitignore filter |
 | `w` | Collapse / expand preview pane |
+| `\` | Collapse / expand parent directory pane |
 | `I` | Toggle watch mode off/on (on by default; disables auto-refresh when toggled off) |
 
 ---
@@ -162,7 +169,7 @@ Trek has two bookmark mechanisms:
 | `` ` `` + letter | Set session mark at current directory |
 | `'` + letter | Jump to session mark |
 
-Any letter `a`–`z` is a valid mark or bookmark slot.
+Any letter `a`–`z` or `A`–`Z` is a valid mark or bookmark slot (52 total slots).
 
 ---
 
@@ -179,6 +186,17 @@ Any letter `a`–`z` is a valid mark or bookmark slot.
 
 Fuzzy search matches against file names in the current directory tree.
 Content search (`Ctrl+F`) uses ripgrep and respects `.gitignore` by default.
+
+---
+
+## Session and Monitoring
+
+| Key | Action |
+|-----|--------|
+| `F` | Toggle live change feed |
+| `Ctrl+S` | Open session change summary |
+| `Ctrl+T` | Open task manager (background copy / move / extract) |
+| `R` | Refresh git status |
 
 ---
 

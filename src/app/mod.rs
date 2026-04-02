@@ -135,6 +135,12 @@ pub struct App {
     /// Saved `right_div` ratio restored when expanding the pane.
     pub preview_right_div: f64,
 
+    // --- Left pane collapse (\) ---
+    /// True when the left parent-directory pane is collapsed (hidden).
+    pub left_collapsed: bool,
+    /// Saved `left_div` ratio restored when expanding the pane.
+    pub left_div_saved: f64,
+
     // --- Drag state ---
     pub drag: Option<DragTarget>,
 
@@ -507,6 +513,8 @@ impl App {
             right_div: 0.55,
             preview_collapsed: false,
             preview_right_div: 0.55,
+            left_collapsed: false,
+            left_div_saved: 0.20,
             drag: None,
             left_div_col: 0,
             right_div_col: 0,
