@@ -1264,7 +1264,7 @@ fn complete_path_trailing_slash_lists_dir_contents() {
 /// Then: entries 0 and 1 are selected, cursor is at 1
 #[test]
 fn select_move_down_marks_both_endpoints() {
-    let tmp = std::env::temp_dir().join(format!("trek_rsel_down_{}", std::process::id()));
+    let tmp = std::env::temp_dir().join(format!("trek_sel_down_{}", std::process::id()));
     let _ = std::fs::create_dir_all(&tmp);
     std::fs::write(tmp.join("a.txt"), b"").unwrap();
     std::fs::write(tmp.join("b.txt"), b"").unwrap();
@@ -1272,14 +1272,8 @@ fn select_move_down_marks_both_endpoints() {
     let mut app = make_app_at(&tmp);
     app.selected = 0;
     app.select_move_down();
-    assert!(
-        app.rename_selected.contains(&0),
-        "entry 0 should be selected"
-    );
-    assert!(
-        app.rename_selected.contains(&1),
-        "entry 1 should be selected"
-    );
+    assert!(app.selection.contains(&0), "entry 0 should be selected");
+    assert!(app.selection.contains(&1), "entry 1 should be selected");
     assert_eq!(app.selected, 1, "cursor should be at 1");
     let _ = std::fs::remove_dir_all(&tmp);
 }
@@ -1289,21 +1283,15 @@ fn select_move_down_marks_both_endpoints() {
 /// Then: entries 1 and 0 are selected, cursor is at 0
 #[test]
 fn select_move_up_marks_both_endpoints() {
-    let tmp = std::env::temp_dir().join(format!("trek_rsel_up_{}", std::process::id()));
+    let tmp = std::env::temp_dir().join(format!("trek_sel_up_{}", std::process::id()));
     let _ = std::fs::create_dir_all(&tmp);
     std::fs::write(tmp.join("a.txt"), b"").unwrap();
     std::fs::write(tmp.join("b.txt"), b"").unwrap();
     let mut app = make_app_at(&tmp);
     app.selected = 1;
     app.select_move_up();
-    assert!(
-        app.rename_selected.contains(&1),
-        "entry 1 should be selected"
-    );
-    assert!(
-        app.rename_selected.contains(&0),
-        "entry 0 should be selected"
-    );
+    assert!(app.selection.contains(&1), "entry 1 should be selected");
+    assert!(app.selection.contains(&0), "entry 0 should be selected");
     assert_eq!(app.selected, 0, "cursor should be at 0");
     let _ = std::fs::remove_dir_all(&tmp);
 }
@@ -1313,7 +1301,7 @@ fn select_move_up_marks_both_endpoints() {
 /// Then: cursor stays at last entry; last entry is marked
 #[test]
 fn select_move_down_at_bottom_stays_and_marks() {
-    let tmp = std::env::temp_dir().join(format!("trek_rsel_bot_{}", std::process::id()));
+    let tmp = std::env::temp_dir().join(format!("trek_sel_bot_{}", std::process::id()));
     let _ = std::fs::create_dir_all(&tmp);
     std::fs::write(tmp.join("a.txt"), b"").unwrap();
     std::fs::write(tmp.join("b.txt"), b"").unwrap();
@@ -1323,7 +1311,7 @@ fn select_move_down_at_bottom_stays_and_marks() {
     app.select_move_down();
     assert_eq!(app.selected, last, "cursor should not move past bottom");
     assert!(
-        app.rename_selected.contains(&last),
+        app.selection.contains(&last),
         "last entry should be selected"
     );
     let _ = std::fs::remove_dir_all(&tmp);
@@ -1334,7 +1322,7 @@ fn select_move_down_at_bottom_stays_and_marks() {
 /// Then: cursor stays at 0; entry 0 is marked
 #[test]
 fn select_move_up_at_top_stays_and_marks() {
-    let tmp = std::env::temp_dir().join(format!("trek_rsel_top_{}", std::process::id()));
+    let tmp = std::env::temp_dir().join(format!("trek_sel_top_{}", std::process::id()));
     let _ = std::fs::create_dir_all(&tmp);
     std::fs::write(tmp.join("a.txt"), b"").unwrap();
     std::fs::write(tmp.join("b.txt"), b"").unwrap();
@@ -1342,19 +1330,16 @@ fn select_move_up_at_top_stays_and_marks() {
     app.selected = 0;
     app.select_move_up();
     assert_eq!(app.selected, 0, "cursor should not move above top");
-    assert!(
-        app.rename_selected.contains(&0),
-        "entry 0 should be selected"
-    );
+    assert!(app.selection.contains(&0), "entry 0 should be selected");
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
 /// Given: a directory entry selected by J (select_move_down includes dirs)
 /// When: cursor is on a directory, select_move_down called
-/// Then: the directory index is in rename_selected
+/// Then: the directory index is in selection
 #[test]
 fn select_move_down_includes_directories() {
-    let tmp = std::env::temp_dir().join(format!("trek_rsel_incdir_{}", std::process::id()));
+    let tmp = std::env::temp_dir().join(format!("trek_sel_incdir_{}", std::process::id()));
     let _ = std::fs::create_dir_all(&tmp);
     let _ = std::fs::create_dir_all(tmp.join("aaa_dir"));
     std::fs::write(tmp.join("zzz_file.txt"), b"").unwrap();
@@ -1364,8 +1349,8 @@ fn select_move_down_includes_directories() {
     assert!(app.entries[0].is_dir, "first entry should be a dir");
     app.select_move_down();
     assert!(
-        app.rename_selected.contains(&0),
-        "directory at index 0 should be in rename_selected"
+        app.selection.contains(&0),
+        "directory at index 0 should be in selection"
     );
     let _ = std::fs::remove_dir_all(&tmp);
 }
@@ -2543,7 +2528,7 @@ fn open_clipboard_inspect_with_empty_clipboard() {
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
-/// Given: rename_selected contains indices pointing to files with known sizes
+/// Given: selection contains indices pointing to files with known sizes
 /// When: clipboard_copy_selected is called
 /// Then: the status message includes aggregate file size in parentheses
 #[test]
@@ -2555,8 +2540,8 @@ fn copy_selected_status_includes_total_size() {
     std::fs::write(tmp.join("b.txt"), &vec![0u8; 1024]).unwrap(); // 1 KB
     let mut app = make_app_at(&tmp);
     // Select both files
-    app.rename_selected.insert(0);
-    app.rename_selected.insert(1);
+    app.selection.insert(0);
+    app.selection.insert(1);
     app.clipboard_copy_selected();
     let msg = app.status_message.clone().unwrap_or_default();
     assert!(msg.contains("2 files"), "should show count: {msg}");
@@ -2567,7 +2552,7 @@ fn copy_selected_status_includes_total_size() {
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
-/// Given: rename_selected contains only a directory index
+/// Given: selection contains only a directory index
 /// When: clipboard_copy_selected is called
 /// Then: the status message contains no parenthesised size (dirs excluded)
 #[test]
@@ -2578,7 +2563,7 @@ fn copy_selected_status_omits_size_for_dirs_only() {
     std::fs::create_dir_all(&subdir).unwrap();
     let mut app = make_app_at(&tmp);
     // Select the directory (index 0 in a single-entry listing)
-    app.rename_selected.insert(0);
+    app.selection.insert(0);
     app.clipboard_copy_selected();
     let msg = app.status_message.clone().unwrap_or_default();
     // Message should NOT have a size annotation
@@ -2589,7 +2574,7 @@ fn copy_selected_status_omits_size_for_dirs_only() {
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
-/// Given: rename_selected contains a mix of files and a directory
+/// Given: selection contains a mix of files and a directory
 /// When: clipboard_copy_selected is called
 /// Then: only file sizes contribute — message includes parenthesised total
 #[test]
@@ -2601,8 +2586,8 @@ fn copy_selected_status_sums_only_files_in_mixed_selection() {
     std::fs::write(tmp.join("zfile.txt"), &vec![0u8; 512]).unwrap();
     let mut app = make_app_at(&tmp);
     // Select both (indices 0 and 1 in a two-entry listing)
-    app.rename_selected.insert(0);
-    app.rename_selected.insert(1);
+    app.selection.insert(0);
+    app.selection.insert(1);
     app.clipboard_copy_selected();
     let msg = app.status_message.clone().unwrap_or_default();
     assert!(msg.contains("2 files"), "should show total count: {msg}");
@@ -2915,8 +2900,8 @@ fn toggle_file_compare_with_two_files_enters_mode() {
     std::fs::write(tmp.join("a.txt"), b"hello\n").unwrap();
     std::fs::write(tmp.join("b.txt"), b"world\n").unwrap();
     let mut app = make_app_at(&tmp);
-    app.rename_selected.insert(0);
-    app.rename_selected.insert(1);
+    app.selection.insert(0);
+    app.selection.insert(1);
     app.toggle_file_compare();
     assert!(app.file_compare_mode);
     let _ = std::fs::remove_dir_all(&tmp);
@@ -2931,7 +2916,7 @@ fn toggle_file_compare_with_one_file_shows_status() {
     let _ = std::fs::create_dir_all(&tmp);
     std::fs::write(tmp.join("a.txt"), b"hello\n").unwrap();
     let mut app = make_app_at(&tmp);
-    app.rename_selected.insert(0);
+    app.selection.insert(0);
     app.toggle_file_compare();
     assert!(!app.file_compare_mode);
     assert!(app.status_message.is_some());
@@ -2948,8 +2933,8 @@ fn toggle_file_compare_second_press_exits_mode() {
     std::fs::write(tmp.join("a.txt"), b"hello\n").unwrap();
     std::fs::write(tmp.join("b.txt"), b"world\n").unwrap();
     let mut app = make_app_at(&tmp);
-    app.rename_selected.insert(0);
-    app.rename_selected.insert(1);
+    app.selection.insert(0);
+    app.selection.insert(1);
     app.toggle_file_compare();
     assert!(app.file_compare_mode);
     app.toggle_file_compare();
@@ -2968,8 +2953,8 @@ fn toggle_file_compare_with_dir_shows_status() {
     std::fs::create_dir_all(&sub).unwrap();
     std::fs::write(tmp.join("zfile.txt"), b"hi").unwrap();
     let mut app = make_app_at(&tmp);
-    app.rename_selected.insert(0);
-    app.rename_selected.insert(1);
+    app.selection.insert(0);
+    app.selection.insert(1);
     app.toggle_file_compare();
     assert!(!app.file_compare_mode);
     let msg = app.status_message.clone().unwrap_or_default();

@@ -246,8 +246,12 @@ pub struct App {
     pub content_search_truncated: bool,
 
     // --- Multi-file selection (Space / J / K / v) ---
-    /// Indices into `entries` that the user has marked (for copy, delete, etc.).
-    pub rename_selected: HashSet<usize>,
+    /// Indices into `entries` that the user has marked.
+    ///
+    /// Used by copy, move, delete, context-bundle export, file compare, and
+    /// any other operation that acts on more than one file at a time. Not
+    /// limited to rename operations despite historical naming.
+    pub selection: HashSet<usize>,
 
     // --- Sort ---
     /// Current sort field.
@@ -567,7 +571,7 @@ impl App {
             content_search_selected: 0,
             content_search_error: None,
             content_search_truncated: false,
-            rename_selected: HashSet::new(),
+            selection: HashSet::new(),
             sort_mode: SortMode::default(),
             sort_order: SortOrder::default(),
             bookmark_mode: false,

@@ -34,7 +34,7 @@ impl App {
     ///
     /// Does nothing when the directory is empty (nothing to export).
     pub fn open_context_bundle_picker(&mut self) {
-        if self.entries.get(self.selected).is_some() || !self.rename_selected.is_empty() {
+        if self.entries.get(self.selected).is_some() || !self.selection.is_empty() {
             self.context_bundle_picker_mode = true;
         }
     }
@@ -47,7 +47,7 @@ impl App {
     /// Build and copy the context bundle in the requested format.
     ///
     /// File selection priority:
-    /// 1. `rename_selected` (multi-selection) when non-empty.
+    /// 1. `selection` (multi-selection) when non-empty.
     /// 2. The single highlighted entry otherwise.
     ///
     /// Directories and binary files are silently skipped; a count of skipped
@@ -56,8 +56,8 @@ impl App {
         self.context_bundle_picker_mode = false;
 
         // Gather the target paths.
-        let paths: Vec<std::path::PathBuf> = if !self.rename_selected.is_empty() {
-            let mut sorted: Vec<usize> = self.rename_selected.iter().copied().collect();
+        let paths: Vec<std::path::PathBuf> = if !self.selection.is_empty() {
+            let mut sorted: Vec<usize> = self.selection.iter().copied().collect();
             sorted.sort_unstable();
             sorted
                 .into_iter()

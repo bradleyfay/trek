@@ -178,7 +178,7 @@ impl App {
         // File compare — requires exactly 2 non-directory files selected.
         if self.file_compare_mode {
             let paths: Vec<PathBuf> = self
-                .rename_selected
+                .selection
                 .iter()
                 .filter_map(|&i| self.entries.get(i))
                 .filter(|e| !e.is_dir)
@@ -421,18 +421,18 @@ impl App {
 
     /// Toggle two-file compare preview mode.
     ///
-    /// Requires exactly 2 non-directory entries in `rename_selected`.
+    /// Requires exactly 2 non-directory entries in `selection`.
     /// Mutually exclusive with all other special preview modes.
     pub fn toggle_file_compare(&mut self) {
         let any_dir = self
-            .rename_selected
+            .selection
             .iter()
             .any(|&i| self.entries.get(i).map(|e| e.is_dir).unwrap_or(false));
         if any_dir {
             self.status_message = Some("File comparison not available for directories".to_string());
             return;
         }
-        if self.rename_selected.len() != 2 {
+        if self.selection.len() != 2 {
             self.status_message = Some("Select exactly 2 files to compare".to_string());
             return;
         }

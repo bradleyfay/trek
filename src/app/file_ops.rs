@@ -41,9 +41,9 @@ impl App {
             return;
         }
         let count = paths.len();
-        // Compute total size of selected files before clearing rename_selected.
+        // Compute total size of selected files before clearing selection.
         let total_bytes: u64 = self
-            .rename_selected
+            .selection
             .iter()
             .filter_map(|&i| self.entries.get(i))
             .filter(|e| !e.is_dir)
@@ -53,7 +53,7 @@ impl App {
             op: ClipboardOp::Copy,
             paths,
         });
-        self.rename_selected.clear();
+        self.selection.clear();
         let size_str = if total_bytes > 0 {
             format!(" ({})", crate::app::format_size(total_bytes))
         } else {
@@ -108,7 +108,7 @@ impl App {
         if !trashed.is_empty() {
             self.last_trashed = trashed;
         }
-        self.rename_selected.clear();
+        self.selection.clear();
         if let Some(err) = errors.first() {
             self.status_message = Some(format!("Error: {}", err));
         } else {
@@ -133,7 +133,7 @@ impl App {
                 Err(e) => errors.push(e.to_string()),
             }
         }
-        self.rename_selected.clear();
+        self.selection.clear();
         if let Some(err) = errors.first() {
             self.status_message = Some(format!("Error: {}", err));
         } else {
@@ -286,7 +286,7 @@ impl App {
 
     /// Return paths of all rename-selected entries, sorted by index.
     fn selected_paths(&self) -> Vec<PathBuf> {
-        let mut indices: Vec<usize> = self.rename_selected.iter().copied().collect();
+        let mut indices: Vec<usize> = self.selection.iter().copied().collect();
         indices.sort_unstable();
         indices
             .iter()

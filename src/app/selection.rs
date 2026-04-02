@@ -5,7 +5,9 @@ use std::path::PathBuf;
 impl App {
     /// Toggle the selection mark on entry `idx`.
     ///
-    /// Directories are silently skipped.
+    /// **Directory policy:** directories are excluded — toggling a directory
+    /// shows a status message and leaves `selection` unchanged. This prevents
+    /// accidental bulk operations on directory trees from the Space key.
     pub fn toggle_selection(&mut self, idx: usize) {
         if let Some(entry) = self.entries.get(idx) {
             if entry.is_dir {
@@ -13,16 +15,16 @@ impl App {
                 return;
             }
         }
-        if self.rename_selected.contains(&idx) {
-            self.rename_selected.remove(&idx);
+        if self.selection.contains(&idx) {
+            self.selection.remove(&idx);
         } else {
-            self.rename_selected.insert(idx);
+            self.selection.insert(idx);
         }
     }
 
     /// Mark all non-directory entries in the current directory.
     pub fn select_all(&mut self) {
-        self.rename_selected = self
+        self.selection = self
             .entries
             .iter()
             .enumerate()
@@ -33,7 +35,7 @@ impl App {
 
     /// Clear all selection marks.
     pub fn clear_selections(&mut self) {
-        self.rename_selected.clear();
+        self.selection.clear();
         self.status_message = None;
     }
 
@@ -41,25 +43,29 @@ impl App {
     ///
     /// Marks the current entry, moves down, and marks the new current entry.
     /// At the bottom of the list the cursor stays and the last entry is marked.
+    ///
+    /// **Directory policy:** directories *are* included — range-selection with
+    /// J/K marks whatever the cursor lands on. Callers that operate only on
+    /// files (copy, delete, etc.) must filter `selection` by `!entry.is_dir`.
     pub fn select_move_down(&mut self) {
-        self.rename_selected.insert(self.selected);
+        self.selection.insert(self.selected);
         if !self.entries.is_empty() && self.selected < self.entries.len() - 1 {
             self.selected += 1;
         }
-        self.rename_selected.insert(self.selected);
+        self.selection.insert(self.selected);
         self.load_preview();
     }
 
     /// Move cursor up while extending the selection (K key).
     ///
-    /// Mirrors `select_move_down`. At the top of the list the cursor stays
-    /// and the first entry is marked.
+    /// Mirrors `select_move_down` — directories are included. At the top of
+    /// the list the cursor stays and the first entry is marked.
     pub fn select_move_up(&mut self) {
-        self.rename_selected.insert(self.selected);
+        self.selection.insert(self.selected);
         if self.selected > 0 {
             self.selected -= 1;
         }
-        self.rename_selected.insert(self.selected);
+        self.selection.insert(self.selected);
         self.load_preview();
     }
 

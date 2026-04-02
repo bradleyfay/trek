@@ -150,10 +150,10 @@ pub fn draw(f: &mut Frame, app: &mut App) {
                 .add_modifier(Modifier::BOLD),
         )));
         f.render_widget(para, bottom_area);
-    } else if !app.rename_selected.is_empty() {
-        let count = app.rename_selected.len();
+    } else if !app.selection.is_empty() {
+        let count = app.selection.len();
         let total_bytes: u64 = app
-            .rename_selected
+            .selection
             .iter()
             .filter_map(|&i| app.entries.get(i))
             .filter(|e| !e.is_dir)
@@ -692,7 +692,7 @@ fn draw_current_pane(f: &mut Frame, app: &App, area: Rect) {
     let is_searching = app.search_mode && !app.search_query.is_empty();
     // 2-char prefix always reserved so layout doesn't shift when selection changes.
     let sel_prefix_width: usize = 2;
-    let has_selection = !app.rename_selected.is_empty();
+    let has_selection = !app.selection.is_empty();
 
     let inner_width = area.width.saturating_sub(1) as usize; // 1 col for right border
     let visible_height = area.height.saturating_sub(2) as usize; // top title + bottom info
@@ -704,7 +704,7 @@ fn draw_current_pane(f: &mut Frame, app: &App, area: Rect) {
         .take(visible_height)
         .map(|(i, entry)| {
             let is_cursor = i == app.selected;
-            let is_marked = app.rename_selected.contains(&i);
+            let is_marked = app.selection.contains(&i);
             let is_match = !is_searching || app.filtered_set.contains(&i);
             let style = if is_cursor {
                 Style::default()
@@ -860,7 +860,7 @@ fn draw_preview_pane(f: &mut Frame, app: &App, area: Rect) {
                 format!("{} [log]", e.name)
             } else if app.file_compare_mode {
                 let names: Vec<_> = app
-                    .rename_selected
+                    .selection
                     .iter()
                     .filter_map(|&i| app.entries.get(i))
                     .map(|ent| ent.name.as_str())
