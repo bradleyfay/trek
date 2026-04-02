@@ -913,22 +913,48 @@ fn draw_preview_pane(f: &mut Frame, app: &App, area: Rect) {
         visible_height
     };
 
+    // Compute cursor/selection range for preview focus mode.
+    let selection_range: Option<(usize, usize)> = if app.preview_focused {
+        app.preview_selection_anchor.map(|anchor| {
+            let lo = anchor.min(app.preview_cursor);
+            let hi = anchor.max(app.preview_cursor);
+            (lo, hi)
+        })
+    } else {
+        None
+    };
+
     let lines: Vec<Line> = if let Some(hl) = highlighted {
         hl.into_iter()
             .skip(app.preview_scroll)
             .enumerate()
             .take(take_count)
             .map(|(i, line)| {
-                if app.show_line_numbers {
-                    let abs_line = app.preview_scroll + i + 1;
-                    let gutter = format!("{:>width$} \u{2502} ", abs_line, width = gutter_width);
+                let abs_line = app.preview_scroll + i;
+                let is_cursor = app.preview_focused && abs_line == app.preview_cursor;
+                let in_selection =
+                    selection_range.is_some_and(|(lo, hi)| abs_line >= lo && abs_line <= hi);
+                let row_style = if is_cursor {
+                    Style::default()
+                        .bg(Color::Blue)
+                        .fg(Color::White)
+                        .add_modifier(Modifier::BOLD)
+                } else if in_selection {
+                    Style::default().bg(Color::DarkGray)
+                } else {
+                    Style::default()
+                };
+                let rendered = if app.show_line_numbers {
+                    let gutter =
+                        format!("{:>width$} \u{2502} ", abs_line + 1, width = gutter_width);
                     let gutter_span = Span::styled(gutter, Style::default().fg(Color::DarkGray));
                     let mut spans = vec![gutter_span];
                     spans.extend(line.spans);
                     Line::from(spans)
                 } else {
                     line
-                }
+                };
+                rendered.patch_style(row_style)
             })
             .collect()
     } else {
@@ -938,12 +964,26 @@ fn draw_preview_pane(f: &mut Frame, app: &App, area: Rect) {
             .skip(app.preview_scroll)
             .take(take_count)
             .map(|(i, l)| {
+                let abs_line = i; // `i` is the absolute index since we enumerate before skip
+                let is_cursor = app.preview_focused && abs_line == app.preview_cursor;
+                let in_selection =
+                    selection_range.is_some_and(|(lo, hi)| abs_line >= lo && abs_line <= hi);
+                let row_style = if is_cursor {
+                    Style::default()
+                        .bg(Color::Blue)
+                        .fg(Color::White)
+                        .add_modifier(Modifier::BOLD)
+                } else if in_selection {
+                    Style::default().bg(Color::DarkGray)
+                } else {
+                    Style::default()
+                };
                 let content_line = if app.preview_is_diff {
                     colorize_diff_line(l)
                 } else {
                     Line::from(l.as_str())
                 };
-                if app.show_line_numbers {
+                let rendered = if app.show_line_numbers {
                     let gutter = format!("{:>width$} \u{2502} ", i + 1, width = gutter_width);
                     let gutter_span = Span::styled(gutter, Style::default().fg(Color::DarkGray));
                     let mut spans = vec![gutter_span];
@@ -951,23 +991,28 @@ fn draw_preview_pane(f: &mut Frame, app: &App, area: Rect) {
                     Line::from(spans)
                 } else {
                     content_line
-                }
+                };
+                rendered.patch_style(row_style)
             })
             .collect()
+    };
+
+    // Border/title color changes to Cyan when preview pane has focus.
+    let border_color = if app.preview_focused {
+        Color::Cyan
+    } else {
+        Color::DarkGray
     };
 
     // Draw main content (leave 1 col for scrollbar).
     let content_area = Rect::new(area.x, area.y, area.width.saturating_sub(1), area.height);
     let block = Block::default()
         .borders(Borders::TOP)
-        .border_style(Style::default().fg(Color::DarkGray))
-        .title(Span::styled(title, Style::default().fg(Color::DarkGray)))
+        .border_style(Style::default().fg(border_color))
+        .title(Span::styled(title, Style::default().fg(border_color)))
         .title_bottom(
-            Line::from(Span::styled(
-                scroll_info,
-                Style::default().fg(Color::DarkGray),
-            ))
-            .right_aligned(),
+            Line::from(Span::styled(scroll_info, Style::default().fg(border_color)))
+                .right_aligned(),
         );
     // Show a loading placeholder while the async preview thread is working.
     if app.preview_loading && app.preview_lines.is_empty() {
@@ -2078,6 +2123,27 @@ fn draw_help_overlay(f: &mut Frame, size: Rect) {
         key_line(".", "Toggle hidden files"),
         key_line("e", "Jump to path (Tab to complete, Enter to go)"),
         key_line("[ / ]", "Scroll preview pane up / down (5 lines)"),
+        key_line(
+            "l/Right (on file)",
+            "Enter preview focus mode (cursor into preview)",
+        ),
+        key_line(
+            "Esc/h/Left (in preview)",
+            "Exit preview focus, return to file tree",
+        ),
+        key_line(
+            "j/k (in preview)",
+            "Move cursor line down / up in preview focus",
+        ),
+        key_line(
+            "J/K (in preview)",
+            "Extend selection down / up in preview focus",
+        ),
+        key_line(
+            "Enter (in preview)",
+            "Open file in editor from preview focus",
+        ),
+        key_line("g/G (in preview)", "Jump to top / bottom in preview focus"),
         key_line("Ctrl+O", "Go back in directory history"),
         key_line("Ctrl+I", "Go forward in directory history"),
         key_line(

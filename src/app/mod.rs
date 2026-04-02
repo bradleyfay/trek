@@ -457,6 +457,14 @@ pub struct App {
     pub session_summary_total: usize,
     /// Cursor index within the session summary list.
     pub session_summary_selected: usize,
+
+    // --- Preview focus mode (Right / l on a file) ---
+    /// True when the cursor has moved into the preview pane (focus mode active).
+    pub preview_focused: bool,
+    /// Absolute line index of the cursor within preview_lines.
+    pub preview_cursor: usize,
+    /// Start of a selection range; None means no active range selection.
+    pub preview_selection_anchor: Option<usize>,
 }
 
 #[derive(Clone)]
@@ -629,6 +637,9 @@ impl App {
             session_summary_cache: None,
             session_summary_total: 0,
             session_summary_selected: 0,
+            preview_focused: false,
+            preview_cursor: 0,
+            preview_selection_anchor: None,
         };
         app.load_dir();
         Ok(app)

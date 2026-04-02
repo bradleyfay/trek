@@ -354,6 +354,33 @@ pub fn run(
                         KeyCode::Char(c) => app.search_push_char(c),
                         _ => {}
                     }
+                } else if app.preview_focused {
+                    match key.code {
+                        KeyCode::Esc | KeyCode::Left | KeyCode::Char('h') => {
+                            app.exit_preview_focus()
+                        }
+                        KeyCode::Enter => {
+                            app.exit_preview_focus();
+                            app.enter_selected();
+                        }
+                        KeyCode::Down | KeyCode::Char('j') => app.preview_cursor_down(),
+                        KeyCode::Up | KeyCode::Char('k') => app.preview_cursor_up(),
+                        KeyCode::Char('J') => app.preview_select_down(),
+                        KeyCode::Char('K') => app.preview_select_up(),
+                        KeyCode::Char('g') => {
+                            app.preview_cursor = 0;
+                            app.preview_selection_anchor = None;
+                            app.ensure_preview_cursor_visible();
+                        }
+                        KeyCode::Char('G') => {
+                            app.preview_cursor = app.preview_lines.len().saturating_sub(1);
+                            app.preview_selection_anchor = None;
+                            app.ensure_preview_cursor_visible();
+                        }
+                        KeyCode::Char('[') => app.scroll_preview_up(5),
+                        KeyCode::Char(']') => app.scroll_preview_down(5),
+                        _ => {}
+                    }
                 } else {
                     match key.code {
                         KeyCode::Char('b') if key.modifiers.contains(KeyModifiers::CONTROL) => {
@@ -371,8 +398,16 @@ pub fn run(
                         KeyCode::Char('K') => app.select_move_up(),
                         KeyCode::Char('J') => app.select_move_down(),
                         KeyCode::Left | KeyCode::Char('h') => app.go_parent(),
-                        KeyCode::Right | KeyCode::Char('l') | KeyCode::Enter => {
-                            app.enter_selected()
+                        KeyCode::Right | KeyCode::Char('l') => {
+                            // Files: enter preview focus mode. Dirs: navigate into dir.
+                            if app.highlighted_entry_is_file() {
+                                app.enter_preview_focus();
+                            } else {
+                                app.enter_selected();
+                            }
+                        }
+                        KeyCode::Enter => {
+                            app.enter_selected();
                         }
                         KeyCode::Char('g') => app.go_top(),
                         KeyCode::Char('G') => app.go_bottom(),

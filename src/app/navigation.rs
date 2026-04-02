@@ -49,6 +49,15 @@ impl App {
         }
     }
 
+    /// Returns `true` when the currently highlighted entry is a regular file
+    /// (not a directory and not an archive opened in virtual-browse mode).
+    pub fn highlighted_entry_is_file(&self) -> bool {
+        self.entries
+            .get(self.selected)
+            .map(|e| !e.is_dir)
+            .unwrap_or(false)
+    }
+
     pub fn enter_selected(&mut self) {
         if let Some(entry) = self.entries.get(self.selected).cloned() {
             if entry.is_dir {

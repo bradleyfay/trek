@@ -242,6 +242,10 @@ impl App {
         self.preview_scroll = 0;
         self.preview_lines.clear();
         self.preview_is_diff = false;
+        // Reset focus state whenever the previewed file changes.
+        self.preview_focused = false;
+        self.preview_cursor = 0;
+        self.preview_selection_anchor = None;
 
         let job = self.build_preview_job();
         if matches!(job, PreviewJob::Empty) {
@@ -333,6 +337,71 @@ impl App {
     pub fn scroll_preview_down(&mut self, lines: usize) {
         let max_scroll = self.preview_lines.len().saturating_sub(1);
         self.preview_scroll = (self.preview_scroll + lines).min(max_scroll);
+    }
+
+    // ── Preview focus mode ────────────────────────────────────────────────────
+
+    /// Enter preview focus mode. The cursor starts at the current top-visible line.
+    pub fn enter_preview_focus(&mut self) {
+        self.preview_focused = true;
+        self.preview_cursor = self.preview_scroll;
+        self.preview_selection_anchor = None;
+    }
+
+    /// Exit preview focus mode and return focus to the file tree.
+    pub fn exit_preview_focus(&mut self) {
+        self.preview_focused = false;
+        self.preview_selection_anchor = None;
+    }
+
+    /// Move the preview cursor down one line, scrolling if necessary.
+    pub fn preview_cursor_down(&mut self) {
+        if self.preview_lines.is_empty() {
+            return;
+        }
+        let max = self.preview_lines.len().saturating_sub(1);
+        if self.preview_cursor < max {
+            self.preview_cursor += 1;
+            self.ensure_preview_cursor_visible();
+        }
+    }
+
+    /// Move the preview cursor up one line, scrolling if necessary.
+    pub fn preview_cursor_up(&mut self) {
+        if self.preview_cursor > 0 {
+            self.preview_cursor -= 1;
+            self.ensure_preview_cursor_visible();
+        }
+    }
+
+    /// Extend selection downward: set anchor if not yet set, then move cursor down.
+    pub fn preview_select_down(&mut self) {
+        if self.preview_selection_anchor.is_none() {
+            self.preview_selection_anchor = Some(self.preview_cursor);
+        }
+        self.preview_cursor_down();
+    }
+
+    /// Extend selection upward: set anchor if not yet set, then move cursor up.
+    pub fn preview_select_up(&mut self) {
+        if self.preview_selection_anchor.is_none() {
+            self.preview_selection_anchor = Some(self.preview_cursor);
+        }
+        self.preview_cursor_up();
+    }
+
+    /// Adjust `preview_scroll` so `preview_cursor` stays within the visible area.
+    pub(crate) fn ensure_preview_cursor_visible(&mut self) {
+        let visible = if self.preview_area.3 > 2 {
+            (self.preview_area.3 - 2) as usize
+        } else {
+            40
+        };
+        if self.preview_cursor < self.preview_scroll {
+            self.preview_scroll = self.preview_cursor;
+        } else if self.preview_cursor >= self.preview_scroll + visible {
+            self.preview_scroll = self.preview_cursor + 1 - visible;
+        }
     }
 
     /// Toggle diff preview mode for the currently selected file.
