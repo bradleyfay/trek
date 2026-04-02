@@ -3,8 +3,11 @@ use std::io::Write;
 
 impl App {
     pub fn yank_relative_path(&mut self) {
-        if let Some(entry) = self.entries.get(self.selected) {
-            let rel = entry.path.strip_prefix(&self.cwd).unwrap_or(&entry.path);
+        if let Some(entry) = self.nav.entries.get(self.nav.selected) {
+            let rel = entry
+                .path
+                .strip_prefix(&self.nav.cwd)
+                .unwrap_or(&entry.path);
             let path_str = format!("./{}", rel.display());
             self.osc52_copy(&path_str);
             self.status_message = Some(format!("Yanked: {}", path_str));
@@ -12,7 +15,7 @@ impl App {
     }
 
     pub fn yank_absolute_path(&mut self) {
-        if let Some(entry) = self.entries.get(self.selected) {
+        if let Some(entry) = self.nav.entries.get(self.nav.selected) {
             let path_str = entry.path.to_string_lossy().into_owned();
             self.osc52_copy(&path_str);
             self.status_message = Some(format!("Yanked: {}", path_str));
@@ -21,7 +24,7 @@ impl App {
 
     /// Copy just the filename (not the full path) to the clipboard.
     pub fn yank_filename(&mut self) {
-        if let Some(entry) = self.entries.get(self.selected) {
+        if let Some(entry) = self.nav.entries.get(self.nav.selected) {
             let name = entry
                 .path
                 .file_name()
@@ -34,7 +37,7 @@ impl App {
 
     /// Copy the parent directory of the selected entry to the clipboard.
     pub fn yank_parent_dir(&mut self) {
-        if let Some(entry) = self.entries.get(self.selected) {
+        if let Some(entry) = self.nav.entries.get(self.nav.selected) {
             let parent = entry
                 .path
                 .parent()
@@ -49,14 +52,14 @@ impl App {
     ///
     /// Does nothing when the directory is empty (no entry to yank).
     pub fn open_yank_picker(&mut self) {
-        if self.entries.get(self.selected).is_some() {
-            self.yank_picker_mode = true;
+        if self.nav.entries.get(self.nav.selected).is_some() {
+            self.overlay.yank_picker_mode = true;
         }
     }
 
     /// Close the yank format picker without copying anything.
     pub fn close_yank_picker(&mut self) {
-        self.yank_picker_mode = false;
+        self.overlay.yank_picker_mode = false;
     }
 
     /// Write an OSC 52 sequence to set the system clipboard.

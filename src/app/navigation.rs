@@ -3,46 +3,47 @@ use std::path::PathBuf;
 
 impl App {
     pub fn move_up(&mut self) {
-        if self.selected > 0 {
-            self.selected -= 1;
+        if self.nav.selected > 0 {
+            self.nav.selected -= 1;
             self.load_preview();
         }
     }
 
     pub fn move_down(&mut self) {
-        if !self.entries.is_empty() && self.selected < self.entries.len() - 1 {
-            self.selected += 1;
+        if !self.nav.entries.is_empty() && self.nav.selected < self.nav.entries.len() - 1 {
+            self.nav.selected += 1;
             self.load_preview();
         }
     }
 
     pub fn go_top(&mut self) {
-        self.selected = 0;
+        self.nav.selected = 0;
         self.load_preview();
     }
 
     pub fn go_bottom(&mut self) {
-        if !self.entries.is_empty() {
-            self.selected = self.entries.len() - 1;
+        if !self.nav.entries.is_empty() {
+            self.nav.selected = self.nav.entries.len() - 1;
         }
         self.load_preview();
     }
 
     pub fn go_parent(&mut self) {
-        if let Some(parent) = self.cwd.parent().map(|p| p.to_path_buf()) {
+        if let Some(parent) = self.nav.cwd.parent().map(|p| p.to_path_buf()) {
             let old_name = self
+                .nav
                 .cwd
                 .file_name()
                 .map(|n| n.to_string_lossy().into_owned());
-            self.filter_input.clear();
-            self.filter_mode = false;
+            self.nav.filter_input.clear();
+            self.nav.filter_mode = false;
             self.push_history(parent.clone());
-            self.cwd = parent;
+            self.nav.cwd = parent;
             self.load_dir();
             // Try to select the directory we came from.
             if let Some(name) = old_name {
-                if let Some(idx) = self.entries.iter().position(|e| e.name == name) {
-                    self.selected = idx;
+                if let Some(idx) = self.nav.entries.iter().position(|e| e.name == name) {
+                    self.nav.selected = idx;
                     self.load_preview();
                 }
             }
@@ -52,21 +53,22 @@ impl App {
     /// Returns `true` when the currently highlighted entry is a regular file
     /// (not a directory and not an archive opened in virtual-browse mode).
     pub fn highlighted_entry_is_file(&self) -> bool {
-        self.entries
-            .get(self.selected)
+        self.nav
+            .entries
+            .get(self.nav.selected)
             .map(|e| !e.is_dir)
             .unwrap_or(false)
     }
 
     pub fn enter_selected(&mut self) {
-        if let Some(entry) = self.entries.get(self.selected).cloned() {
+        if let Some(entry) = self.nav.entries.get(self.nav.selected).cloned() {
             if entry.is_dir {
-                self.filter_input.clear();
-                self.filter_mode = false;
+                self.nav.filter_input.clear();
+                self.nav.filter_mode = false;
                 self.push_history(entry.path.clone());
-                self.cwd = entry.path;
-                self.selected = 0;
-                self.current_scroll = 0;
+                self.nav.cwd = entry.path;
+                self.nav.selected = 0;
+                self.nav.current_scroll = 0;
                 self.load_dir();
             } else if crate::archive::is_archive(&entry.path) {
                 // Enter archive browsing mode for archive files.
@@ -81,23 +83,23 @@ impl App {
 
     pub fn go_home(&mut self) {
         if let Some(home) = dirs_home() {
-            self.filter_input.clear();
-            self.filter_mode = false;
+            self.nav.filter_input.clear();
+            self.nav.filter_mode = false;
             self.push_history(home.clone());
-            self.cwd = home;
-            self.selected = 0;
-            self.current_scroll = 0;
+            self.nav.cwd = home;
+            self.nav.selected = 0;
+            self.nav.current_scroll = 0;
             self.load_dir();
         }
     }
 
     pub fn toggle_hidden(&mut self) {
-        self.show_hidden = !self.show_hidden;
+        self.nav.show_hidden = !self.nav.show_hidden;
         // The parent pane uses the same show_hidden flag; invalidate the cache
         // so load_dir re-reads parent entries with the new visibility setting.
         self.invalidate_parent_cache();
         self.load_dir();
-        self.status_message = Some(if self.show_hidden {
+        self.status_message = Some(if self.nav.show_hidden {
             "Showing hidden files".to_string()
         } else {
             "Hiding hidden files".to_string()
@@ -114,10 +116,10 @@ impl App {
         if h == 0 {
             return;
         }
-        if self.selected < self.current_scroll {
-            self.current_scroll = self.selected;
-        } else if self.selected >= self.current_scroll + h {
-            self.current_scroll = self.selected - h + 1;
+        if self.nav.selected < self.nav.current_scroll {
+            self.nav.current_scroll = self.nav.selected;
+        } else if self.nav.selected >= self.nav.current_scroll + h {
+            self.nav.current_scroll = self.nav.selected - h + 1;
         }
     }
 
@@ -126,10 +128,10 @@ impl App {
         if h == 0 {
             return;
         }
-        if self.parent_selected < self.parent_scroll {
-            self.parent_scroll = self.parent_selected;
-        } else if self.parent_selected >= self.parent_scroll + h {
-            self.parent_scroll = self.parent_selected - h + 1;
+        if self.nav.parent_selected < self.nav.parent_scroll {
+            self.nav.parent_scroll = self.nav.parent_selected;
+        } else if self.nav.parent_selected >= self.nav.parent_scroll + h {
+            self.nav.parent_scroll = self.nav.parent_selected - h + 1;
         }
     }
 
@@ -144,33 +146,33 @@ impl App {
         // Record destination in the session frecency table.
         self.record_frecency(new_dir.clone());
         // Save current cursor into the current history entry.
-        if let Some(e) = self.history.get_mut(self.history_pos) {
-            e.selected = self.selected;
+        if let Some(e) = self.nav.history.get_mut(self.nav.history_pos) {
+            e.selected = self.nav.selected;
         }
         // Discard forward entries.
-        self.history.truncate(self.history_pos + 1);
+        self.nav.history.truncate(self.nav.history_pos + 1);
         // Append new location.
-        self.history.push(HistoryEntry {
+        self.nav.history.push(HistoryEntry {
             dir: new_dir,
             selected: 0,
         });
-        self.history_pos = self.history.len() - 1;
+        self.nav.history_pos = self.nav.history.len() - 1;
         // Cap at MAX_HISTORY (drop oldest).
-        if self.history.len() > MAX_HISTORY {
-            let drop = self.history.len() - MAX_HISTORY;
-            self.history.drain(..drop);
-            self.history_pos = self.history_pos.saturating_sub(drop);
+        if self.nav.history.len() > MAX_HISTORY {
+            let drop = self.nav.history.len() - MAX_HISTORY;
+            self.nav.history.drain(..drop);
+            self.nav.history_pos = self.nav.history_pos.saturating_sub(drop);
         }
     }
 
     /// Record a visit to `path` in the session frecency table.
     pub fn record_frecency(&mut self, path: PathBuf) {
-        if let Some(e) = self.frecency_list.iter_mut().find(|e| e.path == path) {
+        if let Some(e) = self.nav.frecency_list.iter_mut().find(|e| e.path == path) {
             e.visits += 1;
             e.last_visit = std::time::Instant::now();
         } else {
             use crate::app::frecency::FrecencyEntry;
-            self.frecency_list.push(FrecencyEntry {
+            self.nav.frecency_list.push(FrecencyEntry {
                 path,
                 visits: 1,
                 last_visit: std::time::Instant::now(),
@@ -180,22 +182,23 @@ impl App {
 
     /// Open the frecency overlay and build the initial filtered list.
     pub fn open_frecency(&mut self) {
-        self.frecency_mode = true;
-        self.frecency_query.clear();
-        self.frecency_selected = 0;
+        self.overlay.frecency_mode = true;
+        self.overlay.frecency_query.clear();
+        self.overlay.frecency_selected = 0;
         self.rebuild_frecency_filtered();
     }
 
     /// Close the frecency overlay without navigating.
     pub fn close_frecency(&mut self) {
-        self.frecency_mode = false;
-        self.frecency_query.clear();
+        self.overlay.frecency_mode = false;
+        self.overlay.frecency_query.clear();
     }
 
     /// Rebuild `frecency_filtered`: filter by query, sort by score descending.
     pub fn rebuild_frecency_filtered(&mut self) {
-        let q = self.frecency_query.to_lowercase();
+        let q = self.overlay.frecency_query.to_lowercase();
         let mut scored: Vec<(usize, f64)> = self
+            .nav
             .frecency_list
             .iter()
             .enumerate()
@@ -213,93 +216,97 @@ impl App {
             .map(|(i, e)| (i, e.score()))
             .collect();
         scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-        self.frecency_filtered = scored.into_iter().map(|(i, _)| i).collect();
-        if self.frecency_selected >= self.frecency_filtered.len() {
-            self.frecency_selected = self.frecency_filtered.len().saturating_sub(1);
+        self.overlay.frecency_filtered = scored.into_iter().map(|(i, _)| i).collect();
+        if self.overlay.frecency_selected >= self.overlay.frecency_filtered.len() {
+            self.overlay.frecency_selected = self.overlay.frecency_filtered.len().saturating_sub(1);
         }
     }
 
     pub fn frecency_push_char(&mut self, c: char) {
-        self.frecency_query.push(c);
-        self.frecency_selected = 0;
+        self.overlay.frecency_query.push(c);
+        self.overlay.frecency_selected = 0;
         self.rebuild_frecency_filtered();
     }
 
     pub fn frecency_pop_char(&mut self) {
-        self.frecency_query.pop();
-        self.frecency_selected = 0;
+        self.overlay.frecency_query.pop();
+        self.overlay.frecency_selected = 0;
         self.rebuild_frecency_filtered();
     }
 
     pub fn frecency_move_up(&mut self) {
-        if self.frecency_selected > 0 {
-            self.frecency_selected -= 1;
+        if self.overlay.frecency_selected > 0 {
+            self.overlay.frecency_selected -= 1;
         }
     }
 
     pub fn frecency_move_down(&mut self) {
-        if self.frecency_selected + 1 < self.frecency_filtered.len() {
-            self.frecency_selected += 1;
+        if self.overlay.frecency_selected + 1 < self.overlay.frecency_filtered.len() {
+            self.overlay.frecency_selected += 1;
         }
     }
 
     /// Navigate to the currently selected frecency entry and close the overlay.
     pub fn confirm_frecency(&mut self) {
-        let idx = match self.frecency_filtered.get(self.frecency_selected) {
+        let idx = match self
+            .overlay
+            .frecency_filtered
+            .get(self.overlay.frecency_selected)
+        {
             Some(&i) => i,
             None => {
                 self.close_frecency();
                 return;
             }
         };
-        let dest = self.frecency_list[idx].path.clone();
+        let dest = self.nav.frecency_list[idx].path.clone();
         self.close_frecency();
         if !dest.is_dir() {
             self.status_message = Some(format!("No longer exists: {}", dest.display()));
             return;
         }
-        self.filter_input.clear();
-        self.filter_mode = false;
+        self.nav.filter_input.clear();
+        self.nav.filter_mode = false;
         self.push_history(dest.clone());
-        self.cwd = dest;
-        self.selected = 0;
-        self.current_scroll = 0;
+        self.nav.cwd = dest;
+        self.nav.selected = 0;
+        self.nav.current_scroll = 0;
         self.load_dir();
     }
 
     /// Go back to the previous location in the jump history stack.
     pub fn history_back(&mut self) {
-        if self.history_pos == 0 {
+        if self.nav.history_pos == 0 {
             self.status_message = Some("Already at oldest location".to_string());
             return;
         }
-        if let Some(e) = self.history.get_mut(self.history_pos) {
-            e.selected = self.selected;
+        if let Some(e) = self.nav.history.get_mut(self.nav.history_pos) {
+            e.selected = self.nav.selected;
         }
-        self.filter_input.clear();
-        self.filter_mode = false;
-        self.history_pos -= 1;
+        self.nav.filter_input.clear();
+        self.nav.filter_mode = false;
+        self.nav.history_pos -= 1;
         self.restore_history_entry();
     }
 
     /// Go forward in the jump history stack (after going back).
     pub fn history_forward(&mut self) {
-        if self.history_pos + 1 >= self.history.len() {
+        if self.nav.history_pos + 1 >= self.nav.history.len() {
             self.status_message = Some("Already at newest location".to_string());
             return;
         }
-        if let Some(e) = self.history.get_mut(self.history_pos) {
-            e.selected = self.selected;
+        if let Some(e) = self.nav.history.get_mut(self.nav.history_pos) {
+            e.selected = self.nav.selected;
         }
-        self.filter_input.clear();
-        self.filter_mode = false;
-        self.history_pos += 1;
+        self.nav.filter_input.clear();
+        self.nav.filter_mode = false;
+        self.nav.history_pos += 1;
         self.restore_history_entry();
     }
 
     fn restore_history_entry(&mut self) {
-        let entry_dir = self.history[self.history_pos].dir.clone();
-        let saved_sel = self.history[self.history_pos].selected;
+        let entry_dir = self.nav.history[self.nav.history_pos].dir.clone();
+        let saved_sel = self.nav.history[self.nav.history_pos].selected;
 
         if !entry_dir.is_dir() {
             self.status_message = Some(format!(
@@ -309,28 +316,28 @@ impl App {
             return;
         }
 
-        self.cwd = entry_dir;
-        self.selected = 0;
-        self.current_scroll = 0;
+        self.nav.cwd = entry_dir;
+        self.nav.selected = 0;
+        self.nav.current_scroll = 0;
         self.load_dir();
-        self.selected = saved_sel.min(self.entries.len().saturating_sub(1));
+        self.nav.selected = saved_sel.min(self.nav.entries.len().saturating_sub(1));
         self.load_preview();
 
-        let has_forward = self.history_pos + 1 < self.history.len();
+        let has_forward = self.nav.history_pos + 1 < self.nav.history.len();
         let arrow = if has_forward { "←" } else { "→" };
         self.status_message = Some(format!(
             "{} {}/{}  {}",
             arrow,
-            self.history_pos + 1,
-            self.history.len(),
-            self.cwd.display()
+            self.nav.history_pos + 1,
+            self.nav.history.len(),
+            self.nav.cwd.display()
         ));
     }
 
     /// Toggle line numbers in the preview pane.
     pub fn toggle_line_numbers(&mut self) {
-        self.show_line_numbers = !self.show_line_numbers;
-        self.status_message = Some(if self.show_line_numbers {
+        self.preview.show_line_numbers = !self.preview.show_line_numbers;
+        self.status_message = Some(if self.preview.show_line_numbers {
             "Line numbers: on".to_string()
         } else {
             "Line numbers: off".to_string()
@@ -341,14 +348,14 @@ impl App {
 
     /// Open the path jump input bar with an empty input.
     pub fn begin_path_jump(&mut self) {
-        self.path_mode = true;
-        self.path_input.clear();
+        self.overlay.path_mode = true;
+        self.overlay.path_input.clear();
     }
 
     /// Close the path jump bar without navigating.
     pub fn cancel_path_jump(&mut self) {
-        self.path_mode = false;
-        self.path_input.clear();
+        self.overlay.path_mode = false;
+        self.overlay.path_input.clear();
     }
 
     /// Confirm the path typed in the jump bar and navigate to it.
@@ -359,12 +366,12 @@ impl App {
     /// - Existing file → navigate to its parent and select the file.
     /// - Non-existent path → show an error and keep the bar open.
     pub fn confirm_path_jump(&mut self) {
-        if self.path_input.is_empty() {
-            self.path_mode = false;
+        if self.overlay.path_input.is_empty() {
+            self.overlay.path_mode = false;
             return;
         }
 
-        let raw = self.path_input.clone();
+        let raw = self.overlay.path_input.clone();
         let expanded = if raw.starts_with('~') {
             match dirs_home() {
                 Some(home) => {
@@ -382,32 +389,32 @@ impl App {
         };
 
         if expanded.is_dir() {
-            self.path_mode = false;
-            self.path_input.clear();
-            self.filter_input.clear();
-            self.filter_mode = false;
+            self.overlay.path_mode = false;
+            self.overlay.path_input.clear();
+            self.nav.filter_input.clear();
+            self.nav.filter_mode = false;
             self.push_history(expanded.clone());
-            self.cwd = expanded;
-            self.selected = 0;
-            self.current_scroll = 0;
+            self.nav.cwd = expanded;
+            self.nav.selected = 0;
+            self.nav.current_scroll = 0;
             self.load_dir();
         } else if expanded.is_file() {
             if let Some(parent) = expanded.parent().map(|p| p.to_path_buf()) {
                 let file_name = expanded
                     .file_name()
                     .map(|n| n.to_string_lossy().into_owned());
-                self.path_mode = false;
-                self.path_input.clear();
-                self.filter_input.clear();
-                self.filter_mode = false;
+                self.overlay.path_mode = false;
+                self.overlay.path_input.clear();
+                self.nav.filter_input.clear();
+                self.nav.filter_mode = false;
                 self.push_history(parent.clone());
-                self.cwd = parent;
-                self.selected = 0;
-                self.current_scroll = 0;
+                self.nav.cwd = parent;
+                self.nav.selected = 0;
+                self.nav.current_scroll = 0;
                 self.load_dir();
                 if let Some(name) = file_name {
-                    if let Some(idx) = self.entries.iter().position(|e| e.name == name) {
-                        self.selected = idx;
+                    if let Some(idx) = self.nav.entries.iter().position(|e| e.name == name) {
+                        self.nav.selected = idx;
                         self.load_preview();
                     }
                 }
@@ -420,12 +427,12 @@ impl App {
 
     /// Append a character to the path jump input.
     pub fn path_push_char(&mut self, c: char) {
-        self.path_input.push(c);
+        self.overlay.path_input.push(c);
     }
 
     /// Remove the last character from the path jump input.
     pub fn path_pop_char(&mut self) {
-        self.path_input.pop();
+        self.overlay.path_input.pop();
     }
 
     /// Tab-complete the current path_input using filesystem entries.
@@ -437,7 +444,7 @@ impl App {
     /// - Multiple matches: advances to the longest common prefix of all names.
     /// - No matches: leaves path_input unchanged (no-op).
     pub fn complete_path(&mut self) {
-        let raw = self.path_input.clone();
+        let raw = self.overlay.path_input.clone();
 
         // Expand ~ to the home directory for filesystem operations.
         let expanded = if let Some(rest) = raw.strip_prefix('~') {
@@ -522,14 +529,15 @@ impl App {
                 })
                 .unwrap_or_default()
         };
-        self.path_input = format!("{}{}", orig_dir_prefix, completed);
+        self.overlay.path_input = format!("{}{}", orig_dir_prefix, completed);
     }
 
     /// Returns the path of the currently selected file (not directory), or None.
     /// Used by the open-in-editor (`o`) handler which should not act on directories.
     pub fn selected_file_path(&self) -> Option<PathBuf> {
-        self.entries
-            .get(self.selected)
+        self.nav
+            .entries
+            .get(self.nav.selected)
             .filter(|e| !e.is_dir)
             .map(|e| e.path.clone())
     }
@@ -537,32 +545,36 @@ impl App {
     /// Returns the path of the currently selected entry (file or directory).
     /// Used by the open-with-system-default (`O`) handler.
     pub fn selected_path(&self) -> Option<PathBuf> {
-        self.entries.get(self.selected).map(|e| e.path.clone())
+        self.nav
+            .entries
+            .get(self.nav.selected)
+            .map(|e| e.path.clone())
     }
 
     // --- Per-session marks ---
 
     /// Enter mark-set mode: the next alphabetic key will record a mark slot.
     pub fn begin_set_mark(&mut self) {
-        self.mark_set_mode = true;
+        self.overlay.mark_set_mode = true;
         self.status_message = Some("Mark: [a-z A-Z]".to_string());
     }
 
     /// Record the current directory under mark slot `c` and exit mark-set mode.
     pub fn set_mark(&mut self, c: char) {
-        self.mark_set_mode = false;
-        self.marks.insert(c, self.cwd.clone());
+        self.overlay.mark_set_mode = false;
+        self.overlay.marks.insert(c, self.nav.cwd.clone());
         let short = self
+            .nav
             .cwd
             .file_name()
             .map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or_else(|| self.cwd.to_string_lossy().into_owned());
+            .unwrap_or_else(|| self.nav.cwd.to_string_lossy().into_owned());
         self.status_message = Some(format!("Marked '{}' \u{2192} {}", c, short));
     }
 
     /// Enter mark-jump mode: the next alphabetic key will jump to that mark slot.
     pub fn begin_jump_mark(&mut self) {
-        self.mark_jump_mode = true;
+        self.overlay.mark_jump_mode = true;
         self.status_message = Some("Jump: [a-z A-Z]".to_string());
     }
 
@@ -572,8 +584,8 @@ impl App {
     /// - Slot set but directory deleted → show error, no navigation.
     /// - Otherwise → navigate and push to history.
     pub fn jump_to_mark(&mut self, c: char) {
-        self.mark_jump_mode = false;
-        let dest = match self.marks.get(&c).cloned() {
+        self.overlay.mark_jump_mode = false;
+        let dest = match self.overlay.marks.get(&c).cloned() {
             Some(p) => p,
             None => {
                 self.status_message = Some(format!("Mark '{}' not set", c));
@@ -588,12 +600,12 @@ impl App {
             .file_name()
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_else(|| dest.to_string_lossy().into_owned());
-        self.filter_input.clear();
-        self.filter_mode = false;
+        self.nav.filter_input.clear();
+        self.nav.filter_mode = false;
         self.push_history(dest.clone());
-        self.cwd = dest;
-        self.selected = 0;
-        self.current_scroll = 0;
+        self.nav.cwd = dest;
+        self.nav.selected = 0;
+        self.nav.current_scroll = 0;
         self.load_dir();
         self.status_message = Some(format!("\u{2192} {} (mark '{}')", short, c));
     }
@@ -602,8 +614,8 @@ impl App {
 
     /// Toggle directory child count display between item counts and raw block sizes.
     pub fn toggle_dir_counts(&mut self) {
-        self.show_dir_counts = !self.show_dir_counts;
-        self.status_message = Some(if self.show_dir_counts {
+        self.nav.show_dir_counts = !self.nav.show_dir_counts;
+        self.status_message = Some(if self.nav.show_dir_counts {
             "Dir sizes: item counts".to_string()
         } else {
             "Dir sizes: block size".to_string()
@@ -614,8 +626,8 @@ impl App {
 
     /// Toggle soft line-wrapping in the preview pane.
     pub fn toggle_preview_wrap(&mut self) {
-        self.preview_wrap = !self.preview_wrap;
-        self.status_message = Some(if self.preview_wrap {
+        self.preview.preview_wrap = !self.preview.preview_wrap;
+        self.status_message = Some(if self.preview.preview_wrap {
             "Wrap: on".to_string()
         } else {
             "Wrap: off".to_string()
@@ -626,8 +638,8 @@ impl App {
 
     /// Toggle between file sizes and last-modified timestamps in the listing.
     pub fn toggle_timestamps(&mut self) {
-        self.show_timestamps = !self.show_timestamps;
-        self.status_message = Some(if self.show_timestamps {
+        self.nav.show_timestamps = !self.nav.show_timestamps;
+        self.status_message = Some(if self.nav.show_timestamps {
             "Showing modification dates".to_string()
         } else {
             "Showing file sizes".to_string()
@@ -642,14 +654,14 @@ impl App {
     /// `1.0`, which causes the layout math to give the preview zero columns.
     /// When expanding, `right_div` is restored from `preview_right_div`.
     pub fn toggle_preview_pane(&mut self) {
-        if self.preview_collapsed {
-            self.right_div = self.preview_right_div;
-            self.preview_collapsed = false;
+        if self.preview.preview_collapsed {
+            self.right_div = self.preview.preview_right_div;
+            self.preview.preview_collapsed = false;
             self.status_message = Some("Preview: shown".to_string());
         } else {
-            self.preview_right_div = self.right_div;
+            self.preview.preview_right_div = self.right_div;
             self.right_div = 1.0;
-            self.preview_collapsed = true;
+            self.preview.preview_collapsed = true;
             self.status_message = Some("Preview: hidden".to_string());
         }
     }
@@ -685,7 +697,7 @@ impl App {
             self.status_message = Some("Watch mode OFF".to_string());
         } else {
             // Turn on — start a fresh watcher for the current directory.
-            self.watcher = crate::watcher::DirWatcher::new(&self.cwd);
+            self.watcher = crate::watcher::DirWatcher::new(&self.nav.cwd);
             self.status_message =
                 Some("Watch mode ON — listing auto-refreshes on changes".to_string());
         }
@@ -708,14 +720,18 @@ impl App {
         };
 
         if has_events {
-            let selected_name = self.entries.get(self.selected).map(|e| e.name.clone());
+            let selected_name = self
+                .nav
+                .entries
+                .get(self.nav.selected)
+                .map(|e| e.name.clone());
             // Filesystem events may have affected the parent directory too; invalidate
             // the parent cache so load_dir re-reads it instead of serving stale data.
             self.invalidate_parent_cache();
             self.load_dir();
             if let Some(name) = selected_name {
-                if let Some(idx) = self.entries.iter().position(|e| e.name == name) {
-                    self.selected = idx;
+                if let Some(idx) = self.nav.entries.iter().position(|e| e.name == name) {
+                    self.nav.selected = idx;
                     self.load_preview();
                 }
             }

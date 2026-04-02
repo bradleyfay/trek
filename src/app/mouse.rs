@@ -22,12 +22,14 @@ impl App {
         let now = std::time::Instant::now();
 
         // Double-click detection: second click at same position within threshold.
-        if let (Some(last_time), Some(last_pos)) = (self.last_click_time, self.last_click_pos) {
+        if let (Some(last_time), Some(last_pos)) =
+            (self.nav.last_click_time, self.nav.last_click_pos)
+        {
             let elapsed_ms = now.duration_since(last_time).as_millis();
             if is_double_click_timing(elapsed_ms, col, row, last_pos) {
                 // Reset state so a triple-click doesn't re-trigger.
-                self.last_click_time = None;
-                self.last_click_pos = None;
+                self.nav.last_click_time = None;
+                self.nav.last_click_pos = None;
                 if self.is_in_current(col, row) {
                     self.click_select_current(col, row);
                     self.open_to_the_right();
@@ -37,8 +39,8 @@ impl App {
         }
 
         // Record this click for the next double-click check.
-        self.last_click_time = Some(now);
-        self.last_click_pos = Some((col, row));
+        self.nav.last_click_time = Some(now);
+        self.nav.last_click_pos = Some((col, row));
 
         const GRAB_MARGIN: u16 = 1;
         if col.abs_diff(self.left_div_col) <= GRAB_MARGIN {
@@ -68,9 +70,9 @@ impl App {
             return;
         }
         let clicked_offset = (row - inner_y) as usize;
-        let idx = self.current_scroll + clicked_offset;
-        if idx < self.entries.len() {
-            self.selected = idx;
+        let idx = self.nav.current_scroll + clicked_offset;
+        if idx < self.nav.entries.len() {
+            self.nav.selected = idx;
             self.load_preview();
         }
     }
@@ -82,15 +84,15 @@ impl App {
             return;
         }
         let clicked_offset = (row - inner_y) as usize;
-        let idx = self.parent_scroll + clicked_offset;
-        if idx < self.parent_entries.len() {
+        let idx = self.nav.parent_scroll + clicked_offset;
+        if idx < self.nav.parent_entries.len() {
             // Navigate to that parent entry if it's a directory.
-            if let Some(entry) = self.parent_entries.get(idx).cloned() {
+            if let Some(entry) = self.nav.parent_entries.get(idx).cloned() {
                 if entry.is_dir {
                     self.push_history(entry.path.clone());
-                    self.cwd = entry.path;
-                    self.selected = 0;
-                    self.current_scroll = 0;
+                    self.nav.cwd = entry.path;
+                    self.nav.selected = 0;
+                    self.nav.current_scroll = 0;
                     self.load_dir();
                 }
             }
@@ -125,30 +127,30 @@ impl App {
     /// Scroll up in whichever pane the cursor is over.
     pub fn on_scroll_up(&mut self, col: u16, row: u16) {
         if self.is_in_preview(col, row) {
-            self.preview_scroll = self.preview_scroll.saturating_sub(3);
+            self.preview.preview_scroll = self.preview.preview_scroll.saturating_sub(3);
         } else if self.is_in_current(col, row) {
-            if self.selected > 0 {
-                self.selected = self.selected.saturating_sub(3);
+            if self.nav.selected > 0 {
+                self.nav.selected = self.nav.selected.saturating_sub(3);
                 self.load_preview();
             }
         } else if self.is_in_parent(col, row) {
-            self.parent_scroll = self.parent_scroll.saturating_sub(3);
+            self.nav.parent_scroll = self.nav.parent_scroll.saturating_sub(3);
         }
     }
 
     /// Scroll down in whichever pane the cursor is over.
     pub fn on_scroll_down(&mut self, col: u16, row: u16) {
         if self.is_in_preview(col, row) {
-            let max_scroll = self.preview_lines.len().saturating_sub(1);
-            self.preview_scroll = (self.preview_scroll + 3).min(max_scroll);
+            let max_scroll = self.preview.preview_lines.len().saturating_sub(1);
+            self.preview.preview_scroll = (self.preview.preview_scroll + 3).min(max_scroll);
         } else if self.is_in_current(col, row) {
-            if !self.entries.is_empty() {
-                self.selected = (self.selected + 3).min(self.entries.len() - 1);
+            if !self.nav.entries.is_empty() {
+                self.nav.selected = (self.nav.selected + 3).min(self.nav.entries.len() - 1);
                 self.load_preview();
             }
         } else if self.is_in_parent(col, row) {
-            let max = self.parent_entries.len().saturating_sub(1);
-            self.parent_scroll = (self.parent_scroll + 3).min(max);
+            let max = self.nav.parent_entries.len().saturating_sub(1);
+            self.nav.parent_scroll = (self.nav.parent_scroll + 3).min(max);
         }
     }
 }
@@ -204,7 +206,7 @@ mod tests {
 
     /// Given: entries loaded and the current pane positioned at (x=20, y=1)
     /// When: right-click lands on row 3 (inner_y=2, offset=1 → entry index 1)
-    /// Then: app.selected is updated to 1
+    /// Then: app.nav.selected is updated to 1
     ///
     /// The test targets a directory entry on purpose. `open_in_cmux_tab`
     /// returns early for directories, so no subprocess is spawned.
@@ -217,11 +219,11 @@ mod tests {
         // Simulate a pane that starts at column 20, row 1 (border at y=1,
         // so inner content starts at y=2).
         app.current_area = (20, 1, 60, 40);
-        app.current_scroll = 0;
+        app.nav.current_scroll = 0;
 
         // Make sure there is at least a second entry to select.
         assert!(
-            app.entries.len() >= 2,
+            app.nav.entries.len() >= 2,
             "project dir must have at least 2 entries"
         );
 
@@ -229,6 +231,7 @@ mod tests {
         // and click one row below the border to target it.
         // open_in_cmux_tab no-ops on directories, so no external process fires.
         let dir_idx = app
+            .nav
             .entries
             .iter()
             .position(|e| e.is_dir)
@@ -238,7 +241,7 @@ mod tests {
         app.on_mouse_right_down(30, click_row);
 
         assert_eq!(
-            app.selected, dir_idx,
+            app.nav.selected, dir_idx,
             "right-click should select the entry at the clicked row"
         );
     }
@@ -261,6 +264,7 @@ mod tests {
         // Locate the first non-directory entry so open_to_the_right doesn't
         // short-circuit on a directory.
         let file_idx = app
+            .nav
             .entries
             .iter()
             .position(|e| !e.is_dir)
@@ -269,13 +273,13 @@ mod tests {
         // current_area: border at y=1, so inner content starts at y=2.
         // Row for file_idx = inner_y + file_idx - current_scroll = 2 + file_idx.
         app.current_area = (20, 1, 60, 40);
-        app.current_scroll = 0;
+        app.nav.current_scroll = 0;
         let file_row = 2 + file_idx as u16;
         let click_col = 30u16;
 
         // Prime double-click state: first click recorded just now.
-        app.last_click_time = Some(std::time::Instant::now());
-        app.last_click_pos = Some((click_col, file_row));
+        app.nav.last_click_time = Some(std::time::Instant::now());
+        app.nav.last_click_pos = Some((click_col, file_row));
 
         // Second click immediately after — elapsed ~0 ms, same position → double-click.
         app.on_mouse_down(click_col, file_row);

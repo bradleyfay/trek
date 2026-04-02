@@ -149,12 +149,12 @@ fn make_app_at(dir: &std::path::Path) -> App {
 /// arrive in time — indicates a deadlock or logic error.
 fn wait_for_preview(app: &mut App) {
     let deadline = std::time::Instant::now() + std::time::Duration::from_millis(500);
-    while app.preview_loading && std::time::Instant::now() < deadline {
+    while app.preview.preview_loading && std::time::Instant::now() < deadline {
         app.check_preview_rx();
         std::thread::sleep(std::time::Duration::from_millis(5));
     }
     assert!(
-        !app.preview_loading,
+        !app.preview.preview_loading,
         "preview did not complete within 500 ms"
     );
 }
@@ -166,8 +166,8 @@ fn wait_for_preview(app: &mut App) {
 fn history_initialized_with_one_entry() {
     let dir = std::env::temp_dir();
     let app = make_app_at(&dir);
-    assert_eq!(app.history.len(), 1);
-    assert_eq!(app.history_pos, 0);
+    assert_eq!(app.nav.history.len(), 1);
+    assert_eq!(app.nav.history_pos, 0);
 }
 
 /// Given: a fresh App
@@ -178,7 +178,7 @@ fn history_back_at_oldest_shows_message() {
     let dir = std::env::temp_dir();
     let mut app = make_app_at(&dir);
     app.history_back();
-    assert_eq!(app.history_pos, 0);
+    assert_eq!(app.nav.history_pos, 0);
     assert_eq!(
         app.status_message.as_deref(),
         Some("Already at oldest location")
@@ -193,7 +193,7 @@ fn history_forward_at_newest_shows_message() {
     let dir = std::env::temp_dir();
     let mut app = make_app_at(&dir);
     app.history_forward();
-    assert_eq!(app.history_pos, 0);
+    assert_eq!(app.nav.history_pos, 0);
     assert_eq!(
         app.status_message.as_deref(),
         Some("Already at newest location")
@@ -213,12 +213,12 @@ fn push_history_then_back_restores_position() {
     let mut app = make_app_at(&base);
     app.push_history(sub1.clone());
     app.push_history(sub2.clone());
-    assert_eq!(app.history.len(), 3);
-    assert_eq!(app.history_pos, 2);
+    assert_eq!(app.nav.history.len(), 3);
+    assert_eq!(app.nav.history_pos, 2);
     // Go back via the public API — cwd should be restored to sub1.
     app.history_back();
-    assert_eq!(app.history_pos, 1);
-    assert_eq!(app.cwd, sub1, "history_back should restore cwd to sub1");
+    assert_eq!(app.nav.history_pos, 1);
+    assert_eq!(app.nav.cwd, sub1, "history_back should restore cwd to sub1");
     let _ = std::fs::remove_dir_all(&base);
 }
 
@@ -237,19 +237,19 @@ fn forward_history_discarded_on_new_navigation() {
     let mut app = make_app_at(&base);
     app.push_history(sub1.clone());
     app.push_history(sub2);
-    assert_eq!(app.history.len(), 3);
+    assert_eq!(app.nav.history.len(), 3);
     // Go back via history_back — cwd should restore to sub1.
     app.history_back();
-    assert_eq!(app.history_pos, 1);
-    assert_eq!(app.cwd, sub1);
+    assert_eq!(app.nav.history_pos, 1);
+    assert_eq!(app.nav.cwd, sub1);
     // Navigate to a new dir — should discard the forward entry (sub2).
     app.push_history(sub3);
     assert_eq!(
-        app.history.len(),
+        app.nav.history.len(),
         3,
         "old forward entry should be replaced, not accumulated"
     );
-    assert_eq!(app.history_pos, 2);
+    assert_eq!(app.nav.history_pos, 2);
     let _ = std::fs::remove_dir_all(&base);
 }
 
@@ -263,7 +263,7 @@ fn history_capped_at_max() {
     for _ in 0..(MAX_HISTORY + 5) {
         app.push_history(std::env::temp_dir());
     }
-    assert!(app.history.len() <= MAX_HISTORY);
+    assert!(app.nav.history.len() <= MAX_HISTORY);
 }
 
 // ── Metadata helper tests ─────────────────────────────────────────────────
@@ -328,8 +328,8 @@ fn timestamp_known_date() {
 fn filter_mode_is_off_by_default() {
     let dir = std::env::temp_dir();
     let app = make_app_at(&dir);
-    assert!(!app.filter_mode);
-    assert!(app.filter_input.is_empty());
+    assert!(!app.nav.filter_mode);
+    assert!(app.nav.filter_input.is_empty());
 }
 
 /// Given: a fresh App
@@ -340,7 +340,7 @@ fn start_filter_sets_filter_mode() {
     let dir = std::env::temp_dir();
     let mut app = make_app_at(&dir);
     app.start_filter();
-    assert!(app.filter_mode);
+    assert!(app.nav.filter_mode);
 }
 
 /// Given: an App in a temp dir containing "alpha.txt" and "beta.txt"
@@ -358,7 +358,7 @@ fn filter_push_char_narrows_listing() {
     app.start_filter();
     app.filter_push_char('a');
 
-    let names: Vec<&str> = app.entries.iter().map(|e| e.name.as_str()).collect();
+    let names: Vec<&str> = app.nav.entries.iter().map(|e| e.name.as_str()).collect();
     for name in &names {
         assert!(
             name.to_lowercase().contains('a'),
@@ -386,7 +386,7 @@ fn filter_is_case_insensitive() {
     app.filter_push_char('a');
 
     assert!(
-        app.entries.iter().any(|e| e.name == "README.md"),
+        app.nav.entries.iter().any(|e| e.name == "README.md"),
         "README.md should still be visible with filter 'rea'"
     );
 
@@ -407,10 +407,10 @@ fn filter_pop_char_widens_listing() {
     app.start_filter();
     app.filter_push_char('a');
     app.filter_push_char('l');
-    let narrow_count = app.entries.len();
+    let narrow_count = app.nav.entries.len();
 
     app.filter_pop_char(); // back to just "a"
-    let wider_count = app.entries.len();
+    let wider_count = app.nav.entries.len();
     assert!(
         wider_count >= narrow_count,
         "popping a char should not shrink the listing further"
@@ -433,7 +433,7 @@ fn filter_no_match_gives_empty_listing() {
     for c in "zzznomatch".chars() {
         app.filter_push_char(c);
     }
-    assert_eq!(app.entries.len(), 0);
+    assert_eq!(app.nav.entries.len(), 0);
 
     let _ = std::fs::remove_dir_all(&tmp);
 }
@@ -453,11 +453,11 @@ fn close_filter_keeps_filter_active() {
     app.close_filter();
 
     assert!(
-        !app.filter_mode,
+        !app.nav.filter_mode,
         "filter_mode should be false after close_filter"
     );
     assert!(
-        !app.filter_input.is_empty(),
+        !app.nav.filter_input.is_empty(),
         "filter_input should remain non-empty"
     );
 
@@ -475,23 +475,23 @@ fn clear_filter_restores_full_listing() {
     std::fs::write(tmp.join("zzz.txt"), b"").unwrap();
 
     let mut app = make_app_at(&tmp);
-    let full_count = app.entries.len();
+    let full_count = app.nav.entries.len();
 
     app.start_filter();
     app.filter_push_char('a');
     app.filter_push_char('l');
     app.filter_push_char('p');
-    let narrow_count = app.entries.len();
+    let narrow_count = app.nav.entries.len();
     assert!(
         narrow_count < full_count,
         "filter 'alp' should narrow the listing (full={full_count}, narrow={narrow_count})"
     );
 
     app.clear_filter();
-    assert!(app.filter_input.is_empty());
-    assert!(!app.filter_mode);
+    assert!(app.nav.filter_input.is_empty());
+    assert!(!app.nav.filter_mode);
     assert_eq!(
-        app.entries.len(),
+        app.nav.entries.len(),
         full_count,
         "full listing should be restored"
     );
@@ -509,7 +509,7 @@ fn selected_file_path_empty_entries_returns_none() {
     let tmp = std::env::temp_dir().join(format!("trek_open_empty_{}", std::process::id()));
     let _ = std::fs::create_dir_all(&tmp);
     let mut app = make_app_at(&tmp);
-    app.entries.clear();
+    app.nav.entries.clear();
     assert!(app.selected_file_path().is_none());
     let _ = std::fs::remove_dir_all(&tmp);
 }
@@ -525,8 +525,8 @@ fn selected_file_path_on_directory_returns_none() {
     let _ = std::fs::create_dir_all(&sub);
 
     let mut app = make_app_at(&tmp);
-    if let Some(idx) = app.entries.iter().position(|e| e.is_dir) {
-        app.selected = idx;
+    if let Some(idx) = app.nav.entries.iter().position(|e| e.is_dir) {
+        app.nav.selected = idx;
     }
     assert!(app.selected_file_path().is_none());
     let _ = std::fs::remove_dir_all(&tmp);
@@ -542,8 +542,8 @@ fn selected_file_path_on_file_returns_some() {
     std::fs::write(tmp.join("readme.md"), b"hello").unwrap();
 
     let mut app = make_app_at(&tmp);
-    if let Some(idx) = app.entries.iter().position(|e| !e.is_dir) {
-        app.selected = idx;
+    if let Some(idx) = app.nav.entries.iter().position(|e| !e.is_dir) {
+        app.nav.selected = idx;
         let path = app.selected_file_path();
         assert!(path.is_some());
         assert_eq!(
@@ -565,8 +565,8 @@ fn selected_path_on_directory_returns_some() {
     let _ = std::fs::create_dir_all(&sub);
 
     let mut app = make_app_at(&tmp);
-    if let Some(idx) = app.entries.iter().position(|e| e.is_dir) {
-        app.selected = idx;
+    if let Some(idx) = app.nav.entries.iter().position(|e| e.is_dir) {
+        app.nav.selected = idx;
     }
     assert!(app.selected_path().is_some());
     let _ = std::fs::remove_dir_all(&tmp);
@@ -582,8 +582,8 @@ fn selected_path_on_file_returns_some() {
     std::fs::write(tmp.join("config.toml"), b"[tool]").unwrap();
 
     let mut app = make_app_at(&tmp);
-    if let Some(idx) = app.entries.iter().position(|e| !e.is_dir) {
-        app.selected = idx;
+    if let Some(idx) = app.nav.entries.iter().position(|e| !e.is_dir) {
+        app.nav.selected = idx;
     }
     assert!(app.selected_path().is_some());
     let _ = std::fs::remove_dir_all(&tmp);
@@ -630,12 +630,12 @@ fn open_palette_sets_mode_and_resets_query() {
     let tmp = std::env::temp_dir().join(format!("trek_palette_open_{}", std::process::id()));
     let _ = std::fs::create_dir_all(&tmp);
     let mut app = make_app_at(&tmp);
-    assert!(!app.palette_mode);
+    assert!(!app.overlay.palette_mode);
     app.open_palette();
-    assert!(app.palette_mode);
-    assert!(app.palette_query.is_empty());
+    assert!(app.overlay.palette_mode);
+    assert!(app.overlay.palette_query.is_empty());
     assert_eq!(
-        app.palette_filtered.len(),
+        app.overlay.palette_filtered.len(),
         crate::app::palette::PALETTE_ACTIONS.len()
     );
     let _ = std::fs::remove_dir_all(&tmp);
@@ -653,8 +653,8 @@ fn close_palette_clears_state() {
     app.palette_push_char('s');
     app.palette_push_char('o');
     app.close_palette();
-    assert!(!app.palette_mode);
-    assert!(app.palette_query.is_empty());
+    assert!(!app.overlay.palette_mode);
+    assert!(app.overlay.palette_query.is_empty());
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -667,10 +667,10 @@ fn palette_push_char_narrows_filtered_list() {
     let _ = std::fs::create_dir_all(&tmp);
     let mut app = make_app_at(&tmp);
     app.open_palette();
-    let full_count = app.palette_filtered.len();
+    let full_count = app.overlay.palette_filtered.len();
     app.palette_push_char('q');
-    assert!(app.palette_filtered.len() < full_count);
-    assert_eq!(app.palette_selected, 0);
+    assert!(app.overlay.palette_filtered.len() < full_count);
+    assert_eq!(app.overlay.palette_selected, 0);
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -685,10 +685,10 @@ fn palette_pop_char_widens_filtered_list() {
     app.open_palette();
     app.palette_push_char('s');
     app.palette_push_char('o');
-    let narrow = app.palette_filtered.len();
+    let narrow = app.overlay.palette_filtered.len();
     app.palette_pop_char();
-    assert!(app.palette_filtered.len() >= narrow);
-    assert_eq!(&app.palette_query, "s");
+    assert!(app.overlay.palette_filtered.len() >= narrow);
+    assert_eq!(&app.overlay.palette_query, "s");
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -701,14 +701,14 @@ fn palette_navigation_stays_in_bounds() {
     let _ = std::fs::create_dir_all(&tmp);
     let mut app = make_app_at(&tmp);
     app.open_palette();
-    assert_eq!(app.palette_selected, 0);
+    assert_eq!(app.overlay.palette_selected, 0);
     app.palette_move_down();
-    assert_eq!(app.palette_selected, 1);
+    assert_eq!(app.overlay.palette_selected, 1);
     app.palette_move_up();
-    assert_eq!(app.palette_selected, 0);
+    assert_eq!(app.overlay.palette_selected, 0);
     // Moving up at top stays at 0
     app.palette_move_up();
-    assert_eq!(app.palette_selected, 0);
+    assert_eq!(app.overlay.palette_selected, 0);
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -726,7 +726,7 @@ fn palette_selected_action_returns_correct_id() {
     assert!(action.is_some());
     assert_eq!(
         action.unwrap(),
-        crate::app::palette::PALETTE_ACTIONS[app.palette_filtered[0]].id
+        crate::app::palette::PALETTE_ACTIONS[app.overlay.palette_filtered[0]].id
     );
     let _ = std::fs::remove_dir_all(&tmp);
 }
@@ -743,12 +743,12 @@ fn begin_quick_rename_prefills_name() {
     std::fs::write(tmp.join("hello.txt"), b"").unwrap();
 
     let mut app = make_app_at(&tmp);
-    if let Some(idx) = app.entries.iter().position(|e| !e.is_dir) {
-        app.selected = idx;
+    if let Some(idx) = app.nav.entries.iter().position(|e| !e.is_dir) {
+        app.nav.selected = idx;
     }
     app.begin_quick_rename();
-    assert!(app.quick_rename_mode);
-    assert_eq!(app.quick_rename_input, "hello.txt");
+    assert!(app.overlay.quick_rename_mode);
+    assert_eq!(app.overlay.quick_rename_input, "hello.txt");
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -760,9 +760,9 @@ fn begin_quick_rename_empty_entries_is_noop() {
     let tmp = std::env::temp_dir().join(format!("trek_qr_empty_{}", std::process::id()));
     let _ = std::fs::create_dir_all(&tmp);
     let mut app = make_app_at(&tmp);
-    app.entries.clear();
+    app.nav.entries.clear();
     app.begin_quick_rename();
-    assert!(!app.quick_rename_mode);
+    assert!(!app.overlay.quick_rename_mode);
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -776,13 +776,13 @@ fn cancel_quick_rename_clears_state() {
     std::fs::write(tmp.join("file.rs"), b"").unwrap();
 
     let mut app = make_app_at(&tmp);
-    if let Some(idx) = app.entries.iter().position(|e| !e.is_dir) {
-        app.selected = idx;
+    if let Some(idx) = app.nav.entries.iter().position(|e| !e.is_dir) {
+        app.nav.selected = idx;
     }
     app.begin_quick_rename();
     app.cancel_quick_rename();
-    assert!(!app.quick_rename_mode);
-    assert!(app.quick_rename_input.is_empty());
+    assert!(!app.overlay.quick_rename_mode);
+    assert!(app.overlay.quick_rename_input.is_empty());
     assert!(tmp.join("file.rs").exists());
     let _ = std::fs::remove_dir_all(&tmp);
 }
@@ -797,13 +797,13 @@ fn confirm_quick_rename_same_name_is_noop() {
     std::fs::write(tmp.join("same.txt"), b"").unwrap();
 
     let mut app = make_app_at(&tmp);
-    if let Some(idx) = app.entries.iter().position(|e| e.name == "same.txt") {
-        app.selected = idx;
+    if let Some(idx) = app.nav.entries.iter().position(|e| e.name == "same.txt") {
+        app.nav.selected = idx;
     }
     app.begin_quick_rename();
     // input already equals current name — confirm should be a no-op
     app.confirm_quick_rename();
-    assert!(!app.quick_rename_mode);
+    assert!(!app.overlay.quick_rename_mode);
     assert!(tmp.join("same.txt").exists());
     let _ = std::fs::remove_dir_all(&tmp);
 }
@@ -818,11 +818,11 @@ fn confirm_quick_rename_empty_input_shows_error() {
     std::fs::write(tmp.join("nonempty.txt"), b"").unwrap();
 
     let mut app = make_app_at(&tmp);
-    if let Some(idx) = app.entries.iter().position(|e| !e.is_dir) {
-        app.selected = idx;
+    if let Some(idx) = app.nav.entries.iter().position(|e| !e.is_dir) {
+        app.nav.selected = idx;
     }
     app.begin_quick_rename();
-    app.quick_rename_input.clear();
+    app.overlay.quick_rename_input.clear();
     app.confirm_quick_rename();
     // Mode should be closed (we close on empty) and status set
     assert!(app.status_message.is_some());
@@ -844,18 +844,18 @@ fn confirm_quick_rename_renames_file() {
     std::fs::write(tmp.join("old.txt"), b"content").unwrap();
 
     let mut app = make_app_at(&tmp);
-    if let Some(idx) = app.entries.iter().position(|e| e.name == "old.txt") {
-        app.selected = idx;
+    if let Some(idx) = app.nav.entries.iter().position(|e| e.name == "old.txt") {
+        app.nav.selected = idx;
     }
     app.begin_quick_rename();
-    app.quick_rename_input = "new.txt".to_string();
+    app.overlay.quick_rename_input = "new.txt".to_string();
     app.confirm_quick_rename();
 
-    assert!(!app.quick_rename_mode);
+    assert!(!app.overlay.quick_rename_mode);
     assert!(tmp.join("new.txt").exists(), "renamed file should exist");
     assert!(!tmp.join("old.txt").exists(), "old file should be gone");
     assert!(
-        app.entries.iter().any(|e| e.name == "new.txt"),
+        app.nav.entries.iter().any(|e| e.name == "new.txt"),
         "listing should contain new name"
     );
     let msg = app.status_message.as_deref().unwrap_or("");
@@ -877,11 +877,11 @@ fn confirm_quick_rename_collision_shows_error() {
     std::fs::write(tmp.join("b.txt"), b"").unwrap();
 
     let mut app = make_app_at(&tmp);
-    if let Some(idx) = app.entries.iter().position(|e| e.name == "a.txt") {
-        app.selected = idx;
+    if let Some(idx) = app.nav.entries.iter().position(|e| e.name == "a.txt") {
+        app.nav.selected = idx;
     }
     app.begin_quick_rename();
-    app.quick_rename_input = "b.txt".to_string();
+    app.overlay.quick_rename_input = "b.txt".to_string();
     app.confirm_quick_rename();
 
     assert!(tmp.join("a.txt").exists(), "original should still exist");
@@ -903,15 +903,15 @@ fn quick_rename_push_pop_char() {
     std::fs::write(tmp.join("test.txt"), b"").unwrap();
 
     let mut app = make_app_at(&tmp);
-    if let Some(idx) = app.entries.iter().position(|e| !e.is_dir) {
-        app.selected = idx;
+    if let Some(idx) = app.nav.entries.iter().position(|e| !e.is_dir) {
+        app.nav.selected = idx;
     }
     app.begin_quick_rename();
-    let original_len = app.quick_rename_input.len();
+    let original_len = app.overlay.quick_rename_input.len();
     app.quick_rename_push_char('X');
-    assert_eq!(app.quick_rename_input.len(), original_len + 1);
+    assert_eq!(app.overlay.quick_rename_input.len(), original_len + 1);
     app.quick_rename_pop_char();
-    assert_eq!(app.quick_rename_input.len(), original_len);
+    assert_eq!(app.overlay.quick_rename_input.len(), original_len);
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -925,8 +925,8 @@ fn gitignore_filter_default_off() {
     let tmp = std::env::temp_dir().join(format!("trek_gi_default_{}", std::process::id()));
     let _ = std::fs::create_dir_all(&tmp);
     let app = make_app_at(&tmp);
-    assert!(!app.hide_gitignored);
-    assert!(app.gitignored_names.is_empty());
+    assert!(!app.nav.hide_gitignored);
+    assert!(app.nav.gitignored_names.is_empty());
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -942,7 +942,7 @@ fn toggle_gitignored_outside_repo_shows_error() {
     // Force git_status to None to simulate non-repo
     app.git_status = None;
     app.toggle_gitignored();
-    assert!(!app.hide_gitignored, "should remain off outside a repo");
+    assert!(!app.nav.hide_gitignored, "should remain off outside a repo");
     let msg = app.status_message.as_deref().unwrap_or("");
     assert!(
         msg.to_lowercase().contains("git"),
@@ -1018,11 +1018,11 @@ fn hide_gitignored_field_toggles() {
     let mut app = make_app_at(&tmp);
     // Simulate being in a repo by checking initial state
     // (the actual toggle_gitignored checks git_status; we test field directly)
-    assert!(!app.hide_gitignored);
-    app.hide_gitignored = true;
-    assert!(app.hide_gitignored);
-    app.hide_gitignored = false;
-    assert!(!app.hide_gitignored);
+    assert!(!app.nav.hide_gitignored);
+    app.nav.hide_gitignored = true;
+    assert!(app.nav.hide_gitignored);
+    app.nav.hide_gitignored = false;
+    assert!(!app.nav.hide_gitignored);
 
     let _ = std::fs::remove_dir_all(&tmp);
 }
@@ -1037,10 +1037,10 @@ fn begin_path_jump_opens_bar() {
     let tmp = std::env::temp_dir().join(format!("trek_pj_begin_{}", std::process::id()));
     let _ = std::fs::create_dir_all(&tmp);
     let mut app = make_app_at(&tmp);
-    assert!(!app.path_mode);
+    assert!(!app.overlay.path_mode);
     app.begin_path_jump();
-    assert!(app.path_mode);
-    assert!(app.path_input.is_empty());
+    assert!(app.overlay.path_mode);
+    assert!(app.overlay.path_input.is_empty());
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -1052,16 +1052,16 @@ fn cancel_path_jump_clears_without_navigating() {
     let tmp = std::env::temp_dir().join(format!("trek_pj_cancel_{}", std::process::id()));
     let _ = std::fs::create_dir_all(&tmp);
     let mut app = make_app_at(&tmp);
-    let original_cwd = app.cwd.clone();
+    let original_cwd = app.nav.cwd.clone();
     app.begin_path_jump();
     app.path_push_char('/');
     app.path_push_char('t');
     app.path_push_char('m');
     app.path_push_char('p');
     app.cancel_path_jump();
-    assert!(!app.path_mode);
-    assert!(app.path_input.is_empty());
-    assert_eq!(app.cwd, original_cwd);
+    assert!(!app.overlay.path_mode);
+    assert!(app.overlay.path_input.is_empty());
+    assert_eq!(app.nav.cwd, original_cwd);
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -1075,7 +1075,7 @@ fn confirm_path_jump_empty_input_cancels_silently() {
     let mut app = make_app_at(&tmp);
     app.begin_path_jump();
     app.confirm_path_jump();
-    assert!(!app.path_mode);
+    assert!(!app.overlay.path_mode);
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -1097,8 +1097,14 @@ fn confirm_path_jump_absolute_dir_navigates() {
     }
     app.confirm_path_jump();
 
-    assert!(!app.path_mode, "bar should be closed after navigation");
-    assert_eq!(app.cwd, canonical_target, "cwd should be the target dir");
+    assert!(
+        !app.overlay.path_mode,
+        "bar should be closed after navigation"
+    );
+    assert_eq!(
+        app.nav.cwd, canonical_target,
+        "cwd should be the target dir"
+    );
 
     let _ = std::fs::remove_dir_all(&tmp);
     let _ = std::fs::remove_dir_all(&target);
@@ -1125,10 +1131,14 @@ fn confirm_path_jump_file_path_navigates_to_parent() {
     }
     app.confirm_path_jump();
 
-    assert!(!app.path_mode, "bar should be closed");
-    assert_eq!(app.cwd, canonical_dir, "cwd should be file's parent");
+    assert!(!app.overlay.path_mode, "bar should be closed");
+    assert_eq!(app.nav.cwd, canonical_dir, "cwd should be file's parent");
     // Cursor should be on target_file.txt
-    let selected_name = app.entries.get(app.selected).map(|e| e.name.as_str());
+    let selected_name = app
+        .nav
+        .entries
+        .get(app.nav.selected)
+        .map(|e| e.name.as_str());
     assert_eq!(
         selected_name,
         Some("target_file.txt"),
@@ -1155,7 +1165,7 @@ fn confirm_path_jump_nonexistent_path_shows_error() {
     app.confirm_path_jump();
 
     // Bar stays open for correction
-    assert!(app.path_mode, "bar should stay open on error");
+    assert!(app.overlay.path_mode, "bar should stay open on error");
     assert!(app.status_message.is_some(), "status message should be set");
     let _ = std::fs::remove_dir_all(&tmp);
 }
@@ -1173,9 +1183,9 @@ fn path_jump_push_pop_char() {
     app.path_push_char('t');
     app.path_push_char('m');
     app.path_push_char('p');
-    assert_eq!(app.path_input, "/tmp");
+    assert_eq!(app.overlay.path_input, "/tmp");
     app.path_pop_char();
-    assert_eq!(app.path_input, "/tm");
+    assert_eq!(app.overlay.path_input, "/tm");
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -1193,9 +1203,9 @@ fn complete_path_single_dir_match_appends_slash() {
     let mut app = make_app_at(&tmp);
     app.begin_path_jump();
     let prefix = format!("{}/sub", tmp.display());
-    app.path_input = prefix;
+    app.overlay.path_input = prefix;
     app.complete_path();
-    assert_eq!(app.path_input, format!("{}/subdir/", tmp.display()));
+    assert_eq!(app.overlay.path_input, format!("{}/subdir/", tmp.display()));
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -1210,9 +1220,12 @@ fn complete_path_single_file_match_no_slash() {
     let mut app = make_app_at(&tmp);
     app.begin_path_jump();
     let prefix = format!("{}/readme", tmp.display());
-    app.path_input = prefix;
+    app.overlay.path_input = prefix;
     app.complete_path();
-    assert_eq!(app.path_input, format!("{}/readme.txt", tmp.display()));
+    assert_eq!(
+        app.overlay.path_input,
+        format!("{}/readme.txt", tmp.display())
+    );
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -1228,9 +1241,9 @@ fn complete_path_multiple_matches_uses_common_prefix() {
     let mut app = make_app_at(&tmp);
     app.begin_path_jump();
     let prefix = format!("{}/foo", tmp.display());
-    app.path_input = prefix;
+    app.overlay.path_input = prefix;
     app.complete_path();
-    assert_eq!(app.path_input, format!("{}/fooba", tmp.display()));
+    assert_eq!(app.overlay.path_input, format!("{}/fooba", tmp.display()));
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -1244,9 +1257,9 @@ fn complete_path_no_matches_leaves_input_unchanged() {
     let mut app = make_app_at(&tmp);
     app.begin_path_jump();
     let input = format!("{}/zzznomatch", tmp.display());
-    app.path_input = input.clone();
+    app.overlay.path_input = input.clone();
     app.complete_path();
-    assert_eq!(app.path_input, input);
+    assert_eq!(app.overlay.path_input, input);
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -1261,9 +1274,12 @@ fn complete_path_trailing_slash_lists_dir_contents() {
     let _ = std::fs::create_dir_all(&inner);
     let mut app = make_app_at(&tmp);
     app.begin_path_jump();
-    app.path_input = format!("{}/", tmp.display());
+    app.overlay.path_input = format!("{}/", tmp.display());
     app.complete_path();
-    assert_eq!(app.path_input, format!("{}/only_child/", tmp.display()));
+    assert_eq!(
+        app.overlay.path_input,
+        format!("{}/only_child/", tmp.display())
+    );
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -1280,11 +1296,11 @@ fn select_move_down_marks_both_endpoints() {
     std::fs::write(tmp.join("b.txt"), b"").unwrap();
     std::fs::write(tmp.join("c.txt"), b"").unwrap();
     let mut app = make_app_at(&tmp);
-    app.selected = 0;
+    app.nav.selected = 0;
     app.select_move_down();
-    assert!(app.selection.contains(&0), "entry 0 should be selected");
-    assert!(app.selection.contains(&1), "entry 1 should be selected");
-    assert_eq!(app.selected, 1, "cursor should be at 1");
+    assert!(app.nav.selection.contains(&0), "entry 0 should be selected");
+    assert!(app.nav.selection.contains(&1), "entry 1 should be selected");
+    assert_eq!(app.nav.selected, 1, "cursor should be at 1");
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -1298,11 +1314,11 @@ fn select_move_up_marks_both_endpoints() {
     std::fs::write(tmp.join("a.txt"), b"").unwrap();
     std::fs::write(tmp.join("b.txt"), b"").unwrap();
     let mut app = make_app_at(&tmp);
-    app.selected = 1;
+    app.nav.selected = 1;
     app.select_move_up();
-    assert!(app.selection.contains(&1), "entry 1 should be selected");
-    assert!(app.selection.contains(&0), "entry 0 should be selected");
-    assert_eq!(app.selected, 0, "cursor should be at 0");
+    assert!(app.nav.selection.contains(&1), "entry 1 should be selected");
+    assert!(app.nav.selection.contains(&0), "entry 0 should be selected");
+    assert_eq!(app.nav.selected, 0, "cursor should be at 0");
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -1316,12 +1332,12 @@ fn select_move_down_at_bottom_stays_and_marks() {
     std::fs::write(tmp.join("a.txt"), b"").unwrap();
     std::fs::write(tmp.join("b.txt"), b"").unwrap();
     let mut app = make_app_at(&tmp);
-    app.selected = app.entries.len() - 1;
-    let last = app.selected;
+    app.nav.selected = app.nav.entries.len() - 1;
+    let last = app.nav.selected;
     app.select_move_down();
-    assert_eq!(app.selected, last, "cursor should not move past bottom");
+    assert_eq!(app.nav.selected, last, "cursor should not move past bottom");
     assert!(
-        app.selection.contains(&last),
+        app.nav.selection.contains(&last),
         "last entry should be selected"
     );
     let _ = std::fs::remove_dir_all(&tmp);
@@ -1337,10 +1353,10 @@ fn select_move_up_at_top_stays_and_marks() {
     std::fs::write(tmp.join("a.txt"), b"").unwrap();
     std::fs::write(tmp.join("b.txt"), b"").unwrap();
     let mut app = make_app_at(&tmp);
-    app.selected = 0;
+    app.nav.selected = 0;
     app.select_move_up();
-    assert_eq!(app.selected, 0, "cursor should not move above top");
-    assert!(app.selection.contains(&0), "entry 0 should be selected");
+    assert_eq!(app.nav.selected, 0, "cursor should not move above top");
+    assert!(app.nav.selection.contains(&0), "entry 0 should be selected");
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -1355,11 +1371,11 @@ fn select_move_down_includes_directories() {
     std::fs::write(tmp.join("zzz_file.txt"), b"").unwrap();
     let mut app = make_app_at(&tmp);
     // Dirs appear first in sorted listing
-    app.selected = 0;
-    assert!(app.entries[0].is_dir, "first entry should be a dir");
+    app.nav.selected = 0;
+    assert!(app.nav.entries[0].is_dir, "first entry should be a dir");
     app.select_move_down();
     assert!(
-        app.selection.contains(&0),
+        app.nav.selection.contains(&0),
         "directory at index 0 should be in selection"
     );
     let _ = std::fs::remove_dir_all(&tmp);
@@ -1378,16 +1394,20 @@ fn scroll_preview_down_advances_offset() {
     std::fs::write(tmp.join("big.txt"), content.as_bytes()).unwrap();
     let mut app = make_app_at(&tmp);
     let idx = app
+        .nav
         .entries
         .iter()
         .position(|e| e.name == "big.txt")
         .unwrap();
-    app.selected = idx;
+    app.nav.selected = idx;
     app.load_preview();
     wait_for_preview(&mut app);
-    assert!(app.preview_lines.len() >= 10, "preview should have lines");
+    assert!(
+        app.preview.preview_lines.len() >= 10,
+        "preview should have lines"
+    );
     app.scroll_preview_down(5);
-    assert_eq!(app.preview_scroll, 5);
+    assert_eq!(app.preview.preview_scroll, 5);
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -1402,16 +1422,17 @@ fn scroll_preview_up_decreases_offset() {
     std::fs::write(tmp.join("big.txt"), content.as_bytes()).unwrap();
     let mut app = make_app_at(&tmp);
     let idx = app
+        .nav
         .entries
         .iter()
         .position(|e| e.name == "big.txt")
         .unwrap();
-    app.selected = idx;
+    app.nav.selected = idx;
     app.load_preview();
     wait_for_preview(&mut app);
-    app.preview_scroll = 5;
+    app.preview.preview_scroll = 5;
     app.scroll_preview_up(3);
-    assert_eq!(app.preview_scroll, 2);
+    assert_eq!(app.preview.preview_scroll, 2);
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -1424,12 +1445,17 @@ fn scroll_preview_up_at_top_does_not_underflow() {
     let _ = std::fs::create_dir_all(&tmp);
     std::fs::write(tmp.join("f.txt"), b"hello\nworld\n").unwrap();
     let mut app = make_app_at(&tmp);
-    let idx = app.entries.iter().position(|e| e.name == "f.txt").unwrap();
-    app.selected = idx;
+    let idx = app
+        .nav
+        .entries
+        .iter()
+        .position(|e| e.name == "f.txt")
+        .unwrap();
+    app.nav.selected = idx;
     app.load_preview();
-    app.preview_scroll = 0;
+    app.preview.preview_scroll = 0;
     app.scroll_preview_up(5);
-    assert_eq!(app.preview_scroll, 0);
+    assert_eq!(app.preview.preview_scroll, 0);
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -1444,16 +1470,17 @@ fn scroll_preview_down_at_bottom_clamps() {
     std::fs::write(tmp.join("short.txt"), content.as_bytes()).unwrap();
     let mut app = make_app_at(&tmp);
     let idx = app
+        .nav
         .entries
         .iter()
         .position(|e| e.name == "short.txt")
         .unwrap();
-    app.selected = idx;
+    app.nav.selected = idx;
     app.load_preview();
     wait_for_preview(&mut app);
-    let max = app.preview_lines.len().saturating_sub(1);
+    let max = app.preview.preview_lines.len().saturating_sub(1);
     app.scroll_preview_down(100);
-    assert_eq!(app.preview_scroll, max);
+    assert_eq!(app.preview.preview_scroll, max);
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -1466,11 +1493,11 @@ fn scroll_preview_on_empty_preview_is_noop() {
     let _ = std::fs::create_dir_all(&tmp);
     std::fs::write(tmp.join("empty.txt"), b"").unwrap();
     let mut app = make_app_at(&tmp);
-    app.preview_lines.clear();
-    app.preview_scroll = 0;
+    app.preview.preview_lines.clear();
+    app.preview.preview_scroll = 0;
     app.scroll_preview_down(5);
     app.scroll_preview_up(5);
-    assert_eq!(app.preview_scroll, 0);
+    assert_eq!(app.preview.preview_scroll, 0);
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -1484,10 +1511,10 @@ fn begin_touch_opens_bar() {
     let tmp = std::env::temp_dir().join(format!("trek_touch_open_{}", std::process::id()));
     let _ = std::fs::create_dir_all(&tmp);
     let mut app = make_app_at(&tmp);
-    assert!(!app.touch_mode);
+    assert!(!app.overlay.touch_mode);
     app.begin_touch();
-    assert!(app.touch_mode);
-    assert!(app.touch_input.is_empty());
+    assert!(app.overlay.touch_mode);
+    assert!(app.overlay.touch_input.is_empty());
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -1504,8 +1531,8 @@ fn cancel_touch_closes_without_creating() {
     app.touch_push_char('o');
     app.touch_push_char('o');
     app.cancel_touch();
-    assert!(!app.touch_mode);
-    assert!(app.touch_input.is_empty());
+    assert!(!app.overlay.touch_mode);
+    assert!(app.overlay.touch_input.is_empty());
     assert!(
         !tmp.join("foo").exists(),
         "no file should be created on cancel"
@@ -1526,11 +1553,18 @@ fn confirm_touch_creates_file_and_selects_it() {
         app.touch_push_char(c);
     }
     app.confirm_touch();
-    assert!(!app.touch_mode, "touch mode should close after confirm");
+    assert!(
+        !app.overlay.touch_mode,
+        "touch mode should close after confirm"
+    );
     let created = tmp.join("newfile.txt");
     assert!(created.exists(), "file should exist on disk");
     assert_eq!(created.metadata().unwrap().len(), 0, "file should be empty");
-    let selected_name = app.entries.get(app.selected).map(|e| e.name.as_str());
+    let selected_name = app
+        .nav
+        .entries
+        .get(app.nav.selected)
+        .map(|e| e.name.as_str());
     assert_eq!(
         selected_name,
         Some("newfile.txt"),
@@ -1550,7 +1584,7 @@ fn confirm_touch_empty_name_shows_error() {
     let mut app = make_app_at(&tmp);
     app.begin_touch();
     app.confirm_touch();
-    assert!(!app.touch_mode);
+    assert!(!app.overlay.touch_mode);
     assert!(app.status_message.is_some());
     let _ = std::fs::remove_dir_all(&tmp);
 }
@@ -1569,7 +1603,7 @@ fn confirm_touch_existing_file_shows_error() {
         app.touch_push_char(c);
     }
     app.confirm_touch();
-    assert!(!app.touch_mode);
+    assert!(!app.overlay.touch_mode);
     assert!(app.status_message.is_some());
     // Original file content must be preserved
     assert_eq!(std::fs::read(tmp.join("existing.txt")).unwrap(), b"data");
@@ -1588,9 +1622,9 @@ fn touch_push_pop_char() {
     app.touch_push_char('a');
     app.touch_push_char('b');
     app.touch_push_char('c');
-    assert_eq!(app.touch_input, "abc");
+    assert_eq!(app.overlay.touch_input, "abc");
     app.touch_pop_char();
-    assert_eq!(app.touch_input, "ab");
+    assert_eq!(app.overlay.touch_input, "ab");
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -1605,7 +1639,7 @@ fn line_numbers_default_off() {
     let _ = std::fs::create_dir_all(&tmp);
     let app = make_app_at(&tmp);
     assert!(
-        !app.show_line_numbers,
+        !app.preview.show_line_numbers,
         "line numbers should be off by default"
     );
     let _ = std::fs::remove_dir_all(&tmp);
@@ -1620,7 +1654,7 @@ fn toggle_line_numbers_turns_on() {
     let _ = std::fs::create_dir_all(&tmp);
     let mut app = make_app_at(&tmp);
     app.toggle_line_numbers();
-    assert!(app.show_line_numbers);
+    assert!(app.preview.show_line_numbers);
     assert!(app.status_message.is_some());
     let msg = app.status_message.as_deref().unwrap_or("");
     assert!(msg.contains("on"), "status should say 'on': {}", msg);
@@ -1635,9 +1669,9 @@ fn toggle_line_numbers_turns_off() {
     let tmp = std::env::temp_dir().join(format!("trek_ln_off_{}", std::process::id()));
     let _ = std::fs::create_dir_all(&tmp);
     let mut app = make_app_at(&tmp);
-    app.show_line_numbers = true;
+    app.preview.show_line_numbers = true;
     app.toggle_line_numbers();
-    assert!(!app.show_line_numbers);
+    assert!(!app.preview.show_line_numbers);
     let msg = app.status_message.as_deref().unwrap_or("");
     assert!(msg.contains("off"), "status should say 'off': {}", msg);
     let _ = std::fs::remove_dir_all(&tmp);
@@ -1654,10 +1688,10 @@ fn line_numbers_persist_across_navigation() {
     std::fs::write(tmp.join("b.txt"), b"line1\nline2\n").unwrap();
     let mut app = make_app_at(&tmp);
     app.toggle_line_numbers();
-    assert!(app.show_line_numbers);
+    assert!(app.preview.show_line_numbers);
     app.move_down();
     assert!(
-        app.show_line_numbers,
+        app.preview.show_line_numbers,
         "show_line_numbers should persist after navigation"
     );
     let _ = std::fs::remove_dir_all(&tmp);
@@ -1675,9 +1709,9 @@ fn begin_dup_opens_bar_with_suggested_name() {
     std::fs::write(tmp.join("config.toml"), b"").unwrap();
     let mut app = make_app_at(&tmp);
     app.begin_dup();
-    assert!(app.dup_mode, "dup_mode should be true");
-    assert_eq!(app.dup_input, "config_copy.toml");
-    assert!(app.dup_src.is_some(), "dup_src should be set");
+    assert!(app.overlay.dup_mode, "dup_mode should be true");
+    assert_eq!(app.overlay.dup_input, "config_copy.toml");
+    assert!(app.overlay.dup_src.is_some(), "dup_src should be set");
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -1691,11 +1725,11 @@ fn cancel_dup_closes_without_creating() {
     std::fs::write(tmp.join("readme.md"), b"").unwrap();
     let mut app = make_app_at(&tmp);
     app.begin_dup();
-    assert!(app.dup_mode);
+    assert!(app.overlay.dup_mode);
     app.cancel_dup();
-    assert!(!app.dup_mode);
-    assert!(app.dup_input.is_empty());
-    assert!(app.dup_src.is_none());
+    assert!(!app.overlay.dup_mode);
+    assert!(app.overlay.dup_input.is_empty());
+    assert!(app.overlay.dup_src.is_none());
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -1709,11 +1743,11 @@ fn confirm_dup_creates_file_copy() {
     std::fs::write(tmp.join("notes.txt"), b"hello").unwrap();
     let mut app = make_app_at(&tmp);
     app.begin_dup();
-    app.dup_input = "notes_backup.txt".to_string();
+    app.overlay.dup_input = "notes_backup.txt".to_string();
     app.confirm_dup();
-    assert!(!app.dup_mode);
+    assert!(!app.overlay.dup_mode);
     assert!(tmp.join("notes_backup.txt").exists(), "copy should exist");
-    let names: Vec<_> = app.entries.iter().map(|e| e.name.as_str()).collect();
+    let names: Vec<_> = app.nav.entries.iter().map(|e| e.name.as_str()).collect();
     assert!(
         names.contains(&"notes_backup.txt"),
         "listing should contain the copy"
@@ -1731,7 +1765,7 @@ fn confirm_dup_existing_name_shows_error() {
     std::fs::write(tmp.join("data.csv"), b"").unwrap();
     let mut app = make_app_at(&tmp);
     app.begin_dup();
-    app.dup_input = "data.csv".to_string();
+    app.overlay.dup_input = "data.csv".to_string();
     app.confirm_dup();
     let msg = app.status_message.unwrap_or_default();
     assert!(
@@ -1751,7 +1785,7 @@ fn confirm_dup_empty_name_shows_error() {
     std::fs::write(tmp.join("script.sh"), b"").unwrap();
     let mut app = make_app_at(&tmp);
     app.begin_dup();
-    app.dup_input.clear();
+    app.overlay.dup_input.clear();
     app.confirm_dup();
     let msg = app.status_message.unwrap_or_default();
     assert!(msg.to_lowercase().contains("cannot be empty"), "got: {msg}");
@@ -1768,7 +1802,7 @@ fn begin_dup_compound_extension_suggestion() {
     std::fs::write(tmp.join("archive.tar.gz"), b"").unwrap();
     let mut app = make_app_at(&tmp);
     app.begin_dup();
-    assert_eq!(app.dup_input, "archive_copy.tar.gz");
+    assert_eq!(app.overlay.dup_input, "archive_copy.tar.gz");
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -1782,7 +1816,7 @@ fn begin_dup_no_extension_suggestion() {
     std::fs::write(tmp.join("Makefile"), b"").unwrap();
     let mut app = make_app_at(&tmp);
     app.begin_dup();
-    assert_eq!(app.dup_input, "Makefile_copy");
+    assert_eq!(app.overlay.dup_input, "Makefile_copy");
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -1795,7 +1829,10 @@ fn begin_dup_empty_dir_is_noop() {
     let _ = std::fs::create_dir_all(&tmp);
     let mut app = make_app_at(&tmp);
     app.begin_dup();
-    assert!(!app.dup_mode, "no entries — dup_mode should stay false");
+    assert!(
+        !app.overlay.dup_mode,
+        "no entries — dup_mode should stay false"
+    );
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -1811,7 +1848,7 @@ fn open_yank_picker_sets_mode() {
     std::fs::write(tmp.join("main.rs"), b"").unwrap();
     let mut app = make_app_at(&tmp);
     app.open_yank_picker();
-    assert!(app.yank_picker_mode);
+    assert!(app.overlay.yank_picker_mode);
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -1824,7 +1861,7 @@ fn open_yank_picker_empty_dir_is_noop() {
     let _ = std::fs::create_dir_all(&tmp);
     let mut app = make_app_at(&tmp);
     app.open_yank_picker();
-    assert!(!app.yank_picker_mode);
+    assert!(!app.overlay.yank_picker_mode);
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -1838,9 +1875,9 @@ fn close_yank_picker_clears_mode() {
     std::fs::write(tmp.join("lib.rs"), b"").unwrap();
     let mut app = make_app_at(&tmp);
     app.open_yank_picker();
-    assert!(app.yank_picker_mode);
+    assert!(app.overlay.yank_picker_mode);
     app.close_yank_picker();
-    assert!(!app.yank_picker_mode);
+    assert!(!app.overlay.yank_picker_mode);
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -1904,7 +1941,7 @@ fn begin_set_mark_enters_mode() {
     std::fs::write(tmp.join("a.txt"), b"").unwrap();
     let mut app = make_app_at(&tmp);
     app.begin_set_mark();
-    assert!(app.mark_set_mode);
+    assert!(app.overlay.mark_set_mode);
     let msg = app.status_message.clone().unwrap_or_default();
     assert!(msg.contains("Mark"), "expected 'Mark' hint, got: {msg}");
     let _ = std::fs::remove_dir_all(&tmp);
@@ -1921,8 +1958,8 @@ fn set_mark_records_cwd() {
     let mut app = make_app_at(&tmp);
     app.begin_set_mark();
     app.set_mark('s');
-    assert!(!app.mark_set_mode);
-    assert_eq!(app.marks.get(&'s'), Some(&tmp));
+    assert!(!app.overlay.mark_set_mode);
+    assert_eq!(app.overlay.marks.get(&'s'), Some(&tmp));
     let msg = app.status_message.clone().unwrap_or_default();
     assert!(msg.contains('\'') || msg.contains("Marked"), "got: {msg}");
     let _ = std::fs::remove_dir_all(&tmp);
@@ -1945,12 +1982,12 @@ fn jump_to_mark_navigates() {
     app.set_mark('t');
 
     // Navigate away
-    app.cwd = other.clone();
+    app.nav.cwd = other.clone();
     app.load_dir();
 
     app.begin_jump_mark();
     app.jump_to_mark('t');
-    assert_eq!(app.cwd, marked, "should have jumped to marked dir");
+    assert_eq!(app.nav.cwd, marked, "should have jumped to marked dir");
     let _ = std::fs::remove_dir_all(&base);
 }
 
@@ -1963,9 +2000,9 @@ fn jump_to_unset_mark_shows_error() {
     let _ = std::fs::create_dir_all(&tmp);
     std::fs::write(tmp.join("c.txt"), b"").unwrap();
     let mut app = make_app_at(&tmp);
-    let before = app.cwd.clone();
+    let before = app.nav.cwd.clone();
     app.jump_to_mark('z');
-    assert_eq!(app.cwd, before, "cwd should be unchanged");
+    assert_eq!(app.nav.cwd, before, "cwd should be unchanged");
     let msg = app.status_message.clone().unwrap_or_default();
     assert!(msg.to_lowercase().contains("not set"), "got: {msg}");
     let _ = std::fs::remove_dir_all(&tmp);
@@ -1984,12 +2021,12 @@ fn jump_to_deleted_mark_shows_error() {
     std::fs::write(stay.join("d.txt"), b"").unwrap();
 
     let mut app = make_app_at(&stay);
-    app.marks.insert('q', gone.clone());
+    app.overlay.marks.insert('q', gone.clone());
     std::fs::remove_dir_all(&gone).unwrap();
 
-    let before = app.cwd.clone();
+    let before = app.nav.cwd.clone();
     app.jump_to_mark('q');
-    assert_eq!(app.cwd, before, "cwd should be unchanged");
+    assert_eq!(app.nav.cwd, before, "cwd should be unchanged");
     let msg = app.status_message.clone().unwrap_or_default();
     assert!(msg.to_lowercase().contains("no longer"), "got: {msg}");
     let _ = std::fs::remove_dir_all(&base);
@@ -2010,13 +2047,13 @@ fn set_mark_overwrites_previous() {
 
     let mut app = make_app_at(&dir1);
     app.set_mark('m');
-    assert_eq!(app.marks.get(&'m'), Some(&dir1));
+    assert_eq!(app.overlay.marks.get(&'m'), Some(&dir1));
 
-    app.cwd = dir2.clone();
+    app.nav.cwd = dir2.clone();
     app.load_dir();
     app.set_mark('m');
     assert_eq!(
-        app.marks.get(&'m'),
+        app.overlay.marks.get(&'m'),
         Some(&dir2),
         "overwrite should point to dir2"
     );
@@ -2038,13 +2075,13 @@ fn jump_to_mark_pushes_history() {
 
     let mut app = make_app_at(&src);
     app.set_mark('h');
-    app.cwd = dest.clone();
+    app.nav.cwd = dest.clone();
     app.load_dir();
 
-    let pos_before = app.history_pos;
+    let pos_before = app.nav.history_pos;
     app.jump_to_mark('h');
     assert!(
-        app.history_pos > pos_before || app.history.len() > 1,
+        app.nav.history_pos > pos_before || app.nav.history.len() > 1,
         "history should grow after mark jump"
     );
     let _ = std::fs::remove_dir_all(&base);
@@ -2062,9 +2099,12 @@ fn begin_symlink_opens_bar_prefilled() {
     std::fs::write(tmp.join("config.toml"), b"").unwrap();
     let mut app = make_app_at(&tmp);
     app.begin_symlink();
-    assert!(app.symlink_mode, "symlink_mode should be true");
-    assert_eq!(app.symlink_input, "config.toml");
-    assert!(app.symlink_target.is_some(), "symlink_target should be set");
+    assert!(app.overlay.symlink_mode, "symlink_mode should be true");
+    assert_eq!(app.overlay.symlink_input, "config.toml");
+    assert!(
+        app.overlay.symlink_target.is_some(),
+        "symlink_target should be set"
+    );
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -2079,9 +2119,9 @@ fn cancel_symlink_closes_without_creating() {
     let mut app = make_app_at(&tmp);
     app.begin_symlink();
     app.cancel_symlink();
-    assert!(!app.symlink_mode);
-    assert!(app.symlink_input.is_empty());
-    assert!(app.symlink_target.is_none());
+    assert!(!app.overlay.symlink_mode);
+    assert!(app.overlay.symlink_input.is_empty());
+    assert!(app.overlay.symlink_target.is_none());
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -2096,15 +2136,15 @@ fn confirm_symlink_creates_link() {
     std::fs::write(tmp.join("original.txt"), b"hello").unwrap();
     let mut app = make_app_at(&tmp);
     app.begin_symlink();
-    app.symlink_input = "link.txt".to_string();
+    app.overlay.symlink_input = "link.txt".to_string();
     app.confirm_symlink();
-    assert!(!app.symlink_mode);
+    assert!(!app.overlay.symlink_mode);
     let link_path = tmp.join("link.txt");
     assert!(
         link_path.symlink_metadata().is_ok(),
         "symlink should exist at cwd/link.txt"
     );
-    let names: Vec<_> = app.entries.iter().map(|e| e.name.as_str()).collect();
+    let names: Vec<_> = app.nav.entries.iter().map(|e| e.name.as_str()).collect();
     assert!(
         names.contains(&"link.txt"),
         "listing should contain the symlink"
@@ -2124,7 +2164,7 @@ fn confirm_symlink_existing_name_shows_error() {
     let mut app = make_app_at(&tmp);
     // Select target.txt (first entry alphabetically)
     app.begin_symlink();
-    app.symlink_input = "existing.txt".to_string();
+    app.overlay.symlink_input = "existing.txt".to_string();
     app.confirm_symlink();
     let msg = app.status_message.clone().unwrap_or_default();
     assert!(msg.contains("already exists"), "got: {msg}");
@@ -2141,7 +2181,7 @@ fn confirm_symlink_empty_name_shows_error() {
     std::fs::write(tmp.join("source.sh"), b"").unwrap();
     let mut app = make_app_at(&tmp);
     app.begin_symlink();
-    app.symlink_input.clear();
+    app.overlay.symlink_input.clear();
     app.confirm_symlink();
     let msg = app.status_message.clone().unwrap_or_default();
     assert!(msg.to_lowercase().contains("cannot be empty"), "got: {msg}");
@@ -2157,7 +2197,7 @@ fn begin_symlink_empty_dir_is_noop() {
     let _ = std::fs::create_dir_all(&tmp);
     let mut app = make_app_at(&tmp);
     app.begin_symlink();
-    assert!(!app.symlink_mode);
+    assert!(!app.overlay.symlink_mode);
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -2174,8 +2214,8 @@ fn begin_symlink_on_directory_prefills_name() {
     let mut app = make_app_at(&tmp);
     // subdir should be the only entry
     app.begin_symlink();
-    assert!(app.symlink_mode);
-    assert_eq!(app.symlink_input, "subdir");
+    assert!(app.overlay.symlink_mode);
+    assert_eq!(app.overlay.symlink_input, "subdir");
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -2190,12 +2230,12 @@ fn toggle_preview_pane_collapses_pane() {
     let _ = std::fs::create_dir_all(&tmp);
     std::fs::write(tmp.join("f.txt"), b"hi").unwrap();
     let mut app = make_app_at(&tmp);
-    assert!(!app.preview_collapsed);
+    assert!(!app.preview.preview_collapsed);
     let saved = app.right_div;
     app.toggle_preview_pane();
-    assert!(app.preview_collapsed);
+    assert!(app.preview.preview_collapsed);
     assert!((app.right_div - 1.0).abs() < f64::EPSILON);
-    assert!((app.preview_right_div - saved).abs() < f64::EPSILON);
+    assert!((app.preview.preview_right_div - saved).abs() < f64::EPSILON);
     let msg = app.status_message.clone().unwrap_or_default();
     assert!(msg.contains("hidden"), "got: {msg}");
     let _ = std::fs::remove_dir_all(&tmp);
@@ -2212,7 +2252,7 @@ fn toggle_preview_pane_restores_pane() {
     let mut app = make_app_at(&tmp);
     app.toggle_preview_pane(); // collapse
     app.toggle_preview_pane(); // restore
-    assert!(!app.preview_collapsed);
+    assert!(!app.preview.preview_collapsed);
     // right_div should be back near its original value (0.55 default)
     assert!(
         app.right_div > 0.4 && app.right_div < 0.9,
@@ -2255,9 +2295,9 @@ fn toggle_timestamps_enters_mode() {
     let _ = std::fs::create_dir_all(&tmp);
     std::fs::write(tmp.join("f.txt"), b"hi").unwrap();
     let mut app = make_app_at(&tmp);
-    assert!(!app.show_timestamps);
+    assert!(!app.nav.show_timestamps);
     app.toggle_timestamps();
-    assert!(app.show_timestamps);
+    assert!(app.nav.show_timestamps);
     let msg = app.status_message.clone().unwrap_or_default();
     assert!(msg.contains("modification"), "got: {msg}");
     let _ = std::fs::remove_dir_all(&tmp);
@@ -2274,7 +2314,7 @@ fn toggle_timestamps_toggles_off() {
     let mut app = make_app_at(&tmp);
     app.toggle_timestamps();
     app.toggle_timestamps();
-    assert!(!app.show_timestamps);
+    assert!(!app.nav.show_timestamps);
     let msg = app.status_message.clone().unwrap_or_default();
     assert!(msg.contains("sizes"), "got: {msg}");
     let _ = std::fs::remove_dir_all(&tmp);
@@ -2347,9 +2387,9 @@ fn toggle_preview_wrap_enters_mode() {
     let _ = std::fs::create_dir_all(&tmp);
     std::fs::write(tmp.join("f.txt"), b"hello").unwrap();
     let mut app = make_app_at(&tmp);
-    assert!(!app.preview_wrap);
+    assert!(!app.preview.preview_wrap);
     app.toggle_preview_wrap();
-    assert!(app.preview_wrap);
+    assert!(app.preview.preview_wrap);
     let msg = app.status_message.clone().unwrap_or_default();
     assert_eq!(msg, "Wrap: on", "got: {msg}");
     let _ = std::fs::remove_dir_all(&tmp);
@@ -2366,7 +2406,7 @@ fn toggle_preview_wrap_toggles_off() {
     let mut app = make_app_at(&tmp);
     app.toggle_preview_wrap();
     app.toggle_preview_wrap();
-    assert!(!app.preview_wrap);
+    assert!(!app.preview.preview_wrap);
     let msg = app.status_message.clone().unwrap_or_default();
     assert_eq!(msg, "Wrap: off", "got: {msg}");
     let _ = std::fs::remove_dir_all(&tmp);
@@ -2383,8 +2423,8 @@ fn preview_wrap_and_line_numbers_compose() {
     let mut app = make_app_at(&tmp);
     app.toggle_line_numbers();
     app.toggle_preview_wrap();
-    assert!(app.show_line_numbers);
-    assert!(app.preview_wrap);
+    assert!(app.preview.show_line_numbers);
+    assert!(app.preview.preview_wrap);
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -2399,9 +2439,9 @@ fn toggle_dir_counts_disables() {
     let _ = std::fs::create_dir_all(&tmp);
     std::fs::write(tmp.join("f.txt"), b"hi").unwrap();
     let mut app = make_app_at(&tmp);
-    assert!(app.show_dir_counts);
+    assert!(app.nav.show_dir_counts);
     app.toggle_dir_counts();
-    assert!(!app.show_dir_counts);
+    assert!(!app.nav.show_dir_counts);
     let msg = app.status_message.clone().unwrap_or_default();
     assert!(msg.contains("block size"), "got: {msg}");
     let _ = std::fs::remove_dir_all(&tmp);
@@ -2418,7 +2458,7 @@ fn toggle_dir_counts_enables() {
     let mut app = make_app_at(&tmp);
     app.toggle_dir_counts();
     app.toggle_dir_counts();
-    assert!(app.show_dir_counts);
+    assert!(app.nav.show_dir_counts);
     let msg = app.status_message.clone().unwrap_or_default();
     assert!(msg.contains("item counts"), "got: {msg}");
     let _ = std::fs::remove_dir_all(&tmp);
@@ -2481,7 +2521,7 @@ fn read_entries_populates_child_count_for_dir() {
     std::fs::write(subdir.join("c.txt"), b"c").unwrap();
     let mut app = make_app_at(&parent);
     // subdir should be the only entry in parent
-    let entry = app.entries.iter().find(|e| e.name == "subdir").unwrap();
+    let entry = app.nav.entries.iter().find(|e| e.name == "subdir").unwrap();
     assert_eq!(
         entry.child_count,
         Some(3),
@@ -2502,9 +2542,9 @@ fn open_clipboard_inspect_enters_mode() {
     let _ = std::fs::create_dir_all(&tmp);
     std::fs::write(tmp.join("f.txt"), b"hi").unwrap();
     let mut app = make_app_at(&tmp);
-    assert!(!app.clipboard_inspect_mode);
+    assert!(!app.overlay.clipboard_inspect_mode);
     app.open_clipboard_inspect();
-    assert!(app.clipboard_inspect_mode);
+    assert!(app.overlay.clipboard_inspect_mode);
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -2519,7 +2559,7 @@ fn close_clipboard_inspect_exits_mode() {
     let mut app = make_app_at(&tmp);
     app.open_clipboard_inspect();
     app.close_clipboard_inspect();
-    assert!(!app.clipboard_inspect_mode);
+    assert!(!app.overlay.clipboard_inspect_mode);
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -2534,7 +2574,7 @@ fn open_clipboard_inspect_with_empty_clipboard() {
     let mut app = make_app_at(&tmp);
     assert!(app.clipboard.is_none());
     app.open_clipboard_inspect(); // must not panic
-    assert!(app.clipboard_inspect_mode);
+    assert!(app.overlay.clipboard_inspect_mode);
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -2550,8 +2590,8 @@ fn copy_selected_status_includes_total_size() {
     std::fs::write(tmp.join("b.txt"), &vec![0u8; 1024]).unwrap(); // 1 KB
     let mut app = make_app_at(&tmp);
     // Select both files
-    app.selection.insert(0);
-    app.selection.insert(1);
+    app.nav.selection.insert(0);
+    app.nav.selection.insert(1);
     app.clipboard_copy_selected();
     let msg = app.status_message.clone().unwrap_or_default();
     assert!(msg.contains("2 files"), "should show count: {msg}");
@@ -2573,7 +2613,7 @@ fn copy_selected_status_omits_size_for_dirs_only() {
     std::fs::create_dir_all(&subdir).unwrap();
     let mut app = make_app_at(&tmp);
     // Select the directory (index 0 in a single-entry listing)
-    app.selection.insert(0);
+    app.nav.selection.insert(0);
     app.clipboard_copy_selected();
     let msg = app.status_message.clone().unwrap_or_default();
     // Message should NOT have a size annotation
@@ -2596,8 +2636,8 @@ fn copy_selected_status_sums_only_files_in_mixed_selection() {
     std::fs::write(tmp.join("zfile.txt"), &vec![0u8; 512]).unwrap();
     let mut app = make_app_at(&tmp);
     // Select both (indices 0 and 1 in a two-entry listing)
-    app.selection.insert(0);
-    app.selection.insert(1);
+    app.nav.selection.insert(0);
+    app.nav.selection.insert(1);
     app.clipboard_copy_selected();
     let msg = app.status_message.clone().unwrap_or_default();
     assert!(msg.contains("2 files"), "should show total count: {msg}");
@@ -2691,7 +2731,7 @@ fn record_frecency_adds_new_entry() {
     let sub = tmp.join("alpha");
     std::fs::create_dir_all(&sub).unwrap();
     app.record_frecency(sub.clone());
-    let entry = app.frecency_list.iter().find(|e| e.path == sub);
+    let entry = app.nav.frecency_list.iter().find(|e| e.path == sub);
     assert!(
         entry.is_some(),
         "frecency_list should contain the recorded path"
@@ -2712,9 +2752,19 @@ fn record_frecency_increments_existing_entry() {
     std::fs::create_dir_all(&sub).unwrap();
     app.record_frecency(sub.clone());
     app.record_frecency(sub.clone());
-    let count = app.frecency_list.iter().filter(|e| e.path == sub).count();
+    let count = app
+        .nav
+        .frecency_list
+        .iter()
+        .filter(|e| e.path == sub)
+        .count();
     assert_eq!(count, 1, "should not create duplicate entries");
-    let entry = app.frecency_list.iter().find(|e| e.path == sub).unwrap();
+    let entry = app
+        .nav
+        .frecency_list
+        .iter()
+        .find(|e| e.path == sub)
+        .unwrap();
     assert_eq!(entry.visits, 2);
     let _ = std::fs::remove_dir_all(&tmp);
 }
@@ -2735,10 +2785,10 @@ fn open_frecency_sets_mode_and_builds_filtered() {
     app.record_frecency(a.clone()); // visits=2, scores higher
     app.record_frecency(b.clone()); // visits=1
     app.open_frecency();
-    assert!(app.frecency_mode);
-    assert_eq!(app.frecency_filtered.len(), 2);
+    assert!(app.overlay.frecency_mode);
+    assert_eq!(app.overlay.frecency_filtered.len(), 2);
     // First entry should be 'aaa' (higher score)
-    let first_path = &app.frecency_list[app.frecency_filtered[0]].path;
+    let first_path = &app.nav.frecency_list[app.overlay.frecency_filtered[0]].path;
     assert_eq!(first_path, &a);
     let _ = std::fs::remove_dir_all(&tmp);
 }
@@ -2751,11 +2801,11 @@ fn close_frecency_clears_mode_and_query() {
     let tmp = std::env::temp_dir().join(format!("trek_frec_close_{}", std::process::id()));
     let _ = std::fs::create_dir_all(&tmp);
     let mut app = make_app_at(&tmp);
-    app.frecency_mode = true;
-    app.frecency_query = "abc".to_string();
+    app.overlay.frecency_mode = true;
+    app.overlay.frecency_query = "abc".to_string();
     app.close_frecency();
-    assert!(!app.frecency_mode);
-    assert!(app.frecency_query.is_empty());
+    assert!(!app.overlay.frecency_mode);
+    assert!(app.overlay.frecency_query.is_empty());
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -2777,8 +2827,8 @@ fn frecency_push_char_filters_by_name() {
     // "lph" is only in "alpha", not "beta"
     app.frecency_push_char('l');
     app.frecency_push_char('p');
-    assert_eq!(app.frecency_filtered.len(), 1);
-    let matched = &app.frecency_list[app.frecency_filtered[0]].path;
+    assert_eq!(app.overlay.frecency_filtered.len(), 1);
+    let matched = &app.nav.frecency_list[app.overlay.frecency_filtered[0]].path;
     assert_eq!(matched, &alpha);
     let _ = std::fs::remove_dir_all(&tmp);
 }
@@ -2792,9 +2842,9 @@ fn toggle_git_log_preview_enables_mode() {
     let _ = std::fs::create_dir_all(&tmp);
     std::fs::write(tmp.join("f.txt"), b"hi").unwrap();
     let mut app = make_app_at(&tmp);
-    assert!(!app.git_log_mode);
+    assert!(!app.preview.git_log_mode);
     app.toggle_git_log_preview();
-    assert!(app.git_log_mode);
+    assert!(app.preview.git_log_mode);
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -2809,7 +2859,7 @@ fn toggle_git_log_preview_disables_mode() {
     let mut app = make_app_at(&tmp);
     app.toggle_git_log_preview();
     app.toggle_git_log_preview();
-    assert!(!app.git_log_mode);
+    assert!(!app.preview.git_log_mode);
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -2822,12 +2872,12 @@ fn toggle_git_log_preview_clears_other_modes() {
     let _ = std::fs::create_dir_all(&tmp);
     std::fs::write(tmp.join("f.txt"), b"hi").unwrap();
     let mut app = make_app_at(&tmp);
-    app.diff_preview_mode = true;
-    app.meta_preview_mode = true;
+    app.preview.diff_preview_mode = true;
+    app.preview.meta_preview_mode = true;
     app.toggle_git_log_preview();
-    assert!(app.git_log_mode);
-    assert!(!app.diff_preview_mode);
-    assert!(!app.meta_preview_mode);
+    assert!(app.preview.git_log_mode);
+    assert!(!app.preview.diff_preview_mode);
+    assert!(!app.preview.meta_preview_mode);
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -2910,10 +2960,10 @@ fn toggle_file_compare_with_two_files_enters_mode() {
     std::fs::write(tmp.join("a.txt"), b"hello\n").unwrap();
     std::fs::write(tmp.join("b.txt"), b"world\n").unwrap();
     let mut app = make_app_at(&tmp);
-    app.selection.insert(0);
-    app.selection.insert(1);
+    app.nav.selection.insert(0);
+    app.nav.selection.insert(1);
     app.toggle_file_compare();
-    assert!(app.file_compare_mode);
+    assert!(app.preview.file_compare_mode);
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -2926,9 +2976,9 @@ fn toggle_file_compare_with_one_file_shows_status() {
     let _ = std::fs::create_dir_all(&tmp);
     std::fs::write(tmp.join("a.txt"), b"hello\n").unwrap();
     let mut app = make_app_at(&tmp);
-    app.selection.insert(0);
+    app.nav.selection.insert(0);
     app.toggle_file_compare();
-    assert!(!app.file_compare_mode);
+    assert!(!app.preview.file_compare_mode);
     assert!(app.status_message.is_some());
     let _ = std::fs::remove_dir_all(&tmp);
 }
@@ -2943,12 +2993,12 @@ fn toggle_file_compare_second_press_exits_mode() {
     std::fs::write(tmp.join("a.txt"), b"hello\n").unwrap();
     std::fs::write(tmp.join("b.txt"), b"world\n").unwrap();
     let mut app = make_app_at(&tmp);
-    app.selection.insert(0);
-    app.selection.insert(1);
+    app.nav.selection.insert(0);
+    app.nav.selection.insert(1);
     app.toggle_file_compare();
-    assert!(app.file_compare_mode);
+    assert!(app.preview.file_compare_mode);
     app.toggle_file_compare();
-    assert!(!app.file_compare_mode);
+    assert!(!app.preview.file_compare_mode);
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -2963,10 +3013,10 @@ fn toggle_file_compare_with_dir_shows_status() {
     std::fs::create_dir_all(&sub).unwrap();
     std::fs::write(tmp.join("zfile.txt"), b"hi").unwrap();
     let mut app = make_app_at(&tmp);
-    app.selection.insert(0);
-    app.selection.insert(1);
+    app.nav.selection.insert(0);
+    app.nav.selection.insert(1);
     app.toggle_file_compare();
-    assert!(!app.file_compare_mode);
+    assert!(!app.preview.file_compare_mode);
     let msg = app.status_message.clone().unwrap_or_default();
     assert!(
         msg.to_lowercase().contains("director"),
@@ -2985,7 +3035,7 @@ fn toggle_hex_view_enters_mode() {
     std::fs::write(tmp.join("data.bin"), b"\x7fELF\x00\x01\x02\x03").unwrap();
     let mut app = make_app_at(&tmp);
     app.toggle_hex_view();
-    assert!(app.hex_view_mode);
+    assert!(app.preview.hex_view_mode);
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -2999,9 +3049,9 @@ fn toggle_hex_view_second_press_exits_mode() {
     std::fs::write(tmp.join("data.bin"), b"\x7fELF\x00\x01\x02\x03").unwrap();
     let mut app = make_app_at(&tmp);
     app.toggle_hex_view();
-    assert!(app.hex_view_mode);
+    assert!(app.preview.hex_view_mode);
     app.toggle_hex_view();
-    assert!(!app.hex_view_mode);
+    assert!(!app.preview.hex_view_mode);
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -3015,7 +3065,7 @@ fn toggle_hex_view_on_directory_shows_status() {
     std::fs::create_dir_all(tmp.join("asubdir")).unwrap();
     let mut app = make_app_at(&tmp);
     app.toggle_hex_view();
-    assert!(!app.hex_view_mode);
+    assert!(!app.preview.hex_view_mode);
     assert!(app.status_message.is_some());
     let _ = std::fs::remove_dir_all(&tmp);
 }
@@ -3030,9 +3080,9 @@ fn toggle_meta_preview_clears_hex_view() {
     std::fs::write(tmp.join("data.bin"), b"\x7fELF").unwrap();
     let mut app = make_app_at(&tmp);
     app.toggle_hex_view();
-    assert!(app.hex_view_mode);
+    assert!(app.preview.hex_view_mode);
     app.toggle_meta_preview();
-    assert!(!app.hex_view_mode);
+    assert!(!app.preview.hex_view_mode);
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -3206,7 +3256,7 @@ fn toggle_du_preview_on_dir_enters_mode() {
     std::fs::create_dir_all(tmp.join("sub")).unwrap();
     let mut app = make_app_at(&tmp);
     app.toggle_du_preview();
-    assert!(app.du_preview_mode);
+    assert!(app.preview.du_preview_mode);
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -3220,7 +3270,7 @@ fn toggle_du_preview_on_file_shows_status() {
     std::fs::write(tmp.join("file.txt"), b"hello").unwrap();
     let mut app = make_app_at(&tmp);
     app.toggle_du_preview();
-    assert!(!app.du_preview_mode);
+    assert!(!app.preview.du_preview_mode);
     assert!(app.status_message.is_some());
     let _ = std::fs::remove_dir_all(&tmp);
 }
@@ -3235,9 +3285,9 @@ fn toggle_du_preview_second_press_exits_mode() {
     std::fs::create_dir_all(tmp.join("sub")).unwrap();
     let mut app = make_app_at(&tmp);
     app.toggle_du_preview();
-    assert!(app.du_preview_mode);
+    assert!(app.preview.du_preview_mode);
     app.toggle_du_preview();
-    assert!(!app.du_preview_mode);
+    assert!(!app.preview.du_preview_mode);
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -3251,14 +3301,14 @@ fn toggle_meta_clears_du_preview_mode() {
     std::fs::create_dir_all(tmp.join("sub")).unwrap();
     let mut app = make_app_at(&tmp);
     app.toggle_du_preview();
-    assert!(app.du_preview_mode);
+    assert!(app.preview.du_preview_mode);
     // Navigate to a file so meta can toggle
     std::fs::write(tmp.join("afile.txt"), b"x").unwrap();
     // Reload to pick up file
     app = make_app_at(&tmp);
     app.toggle_du_preview();
     app.toggle_meta_preview();
-    assert!(!app.du_preview_mode);
+    assert!(!app.preview.du_preview_mode);
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
@@ -3361,7 +3411,7 @@ fn load_dir_updates_watcher_to_new_directory() {
     let _ = std::fs::create_dir_all(&sub);
     let mut app = make_app_at(&tmp);
     assert!(app.watcher.is_some(), "watcher should be active initially");
-    app.cwd = sub.clone();
+    app.nav.cwd = sub.clone();
     app.load_dir();
     assert!(
         app.watcher.is_some(),
@@ -3388,7 +3438,8 @@ fn enter_selected_on_file_does_not_yank() {
     let mut app = make_app_at(&tmp);
     app.status_message = None;
     // Select the file
-    app.selected = app
+    app.nav.selected = app
+        .nav
         .entries
         .iter()
         .position(|e| e.name == "readme.txt")
@@ -3412,7 +3463,7 @@ fn open_in_cmux_tab_on_dir_is_noop() {
     let _ = std::fs::create_dir_all(&sub);
     let mut app = make_app_at(&tmp);
     app.status_message = None;
-    app.selected = app.entries.iter().position(|e| e.is_dir).unwrap_or(0);
+    app.nav.selected = app.nav.entries.iter().position(|e| e.is_dir).unwrap_or(0);
     app.open_in_cmux_tab();
     assert_eq!(
         app.status_message, None,
@@ -3449,10 +3500,10 @@ fn check_watcher_noop_when_watcher_disabled() {
     app.toggle_watch_mode(); // disable
     assert!(app.watcher.is_none());
     std::fs::write(tmp.join("ignored.txt"), b"x").unwrap();
-    let before = app.entries.len();
+    let before = app.nav.entries.len();
     app.check_watcher();
     assert_eq!(
-        app.entries.len(),
+        app.nav.entries.len(),
         before,
         "should not reload when watcher is disabled"
     );
@@ -3470,7 +3521,7 @@ fn load_preview_sets_loading_flag() {
     let mut app = make_app_at(&tmp);
     app.load_preview();
     assert!(
-        app.preview_loading,
+        app.preview.preview_loading,
         "preview_loading should be true immediately after load_preview"
     );
     let _ = std::fs::remove_dir_all(&tmp);
@@ -3487,9 +3538,9 @@ fn check_preview_rx_delivers_result_and_clears_loading() {
 
     // Manually wire up a channel with a pre-filled result.
     let (tx, rx) = std::sync::mpsc::channel::<crate::app::preview::PreviewResult>();
-    app.preview_rx = Some(rx);
-    app.preview_loading = true;
-    app.preview_lines.clear();
+    app.preview.preview_rx = Some(rx);
+    app.preview.preview_loading = true;
+    app.preview.preview_lines.clear();
 
     tx.send(crate::app::preview::PreviewResult {
         lines: vec!["line one".to_string(), "line two".to_string()],
@@ -3500,11 +3551,11 @@ fn check_preview_rx_delivers_result_and_clears_loading() {
     app.check_preview_rx();
 
     assert!(
-        !app.preview_loading,
+        !app.preview.preview_loading,
         "preview_loading should be false after result arrives"
     );
     assert_eq!(
-        app.preview_lines,
+        app.preview.preview_lines,
         vec!["line one".to_string(), "line two".to_string()],
         "preview_lines should be populated from the channel result"
     );
@@ -3526,7 +3577,7 @@ fn load_preview_replaces_old_rx_on_second_call() {
     // First load_preview call — starts background thread for whichever file is selected
     app.load_preview();
     assert!(
-        app.preview_rx.is_some(),
+        app.preview.preview_rx.is_some(),
         "preview_rx should be Some after first load"
     );
 
@@ -3536,23 +3587,23 @@ fn load_preview_replaces_old_rx_on_second_call() {
 
     // Immediately after the second call the channel must be armed and loading
     assert!(
-        app.preview_rx.is_some(),
+        app.preview.preview_rx.is_some(),
         "preview_rx should be Some after second load"
     );
     assert!(
-        app.preview_loading,
+        app.preview.preview_loading,
         "preview_loading should be true after second load_preview"
     );
 
     // Wait for the second preview to settle — result must arrive within 500 ms
     wait_for_preview(&mut app);
     assert!(
-        !app.preview_loading,
+        !app.preview.preview_loading,
         "preview_loading must be false once result arrives"
     );
     // preview_lines should be non-empty (we loaded a real file)
     assert!(
-        !app.preview_lines.is_empty(),
+        !app.preview.preview_lines.is_empty(),
         "preview_lines should be populated after load"
     );
 
@@ -3585,7 +3636,7 @@ fn image_preview_shows_metadata_not_binary_placeholder() {
     app.load_preview();
     wait_for_preview(&mut app);
 
-    let all_lines = app.preview_lines.join("\n");
+    let all_lines = app.preview.preview_lines.join("\n");
     assert!(
         !all_lines.contains("[binary file]"),
         "image preview must not show [binary file] placeholder, got: {all_lines}"
@@ -3611,7 +3662,7 @@ fn pdf_preview_shows_info_not_binary_placeholder() {
     app.load_preview();
     wait_for_preview(&mut app);
 
-    let all_lines = app.preview_lines.join("\n");
+    let all_lines = app.preview.preview_lines.join("\n");
     assert!(
         !all_lines.contains("[binary file]"),
         "pdf preview must not show [binary file] placeholder, got: {all_lines}"
@@ -3645,7 +3696,7 @@ fn jpeg_preview_shows_metadata() {
     app.load_preview();
     wait_for_preview(&mut app);
 
-    let all_lines = app.preview_lines.join("\n");
+    let all_lines = app.preview.preview_lines.join("\n");
     assert!(
         !all_lines.contains("[binary file]"),
         "jpeg preview must not show [binary file], got: {all_lines}"
@@ -3672,7 +3723,7 @@ fn paste_clipboard_async_copies_file_in_background() {
     // Yank the file
     app.clipboard_copy_current();
     // Navigate to destination directory
-    app.cwd = dst_dir.clone();
+    app.nav.cwd = dst_dir.clone();
     app.load_dir();
 
     app.paste_clipboard_async();
@@ -3704,11 +3755,11 @@ fn paste_clipboard_async_copies_file_in_background() {
 fn toggle_task_manager_opens_panel() {
     let dir = std::env::temp_dir();
     let mut app = make_app_at(&dir);
-    assert!(!app.task_manager_mode);
+    assert!(!app.overlay.task_manager_mode);
     app.toggle_task_manager();
-    assert!(app.task_manager_mode);
+    assert!(app.overlay.task_manager_mode);
     app.toggle_task_manager();
-    assert!(!app.task_manager_mode);
+    assert!(!app.overlay.task_manager_mode);
 }
 
 /// Given: an app with a completed (done) task in the task manager
@@ -3797,14 +3848,14 @@ fn enter_archive_loads_root_entries() {
     app.enter_archive(zip_path.clone());
 
     assert!(
-        app.archive_mode,
+        app.overlay.archive_mode,
         "archive_mode should be true after entering archive"
     );
     assert_eq!(app.archive_path, Some(zip_path.clone()));
     assert_eq!(app.archive_virt_dir, "");
 
     // Root level should contain hello.txt and src/ (directory)
-    let names: Vec<&str> = app.entries.iter().map(|e| e.name.as_str()).collect();
+    let names: Vec<&str> = app.nav.entries.iter().map(|e| e.name.as_str()).collect();
     assert!(
         names.contains(&"hello.txt"),
         "entries should contain hello.txt, got: {:?}",
@@ -3817,7 +3868,7 @@ fn enter_archive_loads_root_entries() {
     );
 
     // src should be a directory
-    let src = app.entries.iter().find(|e| e.name == "src").unwrap();
+    let src = app.nav.entries.iter().find(|e| e.name == "src").unwrap();
     assert!(src.is_dir, "src should be marked as a directory");
 
     let _ = std::fs::remove_dir_all(&tmp);
@@ -3848,7 +3899,7 @@ fn archive_enter_dir_navigates_into_subdirectory() {
     app.archive_enter_dir("src".to_string());
 
     assert_eq!(app.archive_virt_dir, "src/", "virt_dir should be src/");
-    let names: Vec<&str> = app.entries.iter().map(|e| e.name.as_str()).collect();
+    let names: Vec<&str> = app.nav.entries.iter().map(|e| e.name.as_str()).collect();
     assert!(
         names.contains(&"main.rs"),
         "entries should contain main.rs, got: {:?}",
@@ -3885,7 +3936,7 @@ fn archive_go_up_returns_to_parent_directory() {
 
     app.archive_go_up();
     assert_eq!(app.archive_virt_dir, "", "should be back at root");
-    assert!(app.archive_mode, "should still be in archive mode");
+    assert!(app.overlay.archive_mode, "should still be in archive mode");
 
     let _ = std::fs::remove_dir_all(&tmp);
 }
@@ -3911,11 +3962,11 @@ fn archive_go_up_at_root_exits_archive_mode() {
 
     let mut app = make_app_at(&tmp);
     app.enter_archive(zip_path.clone());
-    assert!(app.archive_mode);
+    assert!(app.overlay.archive_mode);
 
     app.archive_go_up(); // at root → exit archive
     assert!(
-        !app.archive_mode,
+        !app.overlay.archive_mode,
         "archive mode should be off after going up from root"
     );
 

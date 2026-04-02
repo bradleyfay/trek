@@ -164,8 +164,8 @@ impl App {
     /// Build the preview job for the current app state without doing any I/O.
     fn build_preview_job(&self) -> PreviewJob {
         // Hex dump — first priority.
-        if self.hex_view_mode {
-            if let Some(entry) = self.entries.get(self.selected) {
+        if self.preview.hex_view_mode {
+            if let Some(entry) = self.nav.entries.get(self.nav.selected) {
                 if !entry.is_dir {
                     return PreviewJob::HexDump {
                         path: entry.path.clone(),
@@ -176,11 +176,12 @@ impl App {
         }
 
         // File compare — requires exactly 2 non-directory files selected.
-        if self.file_compare_mode {
+        if self.preview.file_compare_mode {
             let paths: Vec<PathBuf> = self
+                .nav
                 .selection
                 .iter()
-                .filter_map(|&i| self.entries.get(i))
+                .filter_map(|&i| self.nav.entries.get(i))
                 .filter(|e| !e.is_dir)
                 .map(|e| e.path.clone())
                 .collect();
@@ -194,8 +195,8 @@ impl App {
         }
 
         // Metadata card.
-        if self.meta_preview_mode {
-            if let Some(entry) = self.entries.get(self.selected) {
+        if self.preview.meta_preview_mode {
+            if let Some(entry) = self.nav.entries.get(self.nav.selected) {
                 return PreviewJob::Meta {
                     path: entry.path.clone(),
                 };
@@ -204,8 +205,8 @@ impl App {
         }
 
         // Git log.
-        if self.git_log_mode {
-            if let Some(entry) = self.entries.get(self.selected) {
+        if self.preview.git_log_mode {
+            if let Some(entry) = self.nav.entries.get(self.nav.selected) {
                 return PreviewJob::GitLog {
                     path: entry.path.clone(),
                 };
@@ -213,20 +214,20 @@ impl App {
             return PreviewJob::Empty;
         }
 
-        if let Some(entry) = self.entries.get(self.selected) {
+        if let Some(entry) = self.nav.entries.get(self.nav.selected) {
             if entry.is_dir {
-                if self.du_preview_mode {
+                if self.preview.du_preview_mode {
                     return PreviewJob::DiskUsage {
                         path: entry.path.clone(),
                     };
                 }
                 return PreviewJob::DirectoryListing {
                     path: entry.path.clone(),
-                    show_hidden: self.show_hidden,
-                    sort_mode: self.sort_mode,
-                    sort_order: self.sort_order,
+                    show_hidden: self.nav.show_hidden,
+                    sort_mode: self.nav.sort_mode,
+                    sort_order: self.nav.sort_order,
                 };
-            } else if self.diff_preview_mode {
+            } else if self.preview.diff_preview_mode {
                 let has_change = self
                     .git_status
                     .as_ref()
@@ -264,24 +265,24 @@ impl App {
     /// returns `SendError` and the thread exits.
     pub fn load_preview(&mut self) {
         // Drop old receiver → cancels any in-flight thread.
-        self.preview_rx = None;
-        self.preview_scroll = 0;
-        self.preview_lines.clear();
-        self.preview_is_diff = false;
+        self.preview.preview_rx = None;
+        self.preview.preview_scroll = 0;
+        self.preview.preview_lines.clear();
+        self.preview.preview_is_diff = false;
         // Reset focus state whenever the previewed file changes.
-        self.preview_focused = false;
-        self.preview_cursor = 0;
-        self.preview_selection_anchor = None;
+        self.preview.preview_focused = false;
+        self.preview.preview_cursor = 0;
+        self.preview.preview_selection_anchor = None;
 
         let job = self.build_preview_job();
         if matches!(job, PreviewJob::Empty) {
-            self.preview_loading = false;
+            self.preview.preview_loading = false;
             return;
         }
 
-        self.preview_loading = true;
+        self.preview.preview_loading = true;
         let (tx, rx) = mpsc::channel::<PreviewResult>();
-        self.preview_rx = Some(rx);
+        self.preview.preview_rx = Some(rx);
 
         std::thread::spawn(move || {
             let result = job.execute();
@@ -294,15 +295,15 @@ impl App {
     ///
     /// Must be called on every event-loop iteration so the UI stays live.
     pub fn check_preview_rx(&mut self) {
-        let result = match self.preview_rx.as_ref() {
+        let result = match self.preview.preview_rx.as_ref() {
             Some(rx) => rx.try_recv().ok(),
             None => return,
         };
         if let Some(result) = result {
-            self.preview_lines = result.lines;
-            self.preview_is_diff = result.is_diff;
-            self.preview_loading = false;
-            self.preview_rx = None;
+            self.preview.preview_lines = result.lines;
+            self.preview.preview_is_diff = result.is_diff;
+            self.preview.preview_loading = false;
+            self.preview.preview_rx = None;
         }
     }
 
@@ -315,7 +316,7 @@ impl App {
     ///
     /// Clamps at 0 — no-op and no panic when already at the top.
     pub fn scroll_preview_up(&mut self, lines: usize) {
-        self.preview_scroll = self.preview_scroll.saturating_sub(lines);
+        self.preview.preview_scroll = self.preview.preview_scroll.saturating_sub(lines);
     }
 
     /// Scroll the preview pane down by `lines` lines.
@@ -323,57 +324,57 @@ impl App {
     /// Clamps at `preview_lines.len() - 1` — no-op when at the bottom or
     /// when the preview is empty.
     pub fn scroll_preview_down(&mut self, lines: usize) {
-        let max_scroll = self.preview_lines.len().saturating_sub(1);
-        self.preview_scroll = (self.preview_scroll + lines).min(max_scroll);
+        let max_scroll = self.preview.preview_lines.len().saturating_sub(1);
+        self.preview.preview_scroll = (self.preview.preview_scroll + lines).min(max_scroll);
     }
 
     // ── Preview focus mode ────────────────────────────────────────────────────
 
     /// Enter preview focus mode. The cursor starts at the current top-visible line.
     pub fn enter_preview_focus(&mut self) {
-        self.preview_focused = true;
-        self.preview_cursor = self.preview_scroll;
-        self.preview_selection_anchor = None;
+        self.preview.preview_focused = true;
+        self.preview.preview_cursor = self.preview.preview_scroll;
+        self.preview.preview_selection_anchor = None;
     }
 
     /// Exit preview focus mode and return focus to the file tree.
     pub fn exit_preview_focus(&mut self) {
-        self.preview_focused = false;
-        self.preview_selection_anchor = None;
+        self.preview.preview_focused = false;
+        self.preview.preview_selection_anchor = None;
     }
 
     /// Move the preview cursor down one line, scrolling if necessary.
     pub fn preview_cursor_down(&mut self) {
-        if self.preview_lines.is_empty() {
+        if self.preview.preview_lines.is_empty() {
             return;
         }
-        let max = self.preview_lines.len().saturating_sub(1);
-        if self.preview_cursor < max {
-            self.preview_cursor += 1;
+        let max = self.preview.preview_lines.len().saturating_sub(1);
+        if self.preview.preview_cursor < max {
+            self.preview.preview_cursor += 1;
             self.ensure_preview_cursor_visible();
         }
     }
 
     /// Move the preview cursor up one line, scrolling if necessary.
     pub fn preview_cursor_up(&mut self) {
-        if self.preview_cursor > 0 {
-            self.preview_cursor -= 1;
+        if self.preview.preview_cursor > 0 {
+            self.preview.preview_cursor -= 1;
             self.ensure_preview_cursor_visible();
         }
     }
 
     /// Extend selection downward: set anchor if not yet set, then move cursor down.
     pub fn preview_select_down(&mut self) {
-        if self.preview_selection_anchor.is_none() {
-            self.preview_selection_anchor = Some(self.preview_cursor);
+        if self.preview.preview_selection_anchor.is_none() {
+            self.preview.preview_selection_anchor = Some(self.preview.preview_cursor);
         }
         self.preview_cursor_down();
     }
 
     /// Extend selection upward: set anchor if not yet set, then move cursor up.
     pub fn preview_select_up(&mut self) {
-        if self.preview_selection_anchor.is_none() {
-            self.preview_selection_anchor = Some(self.preview_cursor);
+        if self.preview.preview_selection_anchor.is_none() {
+            self.preview.preview_selection_anchor = Some(self.preview.preview_cursor);
         }
         self.preview_cursor_up();
     }
@@ -389,10 +390,10 @@ impl App {
         } else {
             PRE_LAYOUT_VISIBLE_LINES
         };
-        if self.preview_cursor < self.preview_scroll {
-            self.preview_scroll = self.preview_cursor;
-        } else if self.preview_cursor >= self.preview_scroll + visible {
-            self.preview_scroll = self.preview_cursor + 1 - visible;
+        if self.preview.preview_cursor < self.preview.preview_scroll {
+            self.preview.preview_scroll = self.preview.preview_cursor;
+        } else if self.preview.preview_cursor >= self.preview.preview_scroll + visible {
+            self.preview.preview_scroll = self.preview.preview_cursor + 1 - visible;
         }
     }
 
@@ -402,20 +403,21 @@ impl App {
     /// directory or a clean (unmodified) file.
     pub fn toggle_diff_preview(&mut self) {
         let has_git_change = self
+            .nav
             .entries
-            .get(self.selected)
+            .get(self.nav.selected)
             .filter(|e| !e.is_dir)
             .and_then(|e| self.git_status.as_ref().and_then(|g| g.for_path(&e.path)))
             .is_some();
 
         if has_git_change {
-            self.diff_preview_mode = !self.diff_preview_mode;
-            if self.diff_preview_mode {
-                self.meta_preview_mode = false;
-                self.git_log_mode = false; // mutually exclusive
-                self.file_compare_mode = false; // mutually exclusive
-                self.hex_view_mode = false; // mutually exclusive
-                self.du_preview_mode = false; // mutually exclusive
+            self.preview.diff_preview_mode = !self.preview.diff_preview_mode;
+            if self.preview.diff_preview_mode {
+                self.preview.meta_preview_mode = false;
+                self.preview.git_log_mode = false; // mutually exclusive
+                self.preview.file_compare_mode = false; // mutually exclusive
+                self.preview.hex_view_mode = false; // mutually exclusive
+                self.preview.du_preview_mode = false; // mutually exclusive
             }
             self.load_preview();
         } else {
@@ -429,24 +431,25 @@ impl App {
     /// Mutually exclusive with all other special preview modes.
     pub fn toggle_file_compare(&mut self) {
         let any_dir = self
+            .nav
             .selection
             .iter()
-            .any(|&i| self.entries.get(i).map(|e| e.is_dir).unwrap_or(false));
+            .any(|&i| self.nav.entries.get(i).map(|e| e.is_dir).unwrap_or(false));
         if any_dir {
             self.status_message = Some("File comparison not available for directories".to_string());
             return;
         }
-        if self.selection.len() != 2 {
+        if self.nav.selection.len() != 2 {
             self.status_message = Some("Select exactly 2 files to compare".to_string());
             return;
         }
-        self.file_compare_mode = !self.file_compare_mode;
-        if self.file_compare_mode {
-            self.diff_preview_mode = false;
-            self.meta_preview_mode = false;
-            self.git_log_mode = false;
-            self.hex_view_mode = false;
-            self.du_preview_mode = false;
+        self.preview.file_compare_mode = !self.preview.file_compare_mode;
+        if self.preview.file_compare_mode {
+            self.preview.diff_preview_mode = false;
+            self.preview.meta_preview_mode = false;
+            self.preview.git_log_mode = false;
+            self.preview.hex_view_mode = false;
+            self.preview.du_preview_mode = false;
         }
         self.load_preview();
     }
@@ -456,19 +459,19 @@ impl App {
     /// No-op for directories — shows a status message instead.
     /// Mutually exclusive with all other special preview modes.
     pub fn toggle_hex_view(&mut self) {
-        if let Some(entry) = self.entries.get(self.selected) {
+        if let Some(entry) = self.nav.entries.get(self.nav.selected) {
             if entry.is_dir {
                 self.status_message = Some("Hex view not available for directories".to_string());
                 return;
             }
         }
-        self.hex_view_mode = !self.hex_view_mode;
-        if self.hex_view_mode {
-            self.meta_preview_mode = false;
-            self.diff_preview_mode = false;
-            self.git_log_mode = false;
-            self.file_compare_mode = false;
-            self.du_preview_mode = false;
+        self.preview.hex_view_mode = !self.preview.hex_view_mode;
+        if self.preview.hex_view_mode {
+            self.preview.meta_preview_mode = false;
+            self.preview.diff_preview_mode = false;
+            self.preview.git_log_mode = false;
+            self.preview.file_compare_mode = false;
+            self.preview.du_preview_mode = false;
         }
         self.load_preview();
     }
@@ -554,13 +557,13 @@ impl App {
     /// Works for both files and directories. Mutually exclusive with
     /// diff_preview_mode, meta_preview_mode, and hash_preview_mode.
     pub fn toggle_git_log_preview(&mut self) {
-        self.git_log_mode = !self.git_log_mode;
-        if self.git_log_mode {
-            self.diff_preview_mode = false;
-            self.meta_preview_mode = false;
-            self.file_compare_mode = false;
-            self.hex_view_mode = false;
-            self.du_preview_mode = false;
+        self.preview.git_log_mode = !self.preview.git_log_mode;
+        if self.preview.git_log_mode {
+            self.preview.diff_preview_mode = false;
+            self.preview.meta_preview_mode = false;
+            self.preview.file_compare_mode = false;
+            self.preview.hex_view_mode = false;
+            self.preview.du_preview_mode = false;
         }
         self.load_preview();
     }
@@ -599,19 +602,19 @@ impl App {
     /// No-op for files — shows a status message instead.
     /// Mutually exclusive with all other special preview modes.
     pub fn toggle_du_preview(&mut self) {
-        if let Some(entry) = self.entries.get(self.selected) {
+        if let Some(entry) = self.nav.entries.get(self.nav.selected) {
             if !entry.is_dir {
                 self.status_message = Some("Disk usage view is for directories".to_string());
                 return;
             }
         }
-        self.du_preview_mode = !self.du_preview_mode;
-        if self.du_preview_mode {
-            self.hex_view_mode = false;
-            self.file_compare_mode = false;
-            self.meta_preview_mode = false;
-            self.diff_preview_mode = false;
-            self.git_log_mode = false;
+        self.preview.du_preview_mode = !self.preview.du_preview_mode;
+        if self.preview.du_preview_mode {
+            self.preview.hex_view_mode = false;
+            self.preview.file_compare_mode = false;
+            self.preview.meta_preview_mode = false;
+            self.preview.diff_preview_mode = false;
+            self.preview.git_log_mode = false;
         }
         self.load_preview();
     }

@@ -5,27 +5,27 @@ impl App {
     /// Open the quick rename bar pre-filled with the currently selected entry's name.
     /// No-op if there are no entries.
     pub fn begin_quick_rename(&mut self) {
-        let Some(entry) = self.entries.get(self.selected) else {
+        let Some(entry) = self.nav.entries.get(self.nav.selected) else {
             return;
         };
-        self.quick_rename_input = entry.name.clone();
-        self.quick_rename_mode = true;
+        self.overlay.quick_rename_input = entry.name.clone();
+        self.overlay.quick_rename_mode = true;
     }
 
     /// Confirm the rename: validate, rename on disk, refresh listing, move cursor.
     pub fn confirm_quick_rename(&mut self) {
-        let new_name = self.quick_rename_input.trim().to_string();
+        let new_name = self.overlay.quick_rename_input.trim().to_string();
 
         if new_name.is_empty() {
             self.status_message = Some("Name cannot be empty".to_string());
-            self.quick_rename_mode = false;
-            self.quick_rename_input.clear();
+            self.overlay.quick_rename_mode = false;
+            self.overlay.quick_rename_input.clear();
             return;
         }
 
-        let Some(entry) = self.entries.get(self.selected).cloned() else {
-            self.quick_rename_mode = false;
-            self.quick_rename_input.clear();
+        let Some(entry) = self.nav.entries.get(self.nav.selected).cloned() else {
+            self.overlay.quick_rename_mode = false;
+            self.overlay.quick_rename_input.clear();
             return;
         };
 
@@ -33,8 +33,8 @@ impl App {
 
         // No-op when name unchanged.
         if new_name == old_name {
-            self.quick_rename_mode = false;
-            self.quick_rename_input.clear();
+            self.overlay.quick_rename_mode = false;
+            self.overlay.quick_rename_input.clear();
             return;
         }
 
@@ -46,13 +46,13 @@ impl App {
 
         if new_path.exists() {
             self.status_message = Some(format!("Already exists: \"{}\"", new_name));
-            self.quick_rename_mode = false;
-            self.quick_rename_input.clear();
+            self.overlay.quick_rename_mode = false;
+            self.overlay.quick_rename_input.clear();
             return;
         }
 
-        self.quick_rename_mode = false;
-        self.quick_rename_input.clear();
+        self.overlay.quick_rename_mode = false;
+        self.overlay.quick_rename_input.clear();
 
         match std::fs::rename(&entry.path, &new_path) {
             Ok(()) => {
@@ -61,8 +61,8 @@ impl App {
                     old_name, new_name
                 ));
                 self.load_dir();
-                if let Some(idx) = self.entries.iter().position(|e| e.name == new_name) {
-                    self.selected = idx;
+                if let Some(idx) = self.nav.entries.iter().position(|e| e.name == new_name) {
+                    self.nav.selected = idx;
                     self.load_preview();
                 }
             }
@@ -74,17 +74,17 @@ impl App {
 
     /// Cancel the quick rename bar without touching the filesystem.
     pub fn cancel_quick_rename(&mut self) {
-        self.quick_rename_mode = false;
-        self.quick_rename_input.clear();
+        self.overlay.quick_rename_mode = false;
+        self.overlay.quick_rename_input.clear();
     }
 
     /// Append a character to the rename input.
     pub fn quick_rename_push_char(&mut self, c: char) {
-        self.quick_rename_input.push(c);
+        self.overlay.quick_rename_input.push(c);
     }
 
     /// Remove the last character from the rename input.
     pub fn quick_rename_pop_char(&mut self) {
-        self.quick_rename_input.pop();
+        self.overlay.quick_rename_input.pop();
     }
 }

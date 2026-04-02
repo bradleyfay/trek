@@ -38,17 +38,17 @@ pub fn run(
     let mut app = App::new(effective_start)?;
 
     // Repopulate marks and view settings from the saved session.
-    app.marks = session.marks;
-    app.show_hidden = session.show_hidden;
-    app.sort_mode = session.sort_mode;
-    app.sort_order = session.sort_order;
+    app.overlay.marks = session.marks;
+    app.nav.show_hidden = session.show_hidden;
+    app.nav.sort_mode = session.sort_mode;
+    app.nav.sort_order = session.sort_order;
     // Reload the listing with restored sort/hidden settings so the view is
     // consistent from the very first frame.
     app.load_dir();
     // Restore the selected entry by name; indices shift as files are added/removed.
     if let Some(ref name) = session.selected_name {
-        if let Some(idx) = app.entries.iter().position(|e| &e.name == name) {
-            app.selected = idx;
+        if let Some(idx) = app.nav.entries.iter().position(|e| &e.name == name) {
+            app.nav.selected = idx;
             app.load_preview();
         }
     }
@@ -66,7 +66,7 @@ pub fn run(
         // the loop can process watcher events and preview results promptly.
         let has_background_work = app.watcher.is_some()
             || app.recursive_watcher.is_some()
-            || app.preview_rx.is_some()
+            || app.preview.preview_rx.is_some()
             || app.git_status_rx.is_some()
             || !app.task_pending.is_empty();
         let maybe_event = if has_background_work {
@@ -87,10 +87,10 @@ pub fn run(
                 // Clear status message on any keypress.
                 app.clear_status();
 
-                if app.show_help {
+                if app.overlay.show_help {
                     // Any key closes help overlay.
-                    app.show_help = false;
-                } else if app.task_manager_mode {
+                    app.overlay.show_help = false;
+                } else if app.overlay.task_manager_mode {
                     match key.code {
                         KeyCode::Esc | KeyCode::Char('q') => app.toggle_task_manager(),
                         KeyCode::Char('j') | KeyCode::Down => app.task_manager_move_down(),
@@ -114,7 +114,7 @@ pub fn run(
                         }
                         _ => app.cancel_extract(),
                     }
-                } else if app.mkdir_mode {
+                } else if app.overlay.mkdir_mode {
                     match key.code {
                         KeyCode::Esc => app.cancel_mkdir(),
                         KeyCode::Enter => app.confirm_mkdir(),
@@ -122,7 +122,7 @@ pub fn run(
                         KeyCode::Char(c) => app.mkdir_push_char(c),
                         _ => {}
                     }
-                } else if app.touch_mode {
+                } else if app.overlay.touch_mode {
                     match key.code {
                         KeyCode::Esc => app.cancel_touch(),
                         KeyCode::Enter => app.confirm_touch(),
@@ -130,7 +130,7 @@ pub fn run(
                         KeyCode::Char(c) => app.touch_push_char(c),
                         _ => {}
                     }
-                } else if app.dup_mode {
+                } else if app.overlay.dup_mode {
                     match key.code {
                         KeyCode::Esc => app.cancel_dup(),
                         KeyCode::Enter => app.confirm_dup(),
@@ -138,7 +138,7 @@ pub fn run(
                         KeyCode::Char(c) => app.dup_push_char(c),
                         _ => {}
                     }
-                } else if app.symlink_mode {
+                } else if app.overlay.symlink_mode {
                     match key.code {
                         KeyCode::Esc => app.cancel_symlink(),
                         KeyCode::Enter => app.confirm_symlink(),
@@ -146,7 +146,7 @@ pub fn run(
                         KeyCode::Char(c) => app.symlink_push_char(c),
                         _ => {}
                     }
-                } else if app.content_search_mode {
+                } else if app.overlay.content_search_mode {
                     match key.code {
                         KeyCode::Esc => app.cancel_content_search(),
                         KeyCode::Enter => app.run_content_search(),
@@ -157,7 +157,7 @@ pub fn run(
                         KeyCode::Char(c) => app.content_search_push_char(c),
                         _ => {}
                     }
-                } else if app.bookmark_mode {
+                } else if app.overlay.bookmark_mode {
                     match key.code {
                         KeyCode::Esc => app.close_bookmarks(),
                         KeyCode::Char('B') => app.close_bookmarks(),
@@ -169,7 +169,7 @@ pub fn run(
                         KeyCode::Char(c) => app.bookmark_push_char(c),
                         _ => {}
                     }
-                } else if app.find_mode {
+                } else if app.overlay.find_mode {
                     match key.code {
                         KeyCode::Esc => app.cancel_find(),
                         KeyCode::Char('p') if key.modifiers.contains(KeyModifiers::CONTROL) => {
@@ -184,7 +184,7 @@ pub fn run(
                         KeyCode::Char(c) => app.find_push_char(c),
                         _ => {}
                     }
-                } else if app.quick_rename_mode {
+                } else if app.overlay.quick_rename_mode {
                     match key.code {
                         KeyCode::Esc => app.cancel_quick_rename(),
                         KeyCode::Enter => app.confirm_quick_rename(),
@@ -192,7 +192,7 @@ pub fn run(
                         KeyCode::Char(c) => app.quick_rename_push_char(c),
                         _ => {}
                     }
-                } else if app.chmod_mode {
+                } else if app.overlay.chmod_mode {
                     match key.code {
                         KeyCode::Esc => app.cancel_chmod(),
                         KeyCode::Enter => app.confirm_chmod(),
@@ -200,7 +200,7 @@ pub fn run(
                         KeyCode::Char(c @ '0'..='7') => app.chmod_push_char(c),
                         _ => {}
                     }
-                } else if app.filter_mode {
+                } else if app.nav.filter_mode {
                     match key.code {
                         KeyCode::Esc => app.clear_filter(),
                         KeyCode::Enter => app.close_filter(),
@@ -209,7 +209,7 @@ pub fn run(
                         KeyCode::Char(c) => app.filter_push_char(c),
                         _ => {}
                     }
-                } else if app.path_mode {
+                } else if app.overlay.path_mode {
                     match key.code {
                         KeyCode::Esc => app.cancel_path_jump(),
                         KeyCode::Enter => app.confirm_path_jump(),
@@ -218,7 +218,7 @@ pub fn run(
                         KeyCode::Char(c) => app.path_push_char(c),
                         _ => {}
                     }
-                } else if app.palette_mode {
+                } else if app.overlay.palette_mode {
                     match key.code {
                         KeyCode::Esc | KeyCode::Char(':') => app.close_palette(),
                         KeyCode::Enter | KeyCode::Char('l') | KeyCode::Right => {
@@ -233,7 +233,7 @@ pub fn run(
                         KeyCode::Char(c) => app.palette_push_char(c),
                         _ => {}
                     }
-                } else if app.yank_picker_mode {
+                } else if app.overlay.yank_picker_mode {
                     match key.code {
                         KeyCode::Esc => app.close_yank_picker(),
                         KeyCode::Char('r') | KeyCode::Char('1') => {
@@ -254,7 +254,7 @@ pub fn run(
                         }
                         _ => {}
                     }
-                } else if app.context_bundle_picker_mode {
+                } else if app.overlay.context_bundle_picker_mode {
                     use crate::app::context_bundle::ContextBundleFormat;
                     match key.code {
                         KeyCode::Esc => app.close_context_bundle_picker(),
@@ -269,13 +269,13 @@ pub fn run(
                         }
                         _ => {}
                     }
-                } else if app.context_bundle_confirm_mode {
+                } else if app.overlay.context_bundle_confirm_mode {
                     match key.code {
                         KeyCode::Char('y') | KeyCode::Char('Y') => app.confirm_context_bundle(),
                         KeyCode::Char('n') | KeyCode::Esc => app.cancel_context_bundle_confirm(),
                         _ => {}
                     }
-                } else if app.change_feed_mode {
+                } else if app.overlay.change_feed_mode {
                     match key.code {
                         KeyCode::Esc | KeyCode::Char('F') => app.toggle_change_feed(),
                         KeyCode::Up | KeyCode::Char('k') => app.change_feed_move_up(),
@@ -286,7 +286,7 @@ pub fn run(
                         KeyCode::Char('c') => app.clear_change_feed(),
                         _ => {}
                     }
-                } else if app.clipboard_inspect_mode {
+                } else if app.overlay.clipboard_inspect_mode {
                     match key.code {
                         KeyCode::Esc | KeyCode::F(9) | KeyCode::Char('q') => {
                             app.close_clipboard_inspect()
@@ -297,7 +297,7 @@ pub fn run(
                         }
                         _ => {}
                     }
-                } else if app.frecency_mode {
+                } else if app.overlay.frecency_mode {
                     match key.code {
                         KeyCode::Esc => app.close_frecency(),
                         KeyCode::Char('z') => app.close_frecency(),
@@ -308,17 +308,17 @@ pub fn run(
                         KeyCode::Char(c) => app.frecency_push_char(c),
                         _ => {}
                     }
-                } else if app.mark_set_mode {
+                } else if app.overlay.mark_set_mode {
                     match key.code {
                         KeyCode::Char(c) if c.is_alphabetic() => app.set_mark(c),
-                        _ => app.mark_set_mode = false, // Esc or non-letter cancels silently
+                        _ => app.overlay.mark_set_mode = false, // Esc or non-letter cancels silently
                     }
-                } else if app.mark_jump_mode {
+                } else if app.overlay.mark_jump_mode {
                     match key.code {
                         KeyCode::Char(c) if c.is_alphabetic() => app.jump_to_mark(c),
-                        _ => app.mark_jump_mode = false,
+                        _ => app.overlay.mark_jump_mode = false,
                     }
-                } else if app.session_summary_mode {
+                } else if app.overlay.session_summary_mode {
                     match key.code {
                         KeyCode::Esc => app.close_session_summary(),
                         KeyCode::Char('s') if key.modifiers.contains(KeyModifiers::CONTROL) => {
@@ -333,7 +333,7 @@ pub fn run(
                         KeyCode::Char('R') => app.refresh_session_summary(),
                         _ => {}
                     }
-                } else if app.archive_mode {
+                } else if app.overlay.archive_mode {
                     match key.code {
                         KeyCode::Esc | KeyCode::Char('q') => app.exit_archive(),
                         KeyCode::Up | KeyCode::Char('k') => app.move_up(),
@@ -346,7 +346,7 @@ pub fn run(
                         KeyCode::Char('G') => app.go_bottom(),
                         _ => {}
                     }
-                } else if app.search_mode {
+                } else if app.nav.search_mode {
                     match key.code {
                         KeyCode::Esc => app.cancel_search(),
                         KeyCode::Enter => app.confirm_search(),
@@ -356,31 +356,33 @@ pub fn run(
                         KeyCode::Char(c) => app.search_push_char(c),
                         _ => {}
                     }
-                } else if app.cmux_surface_picker_mode {
+                } else if app.overlay.cmux_surface_picker_mode {
                     match key.code {
                         KeyCode::Esc => app.close_cmux_surface_picker(),
                         KeyCode::Enter => app.send_lines_to_cmux_surface(),
                         KeyCode::Up | KeyCode::Char('k') => {
-                            if app.cmux_surface_selected > 0 {
-                                app.cmux_surface_selected -= 1;
+                            if app.overlay.cmux_surface_selected > 0 {
+                                app.overlay.cmux_surface_selected -= 1;
                             }
                         }
                         KeyCode::Down | KeyCode::Char('j') => {
-                            if app.cmux_surface_selected + 1 < app.cmux_surface_filtered.len() {
-                                app.cmux_surface_selected += 1;
+                            if app.overlay.cmux_surface_selected + 1
+                                < app.overlay.cmux_surface_filtered.len()
+                            {
+                                app.overlay.cmux_surface_selected += 1;
                             }
                         }
                         KeyCode::Backspace => {
-                            app.cmux_surface_query.pop();
+                            app.overlay.cmux_surface_query.pop();
                             app.filter_cmux_surfaces();
                         }
                         KeyCode::Char(c) if !key.modifiers.contains(KeyModifiers::CONTROL) => {
-                            app.cmux_surface_query.push(c);
+                            app.overlay.cmux_surface_query.push(c);
                             app.filter_cmux_surfaces();
                         }
                         _ => {}
                     }
-                } else if app.preview_focused {
+                } else if app.preview.preview_focused {
                     match key.code {
                         KeyCode::Esc | KeyCode::Left | KeyCode::Char('h') => {
                             app.exit_preview_focus()
@@ -395,19 +397,20 @@ pub fn run(
                         KeyCode::Char('J') => app.preview_select_down(),
                         KeyCode::Char('K') => app.preview_select_up(),
                         KeyCode::Char('g') => {
-                            app.preview_cursor = 0;
-                            app.preview_selection_anchor = None;
+                            app.preview.preview_cursor = 0;
+                            app.preview.preview_selection_anchor = None;
                             app.ensure_preview_cursor_visible();
                         }
                         KeyCode::Char('G') => {
-                            app.preview_cursor = app.preview_lines.len().saturating_sub(1);
-                            app.preview_selection_anchor = None;
+                            app.preview.preview_cursor =
+                                app.preview.preview_lines.len().saturating_sub(1);
+                            app.preview.preview_selection_anchor = None;
                             app.ensure_preview_cursor_visible();
                         }
                         KeyCode::Char('[') => app.scroll_preview_up(5),
                         KeyCode::Char(']') => app.scroll_preview_down(5),
                         // Global keys work regardless of preview focus
-                        KeyCode::Char('?') => app.show_help = true,
+                        KeyCode::Char('?') => app.overlay.show_help = true,
                         KeyCode::Char('\\') => app.toggle_left_pane(),
                         KeyCode::Char('w') => app.toggle_preview_pane(),
                         KeyCode::Char('#') => app.toggle_line_numbers(),
@@ -478,12 +481,12 @@ pub fn run(
                         KeyCode::Char('z') => app.open_frecency(),
                         KeyCode::Char('P') => app.begin_chmod(),
                         KeyCode::Char('R') => app.refresh_git_status(),
-                        KeyCode::Char('?') => app.show_help = true,
+                        KeyCode::Char('?') => app.overlay.show_help = true,
                         // Multi-file selection
-                        KeyCode::Char(' ') => app.toggle_selection(app.selected),
+                        KeyCode::Char(' ') => app.toggle_selection(app.nav.selected),
                         KeyCode::Char('v') => app.select_all(),
                         KeyCode::Esc => {
-                            if !app.filter_input.is_empty() {
+                            if !app.nav.filter_input.is_empty() {
                                 app.clear_filter();
                             } else {
                                 app.clear_selections();
@@ -596,8 +599,8 @@ pub fn run(
             }
             Event::Mouse(mouse) => match mouse.kind {
                 MouseEventKind::Down(MouseButton::Left) => {
-                    if app.show_help {
-                        app.show_help = false;
+                    if app.overlay.show_help {
+                        app.overlay.show_help = false;
                     } else {
                         app.on_mouse_down(mouse.column, mouse.row);
                     }
@@ -625,17 +628,21 @@ pub fn run(
         }
     }
     // Save session on clean exit. Errors are non-fatal.
-    let selected_name = app.entries.get(app.selected).map(|e| e.name.as_str());
+    let selected_name = app
+        .nav
+        .entries
+        .get(app.nav.selected)
+        .map(|e| e.name.as_str());
     let _ = crate::session::save(
-        &app.cwd,
-        &app.marks,
-        app.show_hidden,
-        app.sort_mode,
-        app.sort_order,
+        &app.nav.cwd,
+        &app.overlay.marks,
+        app.nav.show_hidden,
+        app.nav.sort_mode,
+        app.nav.sort_order,
         selected_name,
     );
 
-    Ok(app.cwd)
+    Ok(app.nav.cwd)
 }
 
 /// Dispatch a palette `ActionId` to the corresponding `App` method.
@@ -684,7 +691,7 @@ fn execute_palette_action(
         ActionId::SelectMoveDown => app.select_move_down(),
         ActionId::SelectMoveUp => app.select_move_up(),
         ActionId::ToggleSelection => {
-            let s = app.selected;
+            let s = app.nav.selected;
             app.toggle_selection(s);
         }
         ActionId::SelectAll => app.select_all(),
@@ -713,7 +720,7 @@ fn execute_palette_action(
         ActionId::OpenInCmuxTab => app.open_in_cmux_tab(),
         ActionId::OpenToTheRight => app.open_to_the_right(),
         ActionId::ExportContextBundle => app.open_context_bundle_picker(),
-        ActionId::ShowHelp => app.show_help = true,
+        ActionId::ShowHelp => app.overlay.show_help = true,
         // Quit appears in the palette for discoverability but cannot break out
         // of the event loop from here — use q directly.
         ActionId::Quit => {}

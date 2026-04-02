@@ -34,13 +34,13 @@ impl App {
 
     /// Toggle between content preview and metadata preview.
     pub fn toggle_meta_preview(&mut self) {
-        self.meta_preview_mode = !self.meta_preview_mode;
-        if self.meta_preview_mode {
-            self.diff_preview_mode = false;
-            self.git_log_mode = false; // mutually exclusive
-            self.file_compare_mode = false; // mutually exclusive
-            self.hex_view_mode = false; // mutually exclusive
-            self.du_preview_mode = false; // mutually exclusive
+        self.preview.meta_preview_mode = !self.preview.meta_preview_mode;
+        if self.preview.meta_preview_mode {
+            self.preview.diff_preview_mode = false;
+            self.preview.git_log_mode = false; // mutually exclusive
+            self.preview.file_compare_mode = false; // mutually exclusive
+            self.preview.hex_view_mode = false; // mutually exclusive
+            self.preview.du_preview_mode = false; // mutually exclusive
         }
         self.load_preview();
     }
@@ -140,38 +140,38 @@ impl App {
 
     /// Open the chmod input bar for the currently selected entry.
     pub fn begin_chmod(&mut self) {
-        if self.entries.get(self.selected).is_none() {
+        if self.nav.entries.get(self.nav.selected).is_none() {
             return;
         }
-        self.chmod_mode = true;
-        self.chmod_input.clear();
+        self.overlay.chmod_mode = true;
+        self.overlay.chmod_input.clear();
     }
 
     /// Cancel the chmod input bar without making changes.
     pub fn cancel_chmod(&mut self) {
-        self.chmod_mode = false;
-        self.chmod_input.clear();
+        self.overlay.chmod_mode = false;
+        self.overlay.chmod_input.clear();
         self.status_message = Some("chmod cancelled".to_string());
     }
 
     /// Append an octal digit (max 4 chars).
     pub fn chmod_push_char(&mut self, c: char) {
-        if self.chmod_input.len() < 4 {
-            self.chmod_input.push(c);
+        if self.overlay.chmod_input.len() < 4 {
+            self.overlay.chmod_input.push(c);
         }
     }
 
     /// Remove the last digit from the chmod input.
     pub fn chmod_pop_char(&mut self) {
-        self.chmod_input.pop();
+        self.overlay.chmod_input.pop();
     }
 
     /// Validate and apply the typed octal mode to the selected entry.
     pub fn confirm_chmod(&mut self) {
-        let input = std::mem::take(&mut self.chmod_input);
-        self.chmod_mode = false;
+        let input = std::mem::take(&mut self.overlay.chmod_input);
+        self.overlay.chmod_mode = false;
 
-        let Some(entry) = self.entries.get(self.selected) else {
+        let Some(entry) = self.nav.entries.get(self.nav.selected) else {
             return;
         };
         let path = entry.path.clone();
@@ -195,7 +195,7 @@ impl App {
             match std::fs::set_permissions(&path, std::fs::Permissions::from_mode(mode)) {
                 Ok(()) => {
                     self.status_message = Some(format!("Mode set to {:04o}", mode));
-                    if self.meta_preview_mode {
+                    if self.preview.meta_preview_mode {
                         self.load_preview();
                     }
                 }

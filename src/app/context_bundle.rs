@@ -34,14 +34,14 @@ impl App {
     ///
     /// Does nothing when the directory is empty (nothing to export).
     pub fn open_context_bundle_picker(&mut self) {
-        if self.entries.get(self.selected).is_some() || !self.selection.is_empty() {
-            self.context_bundle_picker_mode = true;
+        if self.nav.entries.get(self.nav.selected).is_some() || !self.nav.selection.is_empty() {
+            self.overlay.context_bundle_picker_mode = true;
         }
     }
 
     /// Close the context bundle format picker without exporting anything.
     pub fn close_context_bundle_picker(&mut self) {
-        self.context_bundle_picker_mode = false;
+        self.overlay.context_bundle_picker_mode = false;
     }
 
     /// Build and copy the context bundle in the requested format.
@@ -53,19 +53,19 @@ impl App {
     /// Directories and binary files are silently skipped; a count of skipped
     /// items is included in the status message when any were omitted.
     pub fn export_context_bundle(&mut self, format: ContextBundleFormat) {
-        self.context_bundle_picker_mode = false;
+        self.overlay.context_bundle_picker_mode = false;
 
         // Gather the target paths.
-        let paths: Vec<std::path::PathBuf> = if !self.selection.is_empty() {
-            let mut sorted: Vec<usize> = self.selection.iter().copied().collect();
+        let paths: Vec<std::path::PathBuf> = if !self.nav.selection.is_empty() {
+            let mut sorted: Vec<usize> = self.nav.selection.iter().copied().collect();
             sorted.sort_unstable();
             sorted
                 .into_iter()
-                .filter_map(|i| self.entries.get(i))
+                .filter_map(|i| self.nav.entries.get(i))
                 .filter(|e| !e.is_dir)
                 .map(|e| e.path.clone())
                 .collect()
-        } else if let Some(entry) = self.entries.get(self.selected) {
+        } else if let Some(entry) = self.nav.entries.get(self.nav.selected) {
             if entry.is_dir {
                 self.status_message = Some("[context] No files selected".to_string());
                 return;
@@ -187,8 +187,8 @@ impl App {
         const MAX_BUNDLE: usize = 512 * 1024;
         if bundle_bytes > MAX_BUNDLE {
             // Store pending and ask for confirmation.
-            self.context_bundle_pending = Some(bundle);
-            self.context_bundle_confirm_mode = true;
+            self.overlay.context_bundle_pending = Some(bundle);
+            self.overlay.context_bundle_confirm_mode = true;
             self.status_message = Some(format!(
                 "[context] Bundle is {:.0} KB — press y to copy, n to cancel",
                 bundle_bytes as f64 / 1024.0
@@ -213,8 +213,8 @@ impl App {
 
     /// Confirm copying the oversized pending bundle.
     pub fn confirm_context_bundle(&mut self) {
-        self.context_bundle_confirm_mode = false;
-        if let Some(bundle) = self.context_bundle_pending.take() {
+        self.overlay.context_bundle_confirm_mode = false;
+        if let Some(bundle) = self.overlay.context_bundle_pending.take() {
             self.osc52_copy(&bundle);
             self.status_message = Some("[context] Copied to clipboard".to_string());
         }
@@ -222,14 +222,14 @@ impl App {
 
     /// Cancel the oversized bundle copy.
     pub fn cancel_context_bundle_confirm(&mut self) {
-        self.context_bundle_confirm_mode = false;
-        self.context_bundle_pending = None;
+        self.overlay.context_bundle_confirm_mode = false;
+        self.overlay.context_bundle_pending = None;
         self.status_message = Some("[context] Cancelled".to_string());
     }
 
     /// Compute a relative path string from the current working directory.
     fn relative_path(&self, path: &Path) -> String {
-        let rel = path.strip_prefix(&self.cwd).unwrap_or(path);
+        let rel = path.strip_prefix(&self.nav.cwd).unwrap_or(path);
         rel.display().to_string()
     }
 }

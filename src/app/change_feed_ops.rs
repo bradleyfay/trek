@@ -5,7 +5,7 @@ use super::{change_feed::FeedEvent, App};
 impl App {
     /// Toggle the change feed pane open/closed.
     pub fn toggle_change_feed(&mut self) {
-        self.change_feed_mode = !self.change_feed_mode;
+        self.overlay.change_feed_mode = !self.overlay.change_feed_mode;
     }
 
     /// Move the feed cursor toward newer events (up in the list).
@@ -34,7 +34,7 @@ impl App {
         };
 
         // Close the feed before navigating so the UI returns to normal mode.
-        self.change_feed_mode = false;
+        self.overlay.change_feed_mode = false;
 
         let target_dir = if path.is_dir() {
             path.clone()
@@ -44,13 +44,13 @@ impl App {
                 .unwrap_or(path.clone())
         };
 
-        self.cwd = target_dir;
+        self.nav.cwd = target_dir;
         self.load_dir();
 
         // Select the entry by name within the newly loaded directory.
         let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-        if let Some(idx) = self.entries.iter().position(|e| e.name == name) {
-            self.selected = idx;
+        if let Some(idx) = self.nav.entries.iter().position(|e| e.name == name) {
+            self.nav.selected = idx;
             self.load_preview();
         }
     }

@@ -78,7 +78,7 @@ impl App {
     ///
     /// Does nothing when the selected entry is a directory.
     pub fn open_in_cmux_tab(&mut self) {
-        let entry = match self.entries.get(self.selected).cloned() {
+        let entry = match self.nav.entries.get(self.nav.selected).cloned() {
             Some(e) if !e.is_dir => e,
             _ => return,
         };
@@ -120,7 +120,7 @@ impl App {
     ///
     /// When Trek is not running inside cmux a status-bar hint is shown instead.
     pub fn open_to_the_right(&mut self) {
-        let entry = match self.entries.get(self.selected).cloned() {
+        let entry = match self.nav.entries.get(self.nav.selected).cloned() {
             Some(e) if !e.is_dir => e,
             _ => return,
         };
@@ -438,31 +438,31 @@ impl App {
             self.status_message = Some("No cmux surfaces found in this workspace".to_string());
             return;
         }
-        self.cmux_surfaces = surfaces;
-        self.cmux_surface_query = String::new();
-        self.cmux_surface_filtered = (0..self.cmux_surfaces.len()).collect();
-        self.cmux_surface_selected = 0;
-        self.cmux_surface_picker_mode = true;
+        self.overlay.cmux_surfaces = surfaces;
+        self.overlay.cmux_surface_query = String::new();
+        self.overlay.cmux_surface_filtered = (0..self.overlay.cmux_surfaces.len()).collect();
+        self.overlay.cmux_surface_selected = 0;
+        self.overlay.cmux_surface_picker_mode = true;
     }
 
     /// Close the surface picker without sending anything.
     pub fn close_cmux_surface_picker(&mut self) {
-        self.cmux_surface_picker_mode = false;
+        self.overlay.cmux_surface_picker_mode = false;
     }
 
     /// Re-filter `cmux_surface_filtered` against `cmux_surface_query`.
     pub fn filter_cmux_surfaces(&mut self) {
-        let q = self.cmux_surface_query.to_lowercase();
-        self.cmux_surface_filtered = (0..self.cmux_surfaces.len())
+        let q = self.overlay.cmux_surface_query.to_lowercase();
+        self.overlay.cmux_surface_filtered = (0..self.overlay.cmux_surfaces.len())
             .filter(|&i| {
-                let s = &self.cmux_surfaces[i];
+                let s = &self.overlay.cmux_surfaces[i];
                 q.is_empty()
                     || s.id.to_lowercase().contains(&q)
                     || s.kind.to_lowercase().contains(&q)
                     || s.title.to_lowercase().contains(&q)
             })
             .collect();
-        self.cmux_surface_selected = 0;
+        self.overlay.cmux_surface_selected = 0;
     }
 
     /// Send the currently selected preview lines to the chosen cmux surface.
@@ -471,9 +471,10 @@ impl App {
     /// before pressing Enter in their terminal.
     pub fn send_lines_to_cmux_surface(&mut self) {
         let surface = match self
+            .overlay
             .cmux_surface_filtered
-            .get(self.cmux_surface_selected)
-            .and_then(|&i| self.cmux_surfaces.get(i))
+            .get(self.overlay.cmux_surface_selected)
+            .and_then(|&i| self.overlay.cmux_surfaces.get(i))
             .cloned()
         {
             Some(s) => s,
@@ -483,16 +484,16 @@ impl App {
             }
         };
 
-        let (lo, hi) = match self.preview_selection_anchor {
+        let (lo, hi) = match self.preview.preview_selection_anchor {
             Some(anchor) => (
-                anchor.min(self.preview_cursor),
-                anchor.max(self.preview_cursor),
+                anchor.min(self.preview.preview_cursor),
+                anchor.max(self.preview.preview_cursor),
             ),
-            None => (self.preview_cursor, self.preview_cursor),
+            None => (self.preview.preview_cursor, self.preview.preview_cursor),
         };
-        let lo = lo.min(self.preview_lines.len().saturating_sub(1));
-        let hi = hi.min(self.preview_lines.len().saturating_sub(1));
-        let text: String = self.preview_lines[lo..=hi].join("\n");
+        let lo = lo.min(self.preview.preview_lines.len().saturating_sub(1));
+        let hi = hi.min(self.preview.preview_lines.len().saturating_sub(1));
+        let text: String = self.preview.preview_lines[lo..=hi].join("\n");
 
         if text.is_empty() {
             self.close_cmux_surface_picker();

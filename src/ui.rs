@@ -82,19 +82,19 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     app.ensure_parent_visible(pane_chunks[0].height);
 
     draw_parent_pane(f, app, pane_chunks[0]);
-    if app.session_summary_mode {
+    if app.overlay.session_summary_mode {
         draw_session_summary_pane(f, app, pane_chunks[1]);
-    } else if app.content_search_mode {
+    } else if app.overlay.content_search_mode {
         draw_content_search_pane(f, app, pane_chunks[1]);
-    } else if app.find_mode {
+    } else if app.overlay.find_mode {
         draw_find_pane(f, app, pane_chunks[1]);
     } else {
         draw_current_pane(f, app, pane_chunks[1]);
     }
-    if !app.preview_collapsed {
-        if app.change_feed_mode {
+    if !app.preview.preview_collapsed {
+        if app.overlay.change_feed_mode {
             draw_change_feed_pane(f, app, pane_chunks[2]);
-        } else if app.task_manager_mode {
+        } else if app.overlay.task_manager_mode {
             draw_task_manager_pane(f, app, pane_chunks[2]);
         } else {
             draw_preview_pane(f, app, pane_chunks[2]);
@@ -106,29 +106,29 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         draw_delete_confirm_bar(f, app, bottom_area);
     } else if let Some(ref path) = app.pending_extract {
         draw_extract_bar(f, bottom_area, path);
-    } else if app.quick_rename_mode {
+    } else if app.overlay.quick_rename_mode {
         draw_quick_rename_bar(f, app, bottom_area);
-    } else if app.path_mode {
+    } else if app.overlay.path_mode {
         draw_path_jump_bar(f, app, bottom_area);
-    } else if app.dup_mode {
+    } else if app.overlay.dup_mode {
         draw_dup_bar(f, app, bottom_area);
-    } else if app.symlink_mode {
+    } else if app.overlay.symlink_mode {
         draw_symlink_bar(f, app, bottom_area);
-    } else if app.mkdir_mode {
+    } else if app.overlay.mkdir_mode {
         draw_mkdir_bar(f, app, bottom_area);
-    } else if app.touch_mode {
+    } else if app.overlay.touch_mode {
         draw_touch_bar(f, app, bottom_area);
-    } else if app.chmod_mode {
+    } else if app.overlay.chmod_mode {
         draw_chmod_bar(f, app, bottom_area);
-    } else if app.content_search_mode {
+    } else if app.overlay.content_search_mode {
         draw_content_search_bar(f, app, bottom_area);
-    } else if app.find_mode {
+    } else if app.overlay.find_mode {
         draw_find_bar(f, app, bottom_area);
-    } else if app.filter_mode {
+    } else if app.nav.filter_mode {
         draw_filter_bar(f, app, bottom_area);
-    } else if app.search_mode {
+    } else if app.nav.search_mode {
         draw_search_bar(f, app, bottom_area);
-    } else if app.session_summary_mode {
+    } else if app.overlay.session_summary_mode {
         let para = Paragraph::new(Line::from(vec![
             Span::styled(
                 " [session summary] ",
@@ -150,12 +150,13 @@ pub fn draw(f: &mut Frame, app: &mut App) {
                 .add_modifier(Modifier::BOLD),
         )));
         f.render_widget(para, bottom_area);
-    } else if !app.selection.is_empty() {
-        let count = app.selection.len();
+    } else if !app.nav.selection.is_empty() {
+        let count = app.nav.selection.len();
         let total_bytes: u64 = app
+            .nav
             .selection
             .iter()
-            .filter_map(|&i| app.entries.get(i))
+            .filter_map(|&i| app.nav.entries.get(i))
             .filter(|e| !e.is_dir)
             .map(|e| e.size)
             .sum();
@@ -209,49 +210,49 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     }
 
     // Help overlay.
-    if app.show_help {
+    if app.overlay.show_help {
         draw_help_overlay(f, size);
     }
 
     // Bookmark picker overlay.
-    if app.bookmark_mode {
+    if app.overlay.bookmark_mode {
         draw_bookmark_overlay(f, app, size);
     }
 
     // Frecency jump overlay.
-    if app.frecency_mode {
+    if app.overlay.frecency_mode {
         draw_frecency_overlay(f, app, size);
     }
 
     // Yank picker overlay.
-    if app.yank_picker_mode {
+    if app.overlay.yank_picker_mode {
         draw_yank_picker(f, app, size);
     }
 
     // Context bundle picker overlay.
-    if app.context_bundle_picker_mode {
+    if app.overlay.context_bundle_picker_mode {
         draw_context_bundle_picker(f, size);
     }
 
     // cmux surface picker overlay (send selected lines to a surface).
-    if app.cmux_surface_picker_mode {
+    if app.overlay.cmux_surface_picker_mode {
         draw_cmux_surface_picker(f, app, size);
     }
 
     // Clipboard inspector overlay.
-    if app.clipboard_inspect_mode {
+    if app.overlay.clipboard_inspect_mode {
         draw_clipboard_inspect_overlay(f, app, size);
     }
 
     // Command palette overlay (rendered on top of everything else).
-    if app.palette_mode {
+    if app.overlay.palette_mode {
         draw_palette_overlay(f, app, size);
     }
 }
 
 fn draw_path_bar(f: &mut Frame, app: &App, area: Rect) {
     // In archive mode show the virtual breadcrumb instead of the real cwd.
-    if app.archive_mode {
+    if app.overlay.archive_mode {
         let crumb = app.archive_breadcrumb();
         let spans = vec![
             Span::styled(
@@ -277,7 +278,7 @@ fn draw_path_bar(f: &mut Frame, app: &App, area: Rect) {
 
     // Smart path truncation: keep last 3 components when path is wide.
     let available = area.width.saturating_sub(4) as usize; // rough margin
-    let path_str = app.cwd.to_string_lossy();
+    let path_str = app.nav.cwd.to_string_lossy();
     let display_path = if path_str.chars().count() > available && available > 4 {
         // Keep last 3 path components with …/ prefix.
         let components: Vec<&str> = path_str.split('/').filter(|c| !c.is_empty()).collect();
@@ -296,12 +297,12 @@ fn draw_path_bar(f: &mut Frame, app: &App, area: Rect) {
     )];
 
     // Hidden files indicator as a separate, dimmed span.
-    if app.show_hidden {
+    if app.nav.show_hidden {
         spans.push(Span::styled("  [H]", Style::default().fg(Color::DarkGray)));
     }
 
     // Gitignore filter badge — shown next to the git branch indicator.
-    if app.hide_gitignored {
+    if app.nav.hide_gitignored {
         spans.push(Span::styled(
             "  [ignore]",
             Style::default()
@@ -320,14 +321,14 @@ fn draw_path_bar(f: &mut Frame, app: &App, area: Rect) {
     }
 
     // Show sort indicator when not using the default (Name ascending).
-    if app.sort_mode != SortMode::Name || app.sort_order != SortOrder::Ascending {
-        let arrow = if app.sort_order == SortOrder::Descending {
+    if app.nav.sort_mode != SortMode::Name || app.nav.sort_order != SortOrder::Ascending {
+        let arrow = if app.nav.sort_order == SortOrder::Descending {
             "↓"
         } else {
             "↑"
         };
         spans.push(Span::styled(
-            format!("  {} {}", arrow, app.sort_mode.label()),
+            format!("  {} {}", arrow, app.nav.sort_mode.label()),
             Style::default().fg(Color::DarkGray),
         ));
     }
@@ -346,8 +347,8 @@ fn draw_path_bar(f: &mut Frame, app: &App, area: Rect) {
 }
 
 fn draw_search_bar(f: &mut Frame, app: &App, area: Rect) {
-    let match_count = app.filtered_indices.len();
-    let total = app.entries.len();
+    let match_count = app.nav.filtered_indices.len();
+    let total = app.nav.entries.len();
     let para = Paragraph::new(Line::from(vec![
         Span::styled(
             "/",
@@ -356,7 +357,7 @@ fn draw_search_bar(f: &mut Frame, app: &App, area: Rect) {
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
-            &app.search_query,
+            &app.nav.search_query,
             Style::default()
                 .fg(Color::White)
                 .add_modifier(Modifier::BOLD),
@@ -382,7 +383,7 @@ fn draw_filter_bar(f: &mut Frame, app: &App, area: Rect) {
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
-            format!("{}_", app.filter_input),
+            format!("{}_", app.nav.filter_input),
             Style::default().fg(Color::White),
         ),
         Span::styled(
@@ -447,8 +448,9 @@ fn draw_delete_confirm_bar(f: &mut Frame, app: &App, area: Rect) {
 fn draw_chmod_bar(f: &mut Frame, app: &App, area: Rect) {
     // Show the current octal mode as context.
     let current = app
+        .nav
         .entries
-        .get(app.selected)
+        .get(app.nav.selected)
         .and_then(|e| std::fs::metadata(&e.path).ok())
         .map(|m| {
             #[cfg(unix)]
@@ -464,8 +466,9 @@ fn draw_chmod_bar(f: &mut Frame, app: &App, area: Rect) {
         .unwrap_or_default();
 
     let name = app
+        .nav
         .entries
-        .get(app.selected)
+        .get(app.nav.selected)
         .map(|e| e.name.as_str())
         .unwrap_or("");
 
@@ -476,7 +479,10 @@ fn draw_chmod_bar(f: &mut Frame, app: &App, area: Rect) {
                 .fg(Color::Yellow)
                 .add_modifier(Modifier::BOLD),
         ),
-        Span::styled(app.chmod_input.as_str(), Style::default().fg(Color::White)),
+        Span::styled(
+            app.overlay.chmod_input.as_str(),
+            Style::default().fg(Color::White),
+        ),
         Span::styled("\u{2588}", Style::default().fg(Color::Yellow)),
         Span::styled(
             "  Enter=apply  Esc=cancel",
@@ -495,7 +501,7 @@ fn draw_quick_rename_bar(f: &mut Frame, app: &App, area: Rect) {
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
-            app.quick_rename_input.as_str(),
+            app.overlay.quick_rename_input.as_str(),
             Style::default()
                 .fg(Color::White)
                 .add_modifier(Modifier::BOLD),
@@ -518,7 +524,7 @@ fn draw_path_jump_bar(f: &mut Frame, app: &App, area: Rect) {
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
-            app.path_input.as_str(),
+            app.overlay.path_input.as_str(),
             Style::default()
                 .fg(Color::White)
                 .add_modifier(Modifier::BOLD),
@@ -541,7 +547,7 @@ fn draw_mkdir_bar(f: &mut Frame, app: &App, area: Rect) {
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
-            &app.mkdir_input,
+            &app.overlay.mkdir_input,
             Style::default()
                 .fg(Color::White)
                 .add_modifier(Modifier::BOLD),
@@ -564,7 +570,7 @@ fn draw_touch_bar(f: &mut Frame, app: &App, area: Rect) {
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
-            &app.touch_input,
+            &app.overlay.touch_input,
             Style::default()
                 .fg(Color::White)
                 .add_modifier(Modifier::BOLD),
@@ -587,7 +593,7 @@ fn draw_dup_bar(f: &mut Frame, app: &App, area: Rect) {
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
-            &app.dup_input,
+            &app.overlay.dup_input,
             Style::default()
                 .fg(Color::White)
                 .add_modifier(Modifier::BOLD),
@@ -603,6 +609,7 @@ fn draw_dup_bar(f: &mut Frame, app: &App, area: Rect) {
 
 fn draw_symlink_bar(f: &mut Frame, app: &App, area: Rect) {
     let target_name = app
+        .overlay
         .symlink_target
         .as_deref()
         .and_then(|p| p.file_name())
@@ -616,7 +623,7 @@ fn draw_symlink_bar(f: &mut Frame, app: &App, area: Rect) {
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
-            &app.symlink_input,
+            &app.overlay.symlink_input,
             Style::default()
                 .fg(Color::White)
                 .add_modifier(Modifier::BOLD),
@@ -632,6 +639,7 @@ fn draw_symlink_bar(f: &mut Frame, app: &App, area: Rect) {
 
 fn draw_parent_pane(f: &mut Frame, app: &App, area: Rect) {
     let title = app
+        .nav
         .cwd
         .parent()
         .and_then(|p| p.file_name())
@@ -641,13 +649,14 @@ fn draw_parent_pane(f: &mut Frame, app: &App, area: Rect) {
     let inner_width = area.width.saturating_sub(2) as usize; // account for right border
     let visible_height = area.height.saturating_sub(1) as usize;
     let items: Vec<ListItem> = app
+        .nav
         .parent_entries
         .iter()
         .enumerate()
-        .skip(app.parent_scroll)
+        .skip(app.nav.parent_scroll)
         .take(visible_height)
         .map(|(i, entry)| {
-            let style = if i == app.parent_selected {
+            let style = if i == app.nav.parent_selected {
                 Style::default()
                     .fg(Color::White)
                     .bg(Color::Blue)
@@ -677,35 +686,37 @@ fn draw_parent_pane(f: &mut Frame, app: &App, area: Rect) {
 
 fn draw_current_pane(f: &mut Frame, app: &App, area: Rect) {
     let base_title = app
+        .nav
         .cwd
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
-        .unwrap_or_else(|| app.cwd.to_string_lossy().into_owned());
+        .unwrap_or_else(|| app.nav.cwd.to_string_lossy().into_owned());
 
     // Show [~pattern] when filter is frozen (active but bar is closed).
-    let title = if !app.filter_input.is_empty() && !app.filter_mode {
-        format!("{} [~{}]", base_title, app.filter_input)
+    let title = if !app.nav.filter_input.is_empty() && !app.nav.filter_mode {
+        format!("{} [~{}]", base_title, app.nav.filter_input)
     } else {
         base_title
     };
 
-    let is_searching = app.search_mode && !app.search_query.is_empty();
+    let is_searching = app.nav.search_mode && !app.nav.search_query.is_empty();
     // 2-char prefix always reserved so layout doesn't shift when selection changes.
     let sel_prefix_width: usize = 2;
-    let has_selection = !app.selection.is_empty();
+    let has_selection = !app.nav.selection.is_empty();
 
     let inner_width = area.width.saturating_sub(1) as usize; // 1 col for right border
     let visible_height = area.height.saturating_sub(2) as usize; // top title + bottom info
     let items: Vec<ListItem> = app
+        .nav
         .entries
         .iter()
         .enumerate()
-        .skip(app.current_scroll)
+        .skip(app.nav.current_scroll)
         .take(visible_height)
         .map(|(i, entry)| {
-            let is_cursor = i == app.selected;
-            let is_marked = app.selection.contains(&i);
-            let is_match = !is_searching || app.filtered_set.contains(&i);
+            let is_cursor = i == app.nav.selected;
+            let is_marked = app.nav.selection.contains(&i);
+            let is_match = !is_searching || app.nav.filtered_set.contains(&i);
             let style = if is_cursor {
                 Style::default()
                     .fg(Color::White)
@@ -740,13 +751,13 @@ fn draw_current_pane(f: &mut Frame, app: &App, area: Rect) {
 
             let icon = icon_for_entry(&entry.name, entry.is_dir);
             // Right column priority: timestamps > dir counts > file size.
-            let right_col_str: String = if app.show_timestamps {
+            let right_col_str: String = if app.nav.show_timestamps {
                 if entry.is_dir {
                     String::new()
                 } else {
                     format_listing_date(entry.modified)
                 }
-            } else if entry.is_dir && app.show_dir_counts {
+            } else if entry.is_dir && app.nav.show_dir_counts {
                 format_dir_count(entry.child_count)
             } else if entry.is_dir {
                 String::new()
@@ -820,10 +831,14 @@ fn draw_current_pane(f: &mut Frame, app: &App, area: Rect) {
         })
         .collect();
 
-    let info = if app.entries_truncated {
-        format!(" {}/{} [limit] ", app.selected + 1, app.entries.len())
+    let info = if app.nav.entries_truncated {
+        format!(
+            " {}/{} [limit] ",
+            app.nav.selected + 1,
+            app.nav.entries.len()
+        )
     } else {
-        format!(" {}/{} ", app.selected + 1, app.entries.len())
+        format!(" {}/{} ", app.nav.selected + 1, app.nav.entries.len())
     };
     let list = List::new(items).block(
         Block::default()
@@ -845,31 +860,33 @@ fn draw_current_pane(f: &mut Frame, app: &App, area: Rect) {
 
 fn draw_preview_pane(f: &mut Frame, app: &App, area: Rect) {
     let title = app
+        .nav
         .entries
-        .get(app.selected)
+        .get(app.nav.selected)
         .map(|e| {
-            let mut t = if app.du_preview_mode && e.is_dir {
+            let mut t = if app.preview.du_preview_mode && e.is_dir {
                 format!("{} [du]", e.name)
-            } else if app.hex_view_mode {
+            } else if app.preview.hex_view_mode {
                 format!("{} [hex]", e.name)
-            } else if app.preview_is_diff {
+            } else if app.preview.preview_is_diff {
                 format!("{} [diff]", e.name)
-            } else if app.meta_preview_mode {
+            } else if app.preview.meta_preview_mode {
                 format!("{} [meta]", e.name)
-            } else if app.git_log_mode {
+            } else if app.preview.git_log_mode {
                 format!("{} [log]", e.name)
-            } else if app.file_compare_mode {
+            } else if app.preview.file_compare_mode {
                 let names: Vec<_> = app
+                    .nav
                     .selection
                     .iter()
-                    .filter_map(|&i| app.entries.get(i))
+                    .filter_map(|&i| app.nav.entries.get(i))
                     .map(|ent| ent.name.as_str())
                     .collect();
                 format!("{} [compare]", names.join(" \u{2194} "))
             } else {
                 e.name.clone()
             };
-            if app.preview_wrap {
+            if app.preview.preview_wrap {
                 t.push_str(" [wrap]");
             }
             t
@@ -877,17 +894,17 @@ fn draw_preview_pane(f: &mut Frame, app: &App, area: Rect) {
         .unwrap_or_default();
 
     let visible_height = area.height.saturating_sub(2) as usize;
-    let total = app.preview_lines.len();
+    let total = app.preview.preview_lines.len();
     let scroll_info = if total > 0 {
-        let end = (app.preview_scroll + visible_height).min(total);
-        format!(" {}-{}/{} ", app.preview_scroll + 1, end, total)
+        let end = (app.preview.preview_scroll + visible_height).min(total);
+        format!(" {}-{}/{} ", app.preview.preview_scroll + 1, end, total)
     } else {
         String::new()
     };
 
     // Try syntax highlighting for source files (non-diff mode only).
-    let highlighted: Option<Vec<Line<'static>>> = if !app.preview_is_diff {
-        app.entries.get(app.selected).and_then(|e| {
+    let highlighted: Option<Vec<Line<'static>>> = if !app.preview.preview_is_diff {
+        app.nav.entries.get(app.nav.selected).and_then(|e| {
             let ext = std::path::Path::new(&e.name)
                 .extension()
                 .and_then(|s| s.to_str())
@@ -895,34 +912,37 @@ fn draw_preview_pane(f: &mut Frame, app: &App, area: Rect) {
             if ext.is_empty() {
                 None
             } else {
-                let max_process =
-                    (app.preview_scroll + visible_height).min(app.preview_lines.len());
-                app.highlighter
-                    .highlight(&app.preview_lines[..max_process], ext, max_process)
+                let max_process = (app.preview.preview_scroll + visible_height)
+                    .min(app.preview.preview_lines.len());
+                app.highlighter.highlight(
+                    &app.preview.preview_lines[..max_process],
+                    ext,
+                    max_process,
+                )
             }
         })
     } else {
         None
     };
 
-    let gutter_width = if app.show_line_numbers && total > 0 {
+    let gutter_width = if app.preview.show_line_numbers && total > 0 {
         total.to_string().len()
     } else {
         0
     };
 
     // In wrap mode take more lines so ratatui has content to fold into the visible area.
-    let take_count = if app.preview_wrap {
+    let take_count = if app.preview.preview_wrap {
         visible_height * 5
     } else {
         visible_height
     };
 
     // Compute cursor/selection range for preview focus mode.
-    let selection_range: Option<(usize, usize)> = if app.preview_focused {
-        app.preview_selection_anchor.map(|anchor| {
-            let lo = anchor.min(app.preview_cursor);
-            let hi = anchor.max(app.preview_cursor);
+    let selection_range: Option<(usize, usize)> = if app.preview.preview_focused {
+        app.preview.preview_selection_anchor.map(|anchor| {
+            let lo = anchor.min(app.preview.preview_cursor);
+            let hi = anchor.max(app.preview.preview_cursor);
             (lo, hi)
         })
     } else {
@@ -931,12 +951,13 @@ fn draw_preview_pane(f: &mut Frame, app: &App, area: Rect) {
 
     let lines: Vec<Line> = if let Some(hl) = highlighted {
         hl.into_iter()
-            .skip(app.preview_scroll)
+            .skip(app.preview.preview_scroll)
             .enumerate()
             .take(take_count)
             .map(|(i, line)| {
-                let abs_line = app.preview_scroll + i;
-                let is_cursor = app.preview_focused && abs_line == app.preview_cursor;
+                let abs_line = app.preview.preview_scroll + i;
+                let is_cursor =
+                    app.preview.preview_focused && abs_line == app.preview.preview_cursor;
                 let in_selection =
                     selection_range.is_some_and(|(lo, hi)| abs_line >= lo && abs_line <= hi);
                 let row_style = if is_cursor {
@@ -949,7 +970,7 @@ fn draw_preview_pane(f: &mut Frame, app: &App, area: Rect) {
                 } else {
                     Style::default()
                 };
-                let rendered = if app.show_line_numbers {
+                let rendered = if app.preview.show_line_numbers {
                     let gutter =
                         format!("{:>width$} \u{2502} ", abs_line + 1, width = gutter_width);
                     let gutter_span = Span::styled(gutter, Style::default().fg(Color::DarkGray));
@@ -963,14 +984,16 @@ fn draw_preview_pane(f: &mut Frame, app: &App, area: Rect) {
             })
             .collect()
     } else {
-        app.preview_lines
+        app.preview
+            .preview_lines
             .iter()
             .enumerate()
-            .skip(app.preview_scroll)
+            .skip(app.preview.preview_scroll)
             .take(take_count)
             .map(|(i, l)| {
                 let abs_line = i; // `i` is the absolute index since we enumerate before skip
-                let is_cursor = app.preview_focused && abs_line == app.preview_cursor;
+                let is_cursor =
+                    app.preview.preview_focused && abs_line == app.preview.preview_cursor;
                 let in_selection =
                     selection_range.is_some_and(|(lo, hi)| abs_line >= lo && abs_line <= hi);
                 let row_style = if is_cursor {
@@ -983,12 +1006,12 @@ fn draw_preview_pane(f: &mut Frame, app: &App, area: Rect) {
                 } else {
                     Style::default()
                 };
-                let content_line = if app.preview_is_diff {
+                let content_line = if app.preview.preview_is_diff {
                     colorize_diff_line(l)
                 } else {
                     Line::from(l.as_str())
                 };
-                let rendered = if app.show_line_numbers {
+                let rendered = if app.preview.show_line_numbers {
                     let gutter = format!("{:>width$} \u{2502} ", i + 1, width = gutter_width);
                     let gutter_span = Span::styled(gutter, Style::default().fg(Color::DarkGray));
                     let mut spans = vec![gutter_span];
@@ -1003,7 +1026,7 @@ fn draw_preview_pane(f: &mut Frame, app: &App, area: Rect) {
     };
 
     // Border/title color changes to Cyan when preview pane has focus.
-    let border_color = if app.preview_focused {
+    let border_color = if app.preview.preview_focused {
         Color::Cyan
     } else {
         Color::DarkGray
@@ -1020,7 +1043,7 @@ fn draw_preview_pane(f: &mut Frame, app: &App, area: Rect) {
                 .right_aligned(),
         );
     // Show a loading placeholder while the async preview thread is working.
-    if app.preview_loading && app.preview_lines.is_empty() {
+    if app.preview.preview_loading && app.preview.preview_lines.is_empty() {
         let placeholder = Paragraph::new(Line::from(Span::styled(
             " Loading\u{2026}",
             Style::default().fg(Color::DarkGray),
@@ -1030,7 +1053,7 @@ fn draw_preview_pane(f: &mut Frame, app: &App, area: Rect) {
         return;
     }
 
-    let para = if app.preview_wrap {
+    let para = if app.preview.preview_wrap {
         Paragraph::new(lines)
             .wrap(Wrap { trim: false })
             .block(block)
@@ -1053,8 +1076,8 @@ fn draw_preview_pane(f: &mut Frame, app: &App, area: Rect) {
             let max_thumb_pos = bar_height.saturating_sub(thumb_size);
             let max_scroll = total.saturating_sub(visible_height);
             let thumb_pos = if max_scroll > 0 {
-                ((app.preview_scroll as f64 / max_scroll as f64) * max_thumb_pos as f64).round()
-                    as usize
+                ((app.preview.preview_scroll as f64 / max_scroll as f64) * max_thumb_pos as f64)
+                    .round() as usize
             } else {
                 0
             };
@@ -1207,14 +1230,15 @@ fn draw_change_feed_pane(f: &mut Frame, app: &App, area: Rect) {
 /// Render grouped rg results in the center pane during content search mode.
 fn draw_content_search_pane(f: &mut Frame, app: &App, area: Rect) {
     let total_matches: usize = app
+        .overlay
         .content_search_results
         .iter()
         .map(|g| g.matches.len())
         .sum();
-    let file_count = app.content_search_results.len();
+    let file_count = app.overlay.content_search_results.len();
 
     let title = if total_matches > 0 {
-        let trunc = if app.content_search_truncated {
+        let trunc = if app.overlay.content_search_truncated {
             " [truncated]"
         } else {
             ""
@@ -1227,7 +1251,7 @@ fn draw_content_search_pane(f: &mut Frame, app: &App, area: Rect) {
             if file_count == 1 { "" } else { "s" },
             trunc
         )
-    } else if app.content_search_query.is_empty() {
+    } else if app.overlay.content_search_query.is_empty() {
         " Content search ".to_string()
     } else {
         " No matches ".to_string()
@@ -1247,7 +1271,7 @@ fn draw_content_search_pane(f: &mut Frame, app: &App, area: Rect) {
     }
     let mut flat_rows: Vec<RowKind> = Vec::new();
     let mut flat_idx = 0usize;
-    for group in &app.content_search_results {
+    for group in &app.overlay.content_search_results {
         flat_rows.push(RowKind::Header(format!(" {}", group.file.display())));
         for m in &group.matches {
             flat_rows.push(RowKind::Match {
@@ -1262,7 +1286,7 @@ fn draw_content_search_pane(f: &mut Frame, app: &App, area: Rect) {
     // Find row position of the selected match to compute scroll.
     let selected_row = flat_rows
         .iter()
-        .position(|r| matches!(r, RowKind::Match { flat_idx: fi, .. } if *fi == app.content_search_selected))
+        .position(|r| matches!(r, RowKind::Match { flat_idx: fi, .. } if *fi == app.overlay.content_search_selected))
         .unwrap_or(0);
     let scroll = if selected_row >= visible_height {
         selected_row - visible_height + 1
@@ -1286,7 +1310,7 @@ fn draw_content_search_pane(f: &mut Frame, app: &App, area: Rect) {
                 line_number,
                 content,
             } => {
-                let is_selected = *fi == app.content_search_selected;
+                let is_selected = *fi == app.overlay.content_search_selected;
                 let style = if is_selected {
                     Style::default()
                         .fg(Color::White)
@@ -1319,7 +1343,7 @@ fn draw_content_search_pane(f: &mut Frame, app: &App, area: Rect) {
 
 /// Render the content search prompt in the status bar.
 fn draw_content_search_bar(f: &mut Frame, app: &App, area: Rect) {
-    if let Some(ref err) = app.content_search_error {
+    if let Some(ref err) = app.overlay.content_search_error {
         let para = Paragraph::new(Line::from(Span::styled(
             format!(" \u{26a0} {}", err),
             Style::default().fg(Color::Red),
@@ -1335,7 +1359,7 @@ fn draw_content_search_bar(f: &mut Frame, app: &App, area: Rect) {
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
-            &app.content_search_query,
+            &app.overlay.content_search_query,
             Style::default()
                 .fg(Color::White)
                 .add_modifier(Modifier::BOLD),
@@ -1408,13 +1432,13 @@ fn key_line(key: &'static str, desc: &'static str) -> Line<'static> {
 
 /// Render recursive find results in the center pane during find mode.
 fn draw_find_pane(f: &mut Frame, app: &App, area: Rect) {
-    let count = app.find_results.len();
-    let title = if app.find_query.is_empty() {
+    let count = app.overlay.find_results.len();
+    let title = if app.overlay.find_query.is_empty() {
         " Find files ".to_string()
     } else if count == 0 {
         " No matches ".to_string()
     } else {
-        let trunc = if app.find_truncated {
+        let trunc = if app.overlay.find_truncated {
             " [truncated]"
         } else {
             ""
@@ -1428,20 +1452,21 @@ fn draw_find_pane(f: &mut Frame, app: &App, area: Rect) {
     };
 
     let visible_height = area.height.saturating_sub(2) as usize;
-    let scroll = if app.find_selected >= visible_height {
-        app.find_selected - visible_height + 1
+    let scroll = if app.overlay.find_selected >= visible_height {
+        app.overlay.find_selected - visible_height + 1
     } else {
         0
     };
 
     let items: Vec<ListItem> = app
+        .overlay
         .find_results
         .iter()
         .enumerate()
         .skip(scroll)
         .take(visible_height)
         .map(|(i, r)| {
-            let is_selected = i == app.find_selected;
+            let is_selected = i == app.overlay.find_selected;
             let style = if is_selected {
                 Style::default()
                     .fg(Color::White)
@@ -1470,7 +1495,7 @@ fn draw_find_pane(f: &mut Frame, app: &App, area: Rect) {
 fn draw_bookmark_overlay(f: &mut Frame, app: &App, size: Rect) {
     // Compute overlay dimensions.  Minimum usable height is 6 rows.
     let width = 62u16.min(size.width.saturating_sub(4));
-    let max_rows = app.bookmark_filtered.len().max(1) as u16;
+    let max_rows = app.overlay.bookmark_filtered.len().max(1) as u16;
     let height = (max_rows + 4).min(size.height.saturating_sub(4)).max(6);
     let x = (size.width.saturating_sub(width)) / 2;
     let y = (size.height.saturating_sub(height)) / 2;
@@ -1479,10 +1504,10 @@ fn draw_bookmark_overlay(f: &mut Frame, app: &App, size: Rect) {
     f.render_widget(Clear, area);
 
     // Title: show filter query when active.
-    let title = if app.bookmark_query.is_empty() {
+    let title = if app.overlay.bookmark_query.is_empty() {
         " Bookmarks ".to_string()
     } else {
-        format!(" Bookmarks  {} ", app.bookmark_query)
+        format!(" Bookmarks  {} ", app.overlay.bookmark_query)
     };
 
     // Hint in title right section — put it in the title for simplicity.
@@ -1502,8 +1527,8 @@ fn draw_bookmark_overlay(f: &mut Frame, app: &App, size: Rect) {
     let visible_height = inner.height as usize;
     let name_col = 16usize; // chars reserved for short name
 
-    if app.bookmark_filtered.is_empty() {
-        let msg = if app.bookmarks.is_empty() {
+    if app.overlay.bookmark_filtered.is_empty() {
+        let msg = if app.overlay.bookmarks.is_empty() {
             "  No bookmarks — press b to add one"
         } else {
             "  No matches"
@@ -1516,8 +1541,8 @@ fn draw_bookmark_overlay(f: &mut Frame, app: &App, size: Rect) {
         return;
     }
 
-    let scroll = if app.bookmark_selected >= visible_height {
-        app.bookmark_selected - visible_height + 1
+    let scroll = if app.overlay.bookmark_selected >= visible_height {
+        app.overlay.bookmark_selected - visible_height + 1
     } else {
         0
     };
@@ -1525,15 +1550,16 @@ fn draw_bookmark_overlay(f: &mut Frame, app: &App, size: Rect) {
     let path_width = (inner.width as usize).saturating_sub(name_col + 2);
 
     let items: Vec<ListItem> = app
+        .overlay
         .bookmark_filtered
         .iter()
         .enumerate()
         .skip(scroll)
         .take(visible_height)
         .map(|(display_idx, &real_idx)| {
-            let path = &app.bookmarks[real_idx];
+            let path = &app.overlay.bookmarks[real_idx];
             let exists = path.is_dir();
-            let is_selected = display_idx == app.bookmark_selected;
+            let is_selected = display_idx == app.overlay.bookmark_selected;
 
             // Short name = last path component.
             let short = path
@@ -1619,7 +1645,7 @@ fn draw_bookmark_overlay(f: &mut Frame, app: &App, size: Rect) {
 /// Render the frecency jump list as a centred overlay.
 fn draw_frecency_overlay(f: &mut Frame, app: &App, size: Rect) {
     let max_visible: usize = 12;
-    let row_count = app.frecency_filtered.len().max(1).min(max_visible);
+    let row_count = app.overlay.frecency_filtered.len().max(1).min(max_visible);
     let width = 62u16.min(size.width.saturating_sub(4));
     let height = (row_count as u16 + 4)
         .min(size.height.saturating_sub(4))
@@ -1630,10 +1656,10 @@ fn draw_frecency_overlay(f: &mut Frame, app: &App, size: Rect) {
 
     f.render_widget(Clear, area);
 
-    let title = if app.frecency_query.is_empty() {
+    let title = if app.overlay.frecency_query.is_empty() {
         " Frecency ".to_string()
     } else {
-        format!(" Frecency  {} ", app.frecency_query)
+        format!(" Frecency  {} ", app.overlay.frecency_query)
     };
 
     let block = Block::default()
@@ -1652,8 +1678,8 @@ fn draw_frecency_overlay(f: &mut Frame, app: &App, size: Rect) {
     let visible_height = inner.height.saturating_sub(1) as usize; // -1 for hint row
     let name_col = 16usize;
 
-    if app.frecency_filtered.is_empty() {
-        let msg = if app.frecency_list.is_empty() {
+    if app.overlay.frecency_filtered.is_empty() {
+        let msg = if app.nav.frecency_list.is_empty() {
             "  Navigate to a directory to start tracking"
         } else {
             "  No matches"
@@ -1666,8 +1692,8 @@ fn draw_frecency_overlay(f: &mut Frame, app: &App, size: Rect) {
         return;
     }
 
-    let scroll = if app.frecency_selected >= visible_height {
-        app.frecency_selected - visible_height + 1
+    let scroll = if app.overlay.frecency_selected >= visible_height {
+        app.overlay.frecency_selected - visible_height + 1
     } else {
         0
     };
@@ -1676,14 +1702,15 @@ fn draw_frecency_overlay(f: &mut Frame, app: &App, size: Rect) {
     let path_width = (inner.width as usize).saturating_sub(name_col + 2);
 
     let items: Vec<ListItem> = app
+        .overlay
         .frecency_filtered
         .iter()
         .enumerate()
         .skip(scroll)
         .take(visible_height)
         .map(|(display_idx, &real_idx)| {
-            let entry = &app.frecency_list[real_idx];
-            let is_selected = display_idx + scroll == app.frecency_selected;
+            let entry = &app.nav.frecency_list[real_idx];
+            let is_selected = display_idx + scroll == app.overlay.frecency_selected;
 
             let short = entry
                 .path
@@ -1753,7 +1780,7 @@ fn draw_frecency_overlay(f: &mut Frame, app: &App, size: Rect) {
 
 /// Render the find prompt in the status bar.
 fn draw_find_bar(f: &mut Frame, app: &App, area: Rect) {
-    if let Some(ref err) = app.find_error {
+    if let Some(ref err) = app.overlay.find_error {
         let para = Paragraph::new(Line::from(Span::styled(
             format!(" \u{26a0} {}", err),
             Style::default().fg(Color::Red),
@@ -1768,7 +1795,10 @@ fn draw_find_bar(f: &mut Frame, app: &App, area: Rect) {
                 .fg(Color::Yellow)
                 .add_modifier(Modifier::BOLD),
         ),
-        Span::styled(app.find_query.as_str(), Style::default().fg(Color::White)),
+        Span::styled(
+            app.overlay.find_query.as_str(),
+            Style::default().fg(Color::White),
+        ),
         Span::styled("█", Style::default().fg(Color::Yellow)),
     ]));
     f.render_widget(para, area);
@@ -1780,7 +1810,7 @@ fn draw_palette_overlay(f: &mut Frame, app: &App, size: Rect) {
 
     // Up to 12 rows visible; minimum 6 for empty state.
     const MAX_VISIBLE: usize = 12;
-    let visible_rows = app.palette_filtered.len().clamp(1, MAX_VISIBLE) as u16;
+    let visible_rows = app.overlay.palette_filtered.len().clamp(1, MAX_VISIBLE) as u16;
     // +4 for border (2) + search bar (1) + footer hint (1)
     let height = (visible_rows + 4).min(size.height.saturating_sub(4)).max(6);
     let width = 72u16.min(size.width.saturating_sub(4));
@@ -1790,10 +1820,10 @@ fn draw_palette_overlay(f: &mut Frame, app: &App, size: Rect) {
 
     f.render_widget(Clear, area);
 
-    let title = if app.palette_query.is_empty() {
+    let title = if app.overlay.palette_query.is_empty() {
         " Command Palette ".to_string()
     } else {
-        format!(" Command Palette  {} ", app.palette_query)
+        format!(" Command Palette  {} ", app.overlay.palette_query)
     };
 
     let block = Block::default()
@@ -1836,7 +1866,7 @@ fn draw_palette_overlay(f: &mut Frame, app: &App, size: Rect) {
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
-            app.palette_query.as_str(),
+            app.overlay.palette_query.as_str(),
             Style::default()
                 .fg(Color::White)
                 .add_modifier(Modifier::BOLD),
@@ -1846,7 +1876,7 @@ fn draw_palette_overlay(f: &mut Frame, app: &App, size: Rect) {
     f.render_widget(Paragraph::new(search_line), search_area);
 
     // Results
-    if app.palette_filtered.is_empty() {
+    if app.overlay.palette_filtered.is_empty() {
         let empty = Paragraph::new(Line::from(Span::styled(
             "  No matching actions",
             Style::default().fg(Color::DarkGray),
@@ -1854,8 +1884,8 @@ fn draw_palette_overlay(f: &mut Frame, app: &App, size: Rect) {
         f.render_widget(empty, results_area);
     } else {
         let visible_height = results_area.height as usize;
-        let scroll = if app.palette_selected >= visible_height {
-            app.palette_selected - visible_height + 1
+        let scroll = if app.overlay.palette_selected >= visible_height {
+            app.overlay.palette_selected - visible_height + 1
         } else {
             0
         };
@@ -1865,6 +1895,7 @@ fn draw_palette_overlay(f: &mut Frame, app: &App, size: Rect) {
         let name_width = (results_area.width as usize).saturating_sub(keys_width + 3);
 
         let items: Vec<ListItem> = app
+            .overlay
             .palette_filtered
             .iter()
             .enumerate()
@@ -1872,7 +1903,7 @@ fn draw_palette_overlay(f: &mut Frame, app: &App, size: Rect) {
             .take(visible_height)
             .map(|(display_idx, &real_idx)| {
                 let action = &PALETTE_ACTIONS[real_idx];
-                let is_selected = display_idx == app.palette_selected;
+                let is_selected = display_idx == app.overlay.palette_selected;
                 let name = truncate_with_ellipsis(action.name, name_width);
                 let keys = format!("{:>width$}", action.keys, width = keys_width);
 
@@ -1994,12 +2025,12 @@ fn draw_clipboard_inspect_overlay(f: &mut Frame, app: &App, size: Rect) {
 }
 
 fn draw_yank_picker(f: &mut Frame, app: &App, size: Rect) {
-    let Some(entry) = app.entries.get(app.selected) else {
+    let Some(entry) = app.nav.entries.get(app.nav.selected) else {
         return;
     };
 
     let rel = {
-        let r = entry.path.strip_prefix(&app.cwd).unwrap_or(&entry.path);
+        let r = entry.path.strip_prefix(&app.nav.cwd).unwrap_or(&entry.path);
         format!("./{}", r.display())
     };
     let abs = entry.path.to_string_lossy().into_owned();
@@ -2654,7 +2685,11 @@ fn draw_session_summary_pane(f: &mut Frame, app: &App, area: Rect) {
 /// send the selected preview lines.
 fn draw_cmux_surface_picker(f: &mut Frame, app: &App, size: Rect) {
     const MAX_VISIBLE: usize = 10;
-    let row_count = app.cmux_surface_filtered.len().clamp(1, MAX_VISIBLE);
+    let row_count = app
+        .overlay
+        .cmux_surface_filtered
+        .len()
+        .clamp(1, MAX_VISIBLE);
     // +5: query row + content preview row + hint row + top/bottom border
     let width = 62u16.min(size.width.saturating_sub(4));
     let height = (row_count as u16 + 5)
@@ -2694,7 +2729,7 @@ fn draw_cmux_surface_picker(f: &mut Frame, app: &App, size: Rect) {
     let query_para = Paragraph::new(Line::from(vec![
         Span::styled(" Filter: ", Style::default().fg(Color::DarkGray)),
         Span::styled(
-            app.cmux_surface_query.as_str(),
+            app.overlay.cmux_surface_query.as_str(),
             Style::default().fg(Color::White),
         ),
         Span::styled("█", Style::default().fg(Color::Cyan)),
@@ -2705,13 +2740,13 @@ fn draw_cmux_surface_picker(f: &mut Frame, app: &App, size: Rect) {
     let list_area = inner_chunks[1];
     let visible_height = list_area.height as usize;
 
-    let scroll = if app.cmux_surface_selected >= visible_height {
-        app.cmux_surface_selected - visible_height + 1
+    let scroll = if app.overlay.cmux_surface_selected >= visible_height {
+        app.overlay.cmux_surface_selected - visible_height + 1
     } else {
         0
     };
 
-    if app.cmux_surface_filtered.is_empty() {
+    if app.overlay.cmux_surface_filtered.is_empty() {
         let para = Paragraph::new(Line::from(Span::styled(
             "  (no surfaces match)",
             Style::default().fg(Color::DarkGray),
@@ -2720,14 +2755,15 @@ fn draw_cmux_surface_picker(f: &mut Frame, app: &App, size: Rect) {
     } else {
         let title_width = (inner.width as usize).saturating_sub(14);
         let items: Vec<ListItem> = app
+            .overlay
             .cmux_surface_filtered
             .iter()
             .enumerate()
             .skip(scroll)
             .take(visible_height)
             .map(|(display_idx, &real_idx)| {
-                let s = &app.cmux_surfaces[real_idx];
-                let is_selected = display_idx + scroll == app.cmux_surface_selected;
+                let s = &app.overlay.cmux_surfaces[real_idx];
+                let is_selected = display_idx + scroll == app.overlay.cmux_surface_selected;
 
                 let icon = match s.kind.as_str() {
                     "terminal" => ">_",
@@ -2765,17 +2801,22 @@ fn draw_cmux_surface_picker(f: &mut Frame, app: &App, size: Rect) {
     }
 
     // ── Content preview row ───────────────────────────────────────────────────
-    let (lo, hi) = match app.preview_selection_anchor {
+    let (lo, hi) = match app.preview.preview_selection_anchor {
         Some(anchor) => (
-            anchor.min(app.preview_cursor),
-            anchor.max(app.preview_cursor),
+            anchor.min(app.preview.preview_cursor),
+            anchor.max(app.preview.preview_cursor),
         ),
-        None => (app.preview_cursor, app.preview_cursor),
+        None => (app.preview.preview_cursor, app.preview.preview_cursor),
     };
-    let lo = lo.min(app.preview_lines.len().saturating_sub(1));
-    let hi = hi.min(app.preview_lines.len().saturating_sub(1));
+    let lo = lo.min(app.preview.preview_lines.len().saturating_sub(1));
+    let hi = hi.min(app.preview.preview_lines.len().saturating_sub(1));
     let line_count = hi - lo + 1;
-    let first_line = app.preview_lines.get(lo).map(|s| s.as_str()).unwrap_or("");
+    let first_line = app
+        .preview
+        .preview_lines
+        .get(lo)
+        .map(|s| s.as_str())
+        .unwrap_or("");
     let max_preview = (inner.width as usize).saturating_sub(16);
     let preview_text = truncate_with_ellipsis(first_line.trim(), max_preview);
     let content_para = Paragraph::new(Line::from(vec![

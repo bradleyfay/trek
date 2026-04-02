@@ -24,7 +24,7 @@ fn suggest_dup_name(name: &str) -> String {
 impl App {
     /// Yank (copy) the currently selected entry to the clipboard.
     pub fn clipboard_copy_current(&mut self) {
-        if let Some(entry) = self.entries.get(self.selected) {
+        if let Some(entry) = self.nav.entries.get(self.nav.selected) {
             self.clipboard = Some(Clipboard {
                 op: ClipboardOp::Copy,
                 paths: vec![entry.path.clone()],
@@ -43,9 +43,10 @@ impl App {
         let count = paths.len();
         // Compute total size of selected files before clearing selection.
         let total_bytes: u64 = self
+            .nav
             .selection
             .iter()
-            .filter_map(|&i| self.entries.get(i))
+            .filter_map(|&i| self.nav.entries.get(i))
             .filter(|e| !e.is_dir)
             .map(|e| e.size)
             .sum();
@@ -53,7 +54,7 @@ impl App {
             op: ClipboardOp::Copy,
             paths,
         });
-        self.selection.clear();
+        self.nav.selection.clear();
         let size_str = if total_bytes > 0 {
             format!(" ({})", crate::app::format_size(total_bytes))
         } else {
@@ -64,7 +65,7 @@ impl App {
 
     /// Mark the currently selected entry for cut.
     pub fn clipboard_cut_current(&mut self) {
-        if let Some(entry) = self.entries.get(self.selected) {
+        if let Some(entry) = self.nav.entries.get(self.nav.selected) {
             self.clipboard = Some(Clipboard {
                 op: ClipboardOp::Cut,
                 paths: vec![entry.path.clone()],
@@ -75,7 +76,7 @@ impl App {
 
     /// Begin a delete confirmation for the currently selected entry.
     pub fn begin_delete_current(&mut self) {
-        if let Some(entry) = self.entries.get(self.selected) {
+        if let Some(entry) = self.nav.entries.get(self.nav.selected) {
             self.pending_delete = vec![entry.path.clone()];
         }
     }
@@ -108,7 +109,7 @@ impl App {
         if !trashed.is_empty() {
             self.last_trashed = trashed;
         }
-        self.selection.clear();
+        self.nav.selection.clear();
         if let Some(err) = errors.first() {
             self.status_message = Some(format!("Error: {}", err));
         } else {
@@ -119,7 +120,7 @@ impl App {
             ));
         }
         self.load_dir();
-        self.git_status = crate::git::GitStatus::load(&self.cwd);
+        self.git_status = crate::git::GitStatus::load(&self.nav.cwd);
     }
 
     /// Permanently delete the pending files (no recovery).
@@ -133,7 +134,7 @@ impl App {
                 Err(e) => errors.push(e.to_string()),
             }
         }
-        self.selection.clear();
+        self.nav.selection.clear();
         if let Some(err) = errors.first() {
             self.status_message = Some(format!("Error: {}", err));
         } else {
@@ -144,7 +145,7 @@ impl App {
             ));
         }
         self.load_dir();
-        self.git_status = crate::git::GitStatus::load(&self.cwd);
+        self.git_status = crate::git::GitStatus::load(&self.nav.cwd);
     }
 
     /// Restore the most recently trashed group back to their original paths.
@@ -181,7 +182,7 @@ impl App {
             ));
         }
         self.load_dir();
-        self.git_status = crate::git::GitStatus::load(&self.cwd);
+        self.git_status = crate::git::GitStatus::load(&self.nav.cwd);
     }
 
     /// Cancel the pending deletion.
@@ -192,31 +193,31 @@ impl App {
 
     /// Enter touch mode.
     pub fn begin_touch(&mut self) {
-        self.touch_mode = true;
-        self.touch_input.clear();
+        self.overlay.touch_mode = true;
+        self.overlay.touch_input.clear();
     }
 
     /// Cancel touch mode without creating anything.
     pub fn cancel_touch(&mut self) {
-        self.touch_mode = false;
-        self.touch_input.clear();
+        self.overlay.touch_mode = false;
+        self.overlay.touch_input.clear();
     }
 
     /// Execute touch with the current input and exit touch mode.
     pub fn confirm_touch(&mut self) {
-        let name = self.touch_input.trim().to_string();
-        self.touch_mode = false;
-        self.touch_input.clear();
+        let name = self.overlay.touch_input.trim().to_string();
+        self.overlay.touch_mode = false;
+        self.overlay.touch_input.clear();
         if name.is_empty() {
             self.status_message = Some("File name cannot be empty".to_string());
             return;
         }
-        match ops::touch_file(&self.cwd, &name) {
+        match ops::touch_file(&self.nav.cwd, &name) {
             Ok(_) => {
                 self.status_message = Some(format!("Created \"{}\"", name));
                 self.load_dir();
-                if let Some(idx) = self.entries.iter().position(|e| e.name == name) {
-                    self.selected = idx;
+                if let Some(idx) = self.nav.entries.iter().position(|e| e.name == name) {
+                    self.nav.selected = idx;
                     self.load_preview();
                 }
             }
@@ -232,35 +233,35 @@ impl App {
     }
 
     pub fn touch_push_char(&mut self, c: char) {
-        self.touch_input.push(c);
+        self.overlay.touch_input.push(c);
     }
 
     pub fn touch_pop_char(&mut self) {
-        self.touch_input.pop();
+        self.overlay.touch_input.pop();
     }
 
     /// Enter mkdir mode.
     pub fn begin_mkdir(&mut self) {
-        self.mkdir_mode = true;
-        self.mkdir_input.clear();
+        self.overlay.mkdir_mode = true;
+        self.overlay.mkdir_input.clear();
     }
 
     /// Execute mkdir with the current input and exit mkdir mode.
     pub fn confirm_mkdir(&mut self) {
-        let name = self.mkdir_input.trim().to_string();
-        self.mkdir_mode = false;
-        self.mkdir_input.clear();
+        let name = self.overlay.mkdir_input.trim().to_string();
+        self.overlay.mkdir_mode = false;
+        self.overlay.mkdir_input.clear();
         if name.is_empty() {
             self.status_message = Some("Directory name cannot be empty".to_string());
             return;
         }
-        match ops::make_dir(&self.cwd, &name) {
+        match ops::make_dir(&self.nav.cwd, &name) {
             Ok(_) => {
                 self.status_message = Some(format!("Created directory \"{}\"", name));
                 self.load_dir();
                 // Select the newly created directory.
-                if let Some(idx) = self.entries.iter().position(|e| e.name == name) {
-                    self.selected = idx;
+                if let Some(idx) = self.nav.entries.iter().position(|e| e.name == name) {
+                    self.nav.selected = idx;
                     self.load_preview();
                 }
             }
@@ -272,25 +273,25 @@ impl App {
 
     /// Cancel mkdir mode without creating anything.
     pub fn cancel_mkdir(&mut self) {
-        self.mkdir_mode = false;
-        self.mkdir_input.clear();
+        self.overlay.mkdir_mode = false;
+        self.overlay.mkdir_input.clear();
     }
 
     pub fn mkdir_push_char(&mut self, c: char) {
-        self.mkdir_input.push(c);
+        self.overlay.mkdir_input.push(c);
     }
 
     pub fn mkdir_pop_char(&mut self) {
-        self.mkdir_input.pop();
+        self.overlay.mkdir_input.pop();
     }
 
     /// Return paths of all rename-selected entries, sorted by index.
     fn selected_paths(&self) -> Vec<PathBuf> {
-        let mut indices: Vec<usize> = self.selection.iter().copied().collect();
+        let mut indices: Vec<usize> = self.nav.selection.iter().copied().collect();
         indices.sort_unstable();
         indices
             .iter()
-            .filter_map(|&i| self.entries.get(i))
+            .filter_map(|&i| self.nav.entries.get(i))
             .map(|e| e.path.clone())
             .collect()
     }
@@ -302,18 +303,18 @@ impl App {
     /// Pre-fills the input with a suggested name derived from the source name.
     /// Does nothing if the directory is empty.
     pub fn begin_dup(&mut self) {
-        if let Some(entry) = self.entries.get(self.selected) {
-            self.dup_src = Some(entry.path.clone());
-            self.dup_input = suggest_dup_name(&entry.name);
-            self.dup_mode = true;
+        if let Some(entry) = self.nav.entries.get(self.nav.selected) {
+            self.overlay.dup_src = Some(entry.path.clone());
+            self.overlay.dup_input = suggest_dup_name(&entry.name);
+            self.overlay.dup_mode = true;
         }
     }
 
     /// Cancel the duplication without touching the filesystem.
     pub fn cancel_dup(&mut self) {
-        self.dup_mode = false;
-        self.dup_input.clear();
-        self.dup_src = None;
+        self.overlay.dup_mode = false;
+        self.overlay.dup_input.clear();
+        self.overlay.dup_src = None;
     }
 
     /// Execute the duplication with the current input name.
@@ -322,10 +323,10 @@ impl App {
     /// - Destination already exists → error message, no overwrite.
     /// - Success → copy created, listing refreshed, new entry selected.
     pub fn confirm_dup(&mut self) {
-        let name = self.dup_input.trim().to_string();
-        self.dup_mode = false;
-        self.dup_input.clear();
-        let src = match self.dup_src.take() {
+        let name = self.overlay.dup_input.trim().to_string();
+        self.overlay.dup_mode = false;
+        self.overlay.dup_input.clear();
+        let src = match self.overlay.dup_src.take() {
             Some(p) => p,
             None => return,
         };
@@ -333,7 +334,7 @@ impl App {
             self.status_message = Some("Name cannot be empty".to_string());
             return;
         }
-        let dst = self.cwd.join(&name);
+        let dst = self.nav.cwd.join(&name);
         if dst.exists() {
             self.status_message = Some(format!("'{}' already exists", name));
             return;
@@ -341,8 +342,8 @@ impl App {
         match ops::copy_path(&src, &dst) {
             Ok(()) => {
                 self.load_dir();
-                if let Some(idx) = self.entries.iter().position(|e| e.name == name) {
-                    self.selected = idx;
+                if let Some(idx) = self.nav.entries.iter().position(|e| e.name == name) {
+                    self.nav.selected = idx;
                     self.load_preview();
                 }
                 self.status_message = Some(format!("Duplicated \u{2192} \"{}\"", name));
@@ -355,12 +356,12 @@ impl App {
 
     /// Append a character to the duplicate name input.
     pub fn dup_push_char(&mut self, c: char) {
-        self.dup_input.push(c);
+        self.overlay.dup_input.push(c);
     }
 
     /// Remove the last character from the duplicate name input.
     pub fn dup_pop_char(&mut self) {
-        self.dup_input.pop();
+        self.overlay.dup_input.pop();
     }
 
     // --- Symlink creation (L) ---
@@ -371,18 +372,18 @@ impl App {
     /// the entry's absolute path as the link target.
     /// Does nothing when the directory is empty.
     pub fn begin_symlink(&mut self) {
-        if let Some(entry) = self.entries.get(self.selected) {
-            self.symlink_target = Some(entry.path.clone());
-            self.symlink_input = entry.name.clone();
-            self.symlink_mode = true;
+        if let Some(entry) = self.nav.entries.get(self.nav.selected) {
+            self.overlay.symlink_target = Some(entry.path.clone());
+            self.overlay.symlink_input = entry.name.clone();
+            self.overlay.symlink_mode = true;
         }
     }
 
     /// Cancel symlink mode without touching the filesystem.
     pub fn cancel_symlink(&mut self) {
-        self.symlink_mode = false;
-        self.symlink_input.clear();
-        self.symlink_target = None;
+        self.overlay.symlink_mode = false;
+        self.overlay.symlink_input.clear();
+        self.overlay.symlink_target = None;
     }
 
     /// Execute symlink creation with the current input name.
@@ -392,10 +393,10 @@ impl App {
     /// - Success → symlink created, listing refreshed, new entry selected.
     /// - Non-Unix platforms → informational error message.
     pub fn confirm_symlink(&mut self) {
-        let name = self.symlink_input.trim().to_string();
-        self.symlink_mode = false;
-        self.symlink_input.clear();
-        let target = match self.symlink_target.take() {
+        let name = self.overlay.symlink_input.trim().to_string();
+        self.overlay.symlink_mode = false;
+        self.overlay.symlink_input.clear();
+        let target = match self.overlay.symlink_target.take() {
             Some(p) => p,
             None => return,
         };
@@ -403,7 +404,7 @@ impl App {
             self.status_message = Some("Symlink name cannot be empty".to_string());
             return;
         }
-        let link_path = self.cwd.join(&name);
+        let link_path = self.nav.cwd.join(&name);
         // Use symlink_metadata to catch dangling symlinks that .exists() misses.
         if link_path.exists() || link_path.symlink_metadata().is_ok() {
             self.status_message = Some(format!("'{}' already exists", name));
@@ -413,9 +414,9 @@ impl App {
         match std::os::unix::fs::symlink(&target, &link_path) {
             Ok(()) => {
                 self.load_dir();
-                self.git_status = crate::git::GitStatus::load(&self.cwd);
-                if let Some(idx) = self.entries.iter().position(|e| e.name == name) {
-                    self.selected = idx;
+                self.git_status = crate::git::GitStatus::load(&self.nav.cwd);
+                if let Some(idx) = self.nav.entries.iter().position(|e| e.name == name) {
+                    self.nav.selected = idx;
                     self.load_preview();
                 }
                 self.status_message = Some(format!(
@@ -436,22 +437,22 @@ impl App {
 
     /// Append a character to the symlink name input.
     pub fn symlink_push_char(&mut self, c: char) {
-        self.symlink_input.push(c);
+        self.overlay.symlink_input.push(c);
     }
 
     /// Remove the last character from the symlink name input.
     pub fn symlink_pop_char(&mut self) {
-        self.symlink_input.pop();
+        self.overlay.symlink_input.pop();
     }
 
     /// Open the clipboard inspector overlay.
     pub fn open_clipboard_inspect(&mut self) {
-        self.clipboard_inspect_mode = true;
+        self.overlay.clipboard_inspect_mode = true;
     }
 
     /// Close the clipboard inspector overlay without taking any action.
     pub fn close_clipboard_inspect(&mut self) {
-        self.clipboard_inspect_mode = false;
+        self.overlay.clipboard_inspect_mode = false;
     }
 
     // --- Archive extraction (Z) ---
@@ -460,7 +461,7 @@ impl App {
     ///
     /// Shows `"Not an archive"` if the entry is not a recognized archive type.
     pub fn begin_extract(&mut self) {
-        if let Some(entry) = self.entries.get(self.selected) {
+        if let Some(entry) = self.nav.entries.get(self.nav.selected) {
             if crate::archive::is_archive(&entry.path) {
                 self.pending_extract = Some(entry.path.clone());
             } else {

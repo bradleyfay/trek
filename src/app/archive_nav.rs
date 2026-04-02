@@ -6,22 +6,22 @@ use std::time::SystemTime;
 impl App {
     /// Enter archive browsing mode for `archive_path`.
     ///
-    /// Populates `self.entries` with the archive root contents and sets
+    /// Populates `self.nav.entries` with the archive root contents and sets
     /// `archive_mode = true`.  Navigation (l/h) is handled by
     /// [`archive_enter_dir`] and [`archive_go_up`] instead of the normal
     /// filesystem navigation.
     pub fn enter_archive(&mut self, archive_path: PathBuf) {
         self.archive_path = Some(archive_path);
         self.archive_virt_dir = String::new();
-        self.archive_mode = true;
-        self.selected = 0;
-        self.current_scroll = 0;
+        self.overlay.archive_mode = true;
+        self.nav.selected = 0;
+        self.nav.current_scroll = 0;
         self.load_archive_dir();
     }
 
     /// Exit archive browsing mode and restore the real directory listing.
     pub fn exit_archive(&mut self) {
-        self.archive_mode = false;
+        self.overlay.archive_mode = false;
         self.archive_path = None;
         self.archive_virt_dir = String::new();
         self.archive_flat_paths.clear();
@@ -34,8 +34,8 @@ impl App {
     pub fn archive_enter_dir(&mut self, dir_name: String) {
         let new_virt = format!("{}{}/", self.archive_virt_dir, dir_name);
         self.archive_virt_dir = new_virt;
-        self.selected = 0;
-        self.current_scroll = 0;
+        self.nav.selected = 0;
+        self.nav.current_scroll = 0;
         self.load_archive_dir();
     }
 
@@ -55,12 +55,12 @@ impl App {
             None => String::new(),
         };
         self.archive_virt_dir = parent;
-        self.selected = 0;
-        self.current_scroll = 0;
+        self.nav.selected = 0;
+        self.nav.current_scroll = 0;
         self.load_archive_dir();
     }
 
-    /// Load (or refresh) the archive flat path list and rebuild `self.entries`
+    /// Load (or refresh) the archive flat path list and rebuild `self.nav.entries`
     /// for the current `archive_virt_dir`.
     pub fn load_archive_dir(&mut self) {
         let archive_path = match &self.archive_path {
@@ -108,8 +108,8 @@ impl App {
                 .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
         });
 
-        self.entries = entries;
-        self.entries_truncated = false;
+        self.nav.entries = entries;
+        self.nav.entries_truncated = false;
 
         // Clear git status — not meaningful inside an archive.
         self.git_status = None;
@@ -123,7 +123,7 @@ impl App {
     /// - Directory entries → navigate into them via [`archive_enter_dir`].
     /// - File entries → extract to a temporary directory and load a text preview.
     pub fn archive_enter_selected(&mut self) {
-        if let Some(entry) = self.entries.get(self.selected).cloned() {
+        if let Some(entry) = self.nav.entries.get(self.nav.selected).cloned() {
             if entry.is_dir {
                 self.archive_enter_dir(entry.name.clone());
             } else {
@@ -153,15 +153,15 @@ impl App {
             // Navigate to the temp dir so load_preview picks up the file.
             // We temporarily hijack preview by pointing at the extracted file.
             // Use a one-shot fake: override preview_lines directly after load.
-            let old_cwd = self.cwd.clone();
-            self.cwd = tmp_dir.clone();
+            let old_cwd = self.nav.cwd.clone();
+            self.nav.cwd = tmp_dir.clone();
             self.load_dir();
-            if let Some(idx) = self.entries.iter().position(|e| e.path == extracted) {
-                self.selected = idx;
+            if let Some(idx) = self.nav.entries.iter().position(|e| e.path == extracted) {
+                self.nav.selected = idx;
             }
             self.load_preview();
             // Restore cwd (archive nav state is preserved in archive_path / virt_dir).
-            self.cwd = old_cwd;
+            self.nav.cwd = old_cwd;
         } else {
             // For tar archives, extract via subprocess.
             let archive_str = archive_path.to_string_lossy();
@@ -180,14 +180,14 @@ impl App {
             if result.map(|s| s.success()).unwrap_or(false) {
                 let extracted = tmp_dir.join(&file_name);
                 if extracted.exists() {
-                    let old_cwd = self.cwd.clone();
-                    self.cwd = tmp_dir.clone();
+                    let old_cwd = self.nav.cwd.clone();
+                    self.nav.cwd = tmp_dir.clone();
                     self.load_dir();
-                    if let Some(idx) = self.entries.iter().position(|e| e.name == file_name) {
-                        self.selected = idx;
+                    if let Some(idx) = self.nav.entries.iter().position(|e| e.name == file_name) {
+                        self.nav.selected = idx;
                     }
                     self.load_preview();
-                    self.cwd = old_cwd;
+                    self.nav.cwd = old_cwd;
                 }
             } else {
                 self.status_message =

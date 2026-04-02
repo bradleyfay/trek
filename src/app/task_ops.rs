@@ -7,7 +7,7 @@ use std::sync::mpsc;
 impl App {
     /// Toggle the task manager overlay open/closed.
     pub fn toggle_task_manager(&mut self) {
-        self.task_manager_mode = !self.task_manager_mode;
+        self.overlay.task_manager_mode = !self.overlay.task_manager_mode;
     }
 
     /// Move the task manager cursor up.
@@ -35,7 +35,7 @@ impl App {
             return;
         };
 
-        let dest_dir = self.cwd.clone();
+        let dest_dir = self.nav.cwd.clone();
         let op = clip.op;
         let paths = clip.paths.clone();
 
@@ -168,7 +168,7 @@ impl App {
             .file_name()
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_else(|| path.to_string_lossy().into_owned());
-        let dest_dir = self.cwd.clone();
+        let dest_dir = self.nav.cwd.clone();
         let label = format!("{} → {}", name, dest_dir.to_string_lossy());
 
         let task_id = self.task_manager.push(TaskKind::Extract, label);
@@ -219,7 +219,7 @@ impl App {
             self.task_manager.update(id, status);
             if refresh {
                 self.load_dir();
-                self.git_status = crate::git::GitStatus::load(&self.cwd);
+                self.git_status = crate::git::GitStatus::load(&self.nav.cwd);
             }
         }
     }

@@ -9,22 +9,23 @@ impl App {
     /// shows a status message and leaves `selection` unchanged. This prevents
     /// accidental bulk operations on directory trees from the Space key.
     pub fn toggle_selection(&mut self, idx: usize) {
-        if let Some(entry) = self.entries.get(idx) {
+        if let Some(entry) = self.nav.entries.get(idx) {
             if entry.is_dir {
                 self.status_message = Some("Directory selection not supported".to_string());
                 return;
             }
         }
-        if self.selection.contains(&idx) {
-            self.selection.remove(&idx);
+        if self.nav.selection.contains(&idx) {
+            self.nav.selection.remove(&idx);
         } else {
-            self.selection.insert(idx);
+            self.nav.selection.insert(idx);
         }
     }
 
     /// Mark all non-directory entries in the current directory.
     pub fn select_all(&mut self) {
-        self.selection = self
+        self.nav.selection = self
+            .nav
             .entries
             .iter()
             .enumerate()
@@ -35,7 +36,7 @@ impl App {
 
     /// Clear all selection marks.
     pub fn clear_selections(&mut self) {
-        self.selection.clear();
+        self.nav.selection.clear();
         self.status_message = None;
     }
 
@@ -48,11 +49,11 @@ impl App {
     /// J/K marks whatever the cursor lands on. Callers that operate only on
     /// files (copy, delete, etc.) must filter `selection` by `!entry.is_dir`.
     pub fn select_move_down(&mut self) {
-        self.selection.insert(self.selected);
-        if !self.entries.is_empty() && self.selected < self.entries.len() - 1 {
-            self.selected += 1;
+        self.nav.selection.insert(self.nav.selected);
+        if !self.nav.entries.is_empty() && self.nav.selected < self.nav.entries.len() - 1 {
+            self.nav.selected += 1;
         }
-        self.selection.insert(self.selected);
+        self.nav.selection.insert(self.nav.selected);
         self.load_preview();
     }
 
@@ -61,11 +62,11 @@ impl App {
     /// Mirrors `select_move_down` — directories are included. At the top of
     /// the list the cursor stays and the first entry is marked.
     pub fn select_move_up(&mut self) {
-        self.selection.insert(self.selected);
-        if self.selected > 0 {
-            self.selected -= 1;
+        self.nav.selection.insert(self.nav.selected);
+        if self.nav.selected > 0 {
+            self.nav.selected -= 1;
         }
-        self.selection.insert(self.selected);
+        self.nav.selection.insert(self.nav.selected);
         self.load_preview();
     }
 

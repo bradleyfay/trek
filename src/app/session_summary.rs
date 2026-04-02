@@ -9,10 +9,10 @@ impl App {
     pub fn open_session_summary(&mut self) {
         // Take the initial snapshot the first time.
         if self.session_snapshot.is_none() {
-            self.session_snapshot = Some(SessionSnapshot::capture(&self.cwd));
+            self.session_snapshot = Some(SessionSnapshot::capture(&self.nav.cwd));
         }
 
-        self.session_summary_mode = true;
+        self.overlay.session_summary_mode = true;
         self.session_summary_selected = 0;
 
         if self.session_summary_cache.is_none() {
@@ -22,12 +22,12 @@ impl App {
 
     /// Close the session summary pane without navigating.
     pub fn close_session_summary(&mut self) {
-        self.session_summary_mode = false;
+        self.overlay.session_summary_mode = false;
     }
 
     /// Toggle the session summary pane open/closed.
     pub fn toggle_session_summary(&mut self) {
-        if self.session_summary_mode {
+        if self.overlay.session_summary_mode {
             self.close_session_summary();
         } else {
             self.open_session_summary();
@@ -36,17 +36,17 @@ impl App {
 
     /// Reset the session checkpoint to now and refresh the summary.
     pub fn reset_session_snapshot(&mut self) {
-        let root = self.cwd.clone();
+        let root = self.nav.cwd.clone();
         if let Some(ref mut snap) = self.session_snapshot {
             snap.root = root;
             snap.reset();
         } else {
-            self.session_snapshot = Some(SessionSnapshot::capture(&self.cwd));
+            self.session_snapshot = Some(SessionSnapshot::capture(&self.nav.cwd));
         }
         self.session_summary_cache = None;
         self.session_summary_total = 0;
         self.session_summary_selected = 0;
-        if self.session_summary_mode {
+        if self.overlay.session_summary_mode {
             self.recompute_session_summary();
         }
         self.status_message = Some("Session checkpoint reset".to_string());
@@ -98,7 +98,7 @@ impl App {
             .session_snapshot
             .as_ref()
             .map(|s| s.root.clone())
-            .unwrap_or_else(|| self.cwd.clone());
+            .unwrap_or_else(|| self.nav.cwd.clone());
         let abs_path = root.join(&entry.path);
 
         let parent = match abs_path.parent() {
@@ -109,17 +109,17 @@ impl App {
             .file_name()
             .map(|n| n.to_string_lossy().into_owned());
 
-        self.filter_input.clear();
-        self.filter_mode = false;
+        self.nav.filter_input.clear();
+        self.nav.filter_mode = false;
         self.push_history(parent.clone());
-        self.cwd = parent;
-        self.selected = 0;
-        self.current_scroll = 0;
+        self.nav.cwd = parent;
+        self.nav.selected = 0;
+        self.nav.current_scroll = 0;
         self.load_dir();
 
         if let Some(name) = file_name {
-            if let Some(idx) = self.entries.iter().position(|e| e.name == name) {
-                self.selected = idx;
+            if let Some(idx) = self.nav.entries.iter().position(|e| e.name == name) {
+                self.nav.selected = idx;
                 self.load_preview();
             }
         }
