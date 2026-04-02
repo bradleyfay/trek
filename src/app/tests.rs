@@ -3093,123 +3093,112 @@ fn cancel_extract_clears_pending() {
 
 // ── session persistence tests (issue #87) ────────────────────────────────────
 
-use std::sync::Mutex;
-
-/// Serializes session tests that mutate XDG_DATA_HOME.
-static SESSION_LOCK: Mutex<()> = Mutex::new(());
-
-fn with_temp_session<F: FnOnce()>(f: F) {
-    let _guard = SESSION_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+/// Return a unique per-test temporary session file path. No env mutation needed.
+fn temp_session_path(tag: &str) -> std::path::PathBuf {
     static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     let n = COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let tmp = std::env::temp_dir().join(format!("trek_sess_{}_{}", std::process::id(), n));
-    let _ = std::fs::create_dir_all(&tmp);
-    let prev = std::env::var_os("XDG_DATA_HOME");
-    std::env::set_var("XDG_DATA_HOME", &tmp);
-    f();
-    match prev {
-        Some(v) => std::env::set_var("XDG_DATA_HOME", v),
-        None => std::env::remove_var("XDG_DATA_HOME"),
-    }
-    let _ = std::fs::remove_dir_all(&tmp);
+    std::env::temp_dir()
+        .join(format!(
+            "trek_app_sess_{}_{}_{}",
+            std::process::id(),
+            n,
+            tag
+        ))
+        .join("trek")
+        .join("session")
 }
 
 /// Given: no session file exists
-/// When: session::load() is called
+/// When: session::load_from() is called
 /// Then: returns empty session without panicking
 #[test]
 fn session_load_returns_empty_when_no_file() {
-    with_temp_session(|| {
-        let s = crate::session::load();
-        assert!(s.cwd.is_none());
-        assert!(s.marks.is_empty());
-    });
+    let path = temp_session_path("empty");
+    let s = crate::session::load_from(&path);
+    assert!(s.cwd.is_none());
+    assert!(s.marks.is_empty());
 }
 
 /// Given: cwd and marks are saved
-/// When: session::load() is called
+/// When: session::load_from() is called
 /// Then: cwd and marks are restored correctly
 #[test]
 fn session_save_then_load_restores_cwd_and_marks() {
-    with_temp_session(|| {
-        let tmp = std::env::temp_dir();
-        let marks = {
-            let mut m = std::collections::HashMap::new();
-            m.insert('a', tmp.clone());
-            m
-        };
-        crate::session::save(
-            &tmp,
-            &marks,
-            false,
-            crate::app::SortMode::default(),
-            crate::app::SortOrder::default(),
-            None,
-        )
-        .unwrap();
-        let s = crate::session::load();
-        assert_eq!(s.cwd, Some(tmp.clone()));
-        assert_eq!(s.marks.get(&'a'), Some(&tmp));
-    });
+    let path = temp_session_path("cwd_marks");
+    let tmp = std::env::temp_dir();
+    let marks = {
+        let mut m = std::collections::HashMap::new();
+        m.insert('a', tmp.clone());
+        m
+    };
+    crate::session::save_to(
+        &path,
+        &tmp,
+        &marks,
+        false,
+        crate::app::SortMode::default(),
+        crate::app::SortOrder::default(),
+        None,
+    )
+    .unwrap();
+    let s = crate::session::load_from(&path);
+    assert_eq!(s.cwd, Some(tmp.clone()));
+    assert_eq!(s.marks.get(&'a'), Some(&tmp));
 }
 
 /// Given: session file contains a cwd that no longer exists
-/// When: session::load() is called
+/// When: session::load_from() is called
 /// Then: cwd is None (silently skipped)
 #[test]
 fn session_load_skips_missing_cwd() {
-    with_temp_session(|| {
-        let marks = std::collections::HashMap::new();
-        let gone = std::path::PathBuf::from("/tmp/__trek_gone_dir_that_does_not_exist__");
-        crate::session::save(
-            &gone,
-            &marks,
-            false,
-            crate::app::SortMode::default(),
-            crate::app::SortOrder::default(),
-            None,
-        )
-        .unwrap();
-        let s = crate::session::load();
-        assert!(s.cwd.is_none());
-    });
+    let path = temp_session_path("gone_cwd");
+    let gone = std::path::PathBuf::from("/tmp/__trek_gone_dir_that_does_not_exist__");
+    crate::session::save_to(
+        &path,
+        &gone,
+        &std::collections::HashMap::new(),
+        false,
+        crate::app::SortMode::default(),
+        crate::app::SortOrder::default(),
+        None,
+    )
+    .unwrap();
+    let s = crate::session::load_from(&path);
+    assert!(s.cwd.is_none());
 }
 
 /// Given: session file contains a mark pointing to a deleted path
-/// When: session::load() is called
+/// When: session::load_from() is called
 /// Then: that mark is silently omitted
 #[test]
 fn session_load_skips_missing_mark_paths() {
-    with_temp_session(|| {
-        let tmp = std::env::temp_dir();
-        let marks = {
-            let mut m = std::collections::HashMap::new();
-            m.insert('z', std::path::PathBuf::from("/tmp/__trek_no_such_dir__"));
-            m
-        };
-        crate::session::save(
-            &tmp,
-            &marks,
-            false,
-            crate::app::SortMode::default(),
-            crate::app::SortOrder::default(),
-            None,
-        )
-        .unwrap();
-        let s = crate::session::load();
-        assert!(s.marks.get(&'z').is_none());
-    });
+    let path = temp_session_path("gone_mark");
+    let tmp = std::env::temp_dir();
+    let marks = {
+        let mut m = std::collections::HashMap::new();
+        m.insert('z', std::path::PathBuf::from("/tmp/__trek_no_such_dir__"));
+        m
+    };
+    crate::session::save_to(
+        &path,
+        &tmp,
+        &marks,
+        false,
+        crate::app::SortMode::default(),
+        crate::app::SortOrder::default(),
+        None,
+    )
+    .unwrap();
+    let s = crate::session::load_from(&path);
+    assert!(s.marks.get(&'z').is_none());
 }
 
-/// Given: session_path() is called with XDG_DATA_HOME set
-/// When: the path is inspected
-/// Then: it ends with trek/session
+/// session_path() always produces a path ending with "trek/session" regardless
+/// of environment — no env mutation needed to verify the suffix.
 #[test]
 fn session_path_ends_with_trek_session() {
-    with_temp_session(|| {
-        let p = crate::session::session_path();
-        assert!(p.ends_with("trek/session"), "got: {}", p.display());
-    });
+    let p = crate::session::session_path();
+    assert!(p.ends_with("trek/session"), "got: {}", p.display());
 }
 
 /// Given: a directory is selected

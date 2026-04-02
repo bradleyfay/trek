@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **No clipboard popups during tests** — `osc52_copy` now checks `IsTerminal` before writing the OSC 52 escape sequence. Prevents macOS clipboard-access permission dialogs when running `cargo test`.
 - **Duplicate name suggestion safe for multi-byte filenames** — `suggest_dup_name` previously used `str::find('.')` and raw byte-offset slicing, which is unsafe for filenames containing multi-byte UTF-8 characters before the first dot (e.g. `café.txt`, `日本語.txt`). Replaced with `str::split_once('.')` which always splits on a valid char boundary.
 - **Exhaustive `TaskKind` match in task progress label** — a wildcard `_` arm in `task_ops.rs` was silently swallowing any future `TaskKind` variants. Replaced with an explicit arm for every variant (`Copy`, `Move`, `Extract`) so the compiler will flag unhandled additions at compile time.
+- **Thread-safe session and bookmark tests** — `session.rs`, `bookmarks.rs`, and `app/tests.rs` previously used `std::env::set_var` / `remove_var` to redirect `XDG_DATA_HOME` during tests. These calls are unsound in parallel test runs (undefined behavior per Rust's docs) and will require `unsafe` in a future edition. Introduced `load_from(path)` / `save_to(path, ...)` helpers in both `session` and `bookmarks` modules; all tests now pass explicit per-test temp paths and make no env mutations.
 
 ## [0.65.0] - 2026-04-01
 
