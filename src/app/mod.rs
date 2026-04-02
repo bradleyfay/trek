@@ -354,6 +354,11 @@ pub struct App {
     /// flight. Dropping this receiver cancels the background thread implicitly.
     pub preview_rx: Option<std::sync::mpsc::Receiver<crate::app::preview::PreviewResult>>,
 
+    // --- Async git status ---
+    /// Receive end of the async git-status channel. `None` when no load is in
+    /// flight. Dropping this receiver cancels the background thread implicitly.
+    pub git_status_rx: Option<std::sync::mpsc::Receiver<crate::git::GitStatusAsyncResult>>,
+
     // --- Clipboard inspector (F) ---
     /// True while the clipboard contents overlay is open.
     pub clipboard_inspect_mode: bool,
@@ -633,6 +638,7 @@ impl App {
             last_click_pos: None,
             preview_loading: false,
             preview_rx: None,
+            git_status_rx: None,
             recursive_watcher,
             change_feed: change_feed::ChangeFeed::new(),
             change_feed_mode: false,
@@ -686,14 +692,12 @@ impl App {
                 .retain(|e| e.name.to_lowercase().contains(&pattern));
         }
 
-        // Hide gitignored entries when the toggle is active.
-        if self.hide_gitignored {
-            self.gitignored_names = crate::git::load_ignored(&self.cwd);
-            if !self.gitignored_names.is_empty() {
-                self.entries
-                    .retain(|e| !self.gitignored_names.contains(&e.name));
-            }
-        } else {
+        // Filter gitignored entries using the cached names from the last async
+        // load. The async load (below) will refresh these for the new directory.
+        if self.hide_gitignored && !self.gitignored_names.is_empty() {
+            self.entries
+                .retain(|e| !self.gitignored_names.contains(&e.name));
+        } else if !self.hide_gitignored {
             self.gitignored_names.clear();
         }
 
@@ -719,9 +723,10 @@ impl App {
             self.parent_selected = 0;
         }
 
-        // Refresh git status whenever we navigate to a new directory.
-        self.git_status = GitStatus::load(&self.cwd);
+        // Reset diff-preview mode on navigation; kick off async git-status load
+        // so the UI thread is never blocked by git subprocesses.
         self.diff_preview_mode = false;
+        self.load_git_status_async();
 
         // Replace the watcher so it tracks the current directory.
         // Only recreate it when watching is active (watcher is Some).
@@ -730,6 +735,96 @@ impl App {
         }
 
         self.load_preview();
+    }
+
+    /// Spawn a background thread to load git status and (when `hide_gitignored`
+    /// is active) the set of gitignored entry names for `cwd`.
+    ///
+    /// The result is delivered via `self.git_status_rx` and consumed by
+    /// `check_git_status_rx` on the next event-loop tick.  Any previously
+    /// in-flight load is cancelled by dropping the old receiver.
+    pub fn load_git_status_async(&mut self) {
+        let cwd = self.cwd.clone();
+        let hide_gitignored = self.hide_gitignored;
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.git_status_rx = Some(rx);
+        std::thread::spawn(move || {
+            let status = crate::git::GitStatus::load(&cwd);
+            let ignored_names = if hide_gitignored {
+                Some(crate::git::load_ignored(&cwd))
+            } else {
+                None
+            };
+            let _ = tx.send(crate::git::GitStatusAsyncResult {
+                status,
+                ignored_names,
+            });
+        });
+    }
+
+    /// Poll the async git-status receiver and apply the result if ready.
+    ///
+    /// Returns `true` when a result was received so the caller knows a redraw
+    /// is warranted.
+    pub fn check_git_status_rx(&mut self) -> bool {
+        let result = match self.git_status_rx.as_ref() {
+            Some(rx) => match rx.try_recv() {
+                Ok(r) => r,
+                // Result not yet ready — keep the receiver alive.
+                Err(std::sync::mpsc::TryRecvError::Empty) => return false,
+                // Sender dropped (thread panicked or was cancelled) — clear
+                // the receiver so the polling loop does not spin forever.
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    self.git_status_rx = None;
+                    return false;
+                }
+            },
+            None => return false,
+        };
+        self.git_status_rx = None;
+        self.git_status = result.status;
+
+        if let Some(ignored) = result.ignored_names {
+            let changed = ignored != self.gitignored_names;
+            self.gitignored_names = ignored;
+            if changed && self.hide_gitignored {
+                // Ignored names changed for this directory; re-filter the
+                // listing without spawning another git subprocess.
+                self.reapply_gitignore_filter();
+            }
+        } else if !self.hide_gitignored {
+            self.gitignored_names.clear();
+        }
+        true
+    }
+
+    /// Re-read the current directory and re-apply all active filters without
+    /// touching git state.  Called when the async gitignored-names result
+    /// differs from the cached set so the listing can be updated to match.
+    fn reapply_gitignore_filter(&mut self) {
+        let (entries, truncated) = match Self::read_entries(
+            &self.cwd,
+            self.show_hidden,
+            self.sort_mode,
+            self.sort_order,
+        ) {
+            Ok(r) => r,
+            Err(_) => return,
+        };
+        self.entries = entries;
+        self.entries_truncated = truncated;
+        if !self.filter_input.is_empty() {
+            let pattern = self.filter_input.to_lowercase();
+            self.entries
+                .retain(|e| e.name.to_lowercase().contains(&pattern));
+        }
+        if self.hide_gitignored && !self.gitignored_names.is_empty() {
+            self.entries
+                .retain(|e| !self.gitignored_names.contains(&e.name));
+        }
+        if self.selected >= self.entries.len() {
+            self.selected = self.entries.len().saturating_sub(1);
+        }
     }
 
     /// Read and sort directory entries, enforcing MAX_ENTRIES.

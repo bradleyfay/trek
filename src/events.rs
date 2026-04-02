@@ -54,10 +54,11 @@ pub fn run(
     }
 
     loop {
-        // Deliver any completed async preview and background file-op results
-        // before drawing so the freshest data is always rendered on this frame.
+        // Deliver any completed async results before drawing so the freshest
+        // data is always rendered on this frame.
         app.check_preview_rx();
         app.check_task_rx();
+        app.check_git_status_rx();
 
         terminal.draw(|f| crate::ui::draw(f, &mut app))?;
 
@@ -66,6 +67,7 @@ pub fn run(
         let has_background_work = app.watcher.is_some()
             || app.recursive_watcher.is_some()
             || app.preview_rx.is_some()
+            || app.git_status_rx.is_some()
             || !app.task_pending.is_empty();
         let maybe_event = if has_background_work {
             if event::poll(Duration::from_millis(150))? {

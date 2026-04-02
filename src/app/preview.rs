@@ -561,7 +561,7 @@ impl App {
 
     /// Re-run `git status` for the current directory and refresh the preview.
     pub fn refresh_git_status(&mut self) {
-        self.git_status = crate::git::GitStatus::load(&self.cwd);
+        self.load_git_status_async();
         self.load_preview();
         self.status_message = Some("Git status refreshed".to_string());
     }

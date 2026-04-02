@@ -157,6 +157,15 @@ pub fn load_ignored(dir: &Path) -> HashSet<String> {
         .collect()
 }
 
+/// Result type returned by the async git-status background thread.
+pub struct GitStatusAsyncResult {
+    /// Current repository status, or `None` outside a git repo.
+    pub status: Option<GitStatus>,
+    /// Gitignored entry names for the directory, or `None` when
+    /// `hide_gitignored` was false so the load was skipped.
+    pub ignored_names: Option<HashSet<String>>,
+}
+
 /// Run a git command with `-C <dir>` and return stdout on success.
 fn run_git(dir: &Path, args: &[&str]) -> Option<String> {
     let out = Command::new("git")
