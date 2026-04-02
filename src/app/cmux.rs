@@ -13,8 +13,8 @@ use super::opener::{default_rules, OpenerConfig};
 ///
 /// For the two cmux-native viewer types (markdown and browser), Trek checks
 /// whether a surface of that type is already open in the current workspace
-/// using `cmux list-surfaces --json`. If one is found the file is opened as a
-/// new tab inside the existing surface instead of spawning a fresh pane.
+/// using `cmux list-surfaces --json`. If one is found the existing surface
+/// navigates to the new file, replacing the current view in place.
 ///
 /// When Trek is not running inside cmux and the built-in `$EDITOR` fallback
 /// applies, a status-bar hint is shown instead.
@@ -53,6 +53,22 @@ impl CmuxViewer {
         }
     }
 
+    /// Command to navigate the existing active view of `surface_id` to
+    /// `escaped_path`, replacing its content rather than opening a new tab.
+    fn navigate_command(&self, surface_id: &str, escaped_path: &str) -> String {
+        match self {
+            CmuxViewer::Markdown => {
+                format!(
+                    "cmux markdown navigate {} --surface {}",
+                    escaped_path, surface_id
+                )
+            }
+            CmuxViewer::Browser => {
+                format!("cmux browser {} navigate {}", surface_id, escaped_path)
+            }
+        }
+    }
+
     /// Command to open `escaped_path` in a brand-new viewer surface.
     fn new_command(&self, escaped_path: &str) -> String {
         match self {
@@ -73,8 +89,8 @@ impl App {
     ///    binary types, `$EDITOR` in a new cmux surface for code/text.
     ///
     /// For `cmux markdown open {}` and `cmux browser open {}` commands, Trek
-    /// first checks whether a surface of that type already exists and reuses it
-    /// (opening a new tab) rather than creating a fresh pane.
+    /// first checks whether a surface of that type already exists and navigates
+    /// it to the new file rather than creating a fresh pane.
     ///
     /// Does nothing when the selected entry is a directory.
     pub fn open_in_cmux_tab(&mut self) {
@@ -153,14 +169,13 @@ impl App {
     /// Open `path` in a cmux viewer surface, reusing an existing surface of
     /// the correct type when one is available.
     ///
-    /// - If a surface of the viewer type exists: opens `path` as a new tab
-    ///   inside that surface (`cmux markdown open --surface` /
-    ///   `cmux browser <id> tab new`).
+    /// - If a surface of the viewer type exists: navigates that surface to
+    ///   `path`, replacing the current view in place.
     /// - If no surface of that type exists: opens a fresh viewer surface.
     fn open_in_viewer(&mut self, viewer: CmuxViewer, name: &str, path: &Path) {
         let escaped = shell_escape(&path.to_string_lossy());
         let cmd = match find_cmux_surface_of_type(viewer.surface_type()) {
-            Some(surface_id) => viewer.reuse_command(&surface_id, &escaped),
+            Some(surface_id) => viewer.navigate_command(&surface_id, &escaped),
             None => viewer.new_command(&escaped),
         };
         self.spawn_opener_command(name, &cmd);
@@ -683,6 +698,39 @@ mod tests {
         let viewer = CmuxViewer::Browser;
         let cmd = viewer.reuse_command("surface:2", "/home/user/index.html");
         assert_eq!(cmd, "cmux browser surface:2 tab new /home/user/index.html");
+    }
+
+    /// Given: a Markdown viewer and an existing surface ID
+    /// When: navigate_command is called
+    /// Then: produces cmux markdown navigate --surface (not open --surface)
+    #[test]
+    fn markdown_viewer_navigate_command_uses_navigate() {
+        let viewer = CmuxViewer::Markdown;
+        let cmd = viewer.navigate_command("surface:3", "/home/user/README.md");
+        assert_eq!(
+            cmd,
+            "cmux markdown navigate /home/user/README.md --surface surface:3"
+        );
+    }
+
+    /// Given: a Browser viewer and an existing surface ID
+    /// When: navigate_command is called
+    /// Then: produces cmux browser <id> navigate (not tab new)
+    #[test]
+    fn browser_viewer_navigate_command_uses_navigate() {
+        let viewer = CmuxViewer::Browser;
+        let cmd = viewer.navigate_command("surface:2", "/home/user/index.html");
+        assert_eq!(cmd, "cmux browser surface:2 navigate /home/user/index.html");
+    }
+
+    /// Given: a Markdown viewer and an existing surface ID
+    /// When: navigate_command is called
+    /// Then: does NOT contain "open" (must not open a new tab)
+    #[test]
+    fn markdown_navigate_command_does_not_open_new_tab() {
+        let viewer = CmuxViewer::Markdown;
+        let cmd = viewer.navigate_command("surface:3", "/home/user/README.md");
+        assert!(!cmd.contains("open"), "navigate_command must not use 'open': {cmd}");
     }
 
     /// Given: a Markdown viewer with no existing surface
