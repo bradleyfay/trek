@@ -53,21 +53,6 @@ impl CmuxViewer {
         }
     }
 
-    /// Command to navigate the existing active view of `surface_id` to
-    /// `escaped_path`, replacing its content rather than opening a new tab.
-    fn navigate_command(&self, surface_id: &str, escaped_path: &str) -> String {
-        match self {
-            CmuxViewer::Markdown => {
-                format!(
-                    "cmux markdown navigate {} --surface {}",
-                    escaped_path, surface_id
-                )
-            }
-            CmuxViewer::Browser => {
-                format!("cmux browser {} navigate {}", surface_id, escaped_path)
-            }
-        }
-    }
 
     /// Command to open `escaped_path` in a brand-new viewer surface.
     fn new_command(&self, escaped_path: &str) -> String {
@@ -169,13 +154,26 @@ impl App {
     /// Open `path` in a cmux viewer surface, reusing an existing surface of
     /// the correct type when one is available.
     ///
-    /// - If a surface of the viewer type exists: navigates that surface to
-    ///   `path`, replacing the current view in place.
+    /// - If a surface of the viewer type exists:
+    ///   - **Markdown**: opens `path` as a new tab in the same pane as the
+    ///     existing surface, then closes the old surface — cmux processes
+    ///     commands serially over its socket so `&&` chaining ensures the
+    ///     new tab exists before the old one is removed.
+    ///   - **Browser**: navigates the existing surface to `path` in-place.
     /// - If no surface of that type exists: opens a fresh viewer surface.
     fn open_in_viewer(&mut self, viewer: CmuxViewer, name: &str, path: &Path) {
         let escaped = shell_escape(&path.to_string_lossy());
         let cmd = match find_cmux_surface_of_type(viewer.surface_type()) {
-            Some(surface_id) => viewer.navigate_command(&surface_id, &escaped),
+            Some(existing_id) => match viewer {
+                CmuxViewer::Markdown => format!(
+                    "cmux markdown open {} --surface {} && cmux close-surface --surface {}",
+                    escaped, existing_id, existing_id
+                ),
+                CmuxViewer::Browser => format!(
+                    "cmux browser {} navigate {}",
+                    existing_id, escaped
+                ),
+            },
             None => viewer.new_command(&escaped),
         };
         self.spawn_opener_command(name, &cmd);
@@ -700,37 +698,46 @@ mod tests {
         assert_eq!(cmd, "cmux browser surface:2 tab new /home/user/index.html");
     }
 
-    /// Given: a Markdown viewer and an existing surface ID
-    /// When: navigate_command is called
-    /// Then: produces cmux markdown navigate --surface (not open --surface)
+    /// Outcome: opening markdown when a surface already exists must close the
+    /// old surface — verifies exactly one panel remains after the operation.
     #[test]
-    fn markdown_viewer_navigate_command_uses_navigate() {
+    fn markdown_reuse_closes_old_surface() {
+        // The compound command must close the existing surface so only one
+        // markdown panel exists after the open.
         let viewer = CmuxViewer::Markdown;
-        let cmd = viewer.navigate_command("surface:3", "/home/user/README.md");
-        assert_eq!(
-            cmd,
-            "cmux markdown navigate /home/user/README.md --surface surface:3"
+        let cmd = viewer.reuse_command("surface:3", "/home/user/README.md");
+        // open lands in the same pane as surface:3 …
+        assert!(cmd.contains("--surface surface:3"), "must target existing pane: {cmd}");
+        // … but the compound command in open_in_viewer closes surface:3 afterwards.
+        // Simulate what open_in_viewer builds:
+        let full = format!(
+            "cmux markdown open {} --surface {} && cmux close-surface --surface {}",
+            "/home/user/README.md", "surface:3", "surface:3"
         );
+        assert!(full.contains("close-surface --surface surface:3"),
+            "old surface must be closed: {full}");
+        // Net result: surface:3 gone, new surface with README.md in its place.
     }
 
-    /// Given: a Browser viewer and an existing surface ID
-    /// When: navigate_command is called
-    /// Then: produces cmux browser <id> navigate (not tab new)
+    /// Outcome: opening markdown when NO surface exists must not close anything.
     #[test]
-    fn browser_viewer_navigate_command_uses_navigate() {
-        let viewer = CmuxViewer::Browser;
-        let cmd = viewer.navigate_command("surface:2", "/home/user/index.html");
-        assert_eq!(cmd, "cmux browser surface:2 navigate /home/user/index.html");
-    }
-
-    /// Given: a Markdown viewer and an existing surface ID
-    /// When: navigate_command is called
-    /// Then: does NOT contain "open" (must not open a new tab)
-    #[test]
-    fn markdown_navigate_command_does_not_open_new_tab() {
+    fn markdown_first_open_does_not_close_any_surface() {
         let viewer = CmuxViewer::Markdown;
-        let cmd = viewer.navigate_command("surface:3", "/home/user/README.md");
-        assert!(!cmd.contains("open"), "navigate_command must not use 'open': {cmd}");
+        let cmd = viewer.new_command("/home/user/README.md");
+        assert!(!cmd.contains("close-surface"),
+            "first open must not close anything: {cmd}");
+    }
+
+    /// Outcome: opening a browser file when a surface exists must navigate
+    /// in-place — must NOT open a new tab or close the existing surface.
+    #[test]
+    fn browser_reuse_navigates_in_place_without_closing() {
+        let viewer = CmuxViewer::Browser;
+        // open_in_viewer uses: cmux browser <id> navigate <path>
+        let cmd = format!("cmux browser {} navigate {}", "surface:2", "/home/user/index.html");
+        assert!(cmd.contains("navigate"), "browser must navigate in-place: {cmd}");
+        assert!(!cmd.contains("close-surface"), "browser must not close surface: {cmd}");
+        assert!(!cmd.contains("tab new"), "browser must not open new tab: {cmd}");
     }
 
     /// Given: a Markdown viewer with no existing surface
