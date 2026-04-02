@@ -197,6 +197,8 @@ impl App {
 
                 match std::process::Command::new("cmux")
                     .args(["send", "--surface", &surface_ref, &format!("{}\r", command)])
+                    .stdout(std::process::Stdio::null())
+                    .stderr(std::process::Stdio::null())
                     .status()
                 {
                     Ok(_) => {
@@ -218,9 +220,14 @@ impl App {
     }
 
     /// Execute `command` via `sh -c` as a background subprocess.
+    ///
+    /// stdout and stderr are redirected to null so subprocess output does not
+    /// corrupt the Trek TUI or leak into test output.
     fn spawn_opener_command(&mut self, name: &str, command: &str) {
         match std::process::Command::new("sh")
             .args(["-c", command])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
             .spawn()
         {
             Ok(_) => {
@@ -263,6 +270,8 @@ impl App {
 
                 match std::process::Command::new("cmux")
                     .args(["send", "--surface", &surface_ref, &format!("{}\r", command)])
+                    .stdout(std::process::Stdio::null())
+                    .stderr(std::process::Stdio::null())
                     .status()
                 {
                     Ok(_) => {

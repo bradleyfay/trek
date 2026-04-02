@@ -248,6 +248,13 @@ mod tests {
     /// Then: a status message is set (open_to_the_right gracefully declines outside cmux)
     #[test]
     fn double_click_triggers_open_to_the_right_outside_cmux() {
+        // This test exercises the "not in cmux" code path.  Skip it when the
+        // test suite runs inside a real cmux session to avoid spawning live
+        // surfaces and editors.
+        if std::env::var("CMUX_WORKSPACE_ID").is_ok() {
+            return;
+        }
+
         let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let mut app = App::new(Some(dir)).expect("app init");
 

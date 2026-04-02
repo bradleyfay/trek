@@ -3393,6 +3393,11 @@ fn load_dir_updates_watcher_to_new_directory() {
 /// Then: status_message does NOT start with "Yanked:" (old yank behavior removed)
 #[test]
 fn enter_selected_on_file_does_not_yank() {
+    // This test calls enter_selected() on a file which routes to open_in_cmux_tab().
+    // Skip when running inside a real cmux session to avoid spawning live surfaces.
+    if std::env::var("CMUX_WORKSPACE_ID").is_ok() {
+        return;
+    }
     let tmp = std::env::temp_dir().join(format!("trek_cmux_noyank_{}", std::process::id()));
     let _ = std::fs::create_dir_all(&tmp);
     std::fs::write(tmp.join("readme.txt"), b"hello").unwrap();
