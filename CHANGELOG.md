@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Named constant for pre-layout preview height fallback** — the bare `40` in `ensure_preview_cursor_visible` is now `PRE_LAYOUT_VISIBLE_LINES` with a doc comment explaining it is used before the first layout pass when `preview_area` has not yet been populated (#142).
 - **`read_file_preview` accepts `&Path` instead of `&PathBuf`** — fixes `clippy::ptr_arg`; callers with a `&PathBuf` coerce automatically, no behavioral change (#138).
 - **Removed redundant `cfg(test)` history accessor wrappers** — `history_len()` and `history_position()` in `navigation.rs` were thin wrappers around `pub(super)` fields already accessible from `app::tests`. Removed; tests now access `history.len()` and `history_pos` directly (#145).
 - **History tests exercise `history_back()` instead of mutating fields directly** — `push_history_then_back_restores_position` and `forward_history_discarded_on_new_navigation` previously bypassed `history_back()` by writing to `history_pos` directly. Rewritten to call the public API with real distinct temp directories and assert on observable `cwd` changes (#143).

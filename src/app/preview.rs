@@ -380,10 +380,14 @@ impl App {
 
     /// Adjust `preview_scroll` so `preview_cursor` stays within the visible area.
     pub(crate) fn ensure_preview_cursor_visible(&mut self) {
+        // Fallback used before the first layout pass (term_height is 0 or 1 and
+        // preview_area has not been populated yet). 40 is a reasonable estimate
+        // for a typical terminal; the real value is set on the next render frame.
+        const PRE_LAYOUT_VISIBLE_LINES: usize = 40;
         let visible = if self.preview_area.3 > 2 {
             (self.preview_area.3 - 2) as usize
         } else {
-            40
+            PRE_LAYOUT_VISIBLE_LINES
         };
         if self.preview_cursor < self.preview_scroll {
             self.preview_scroll = self.preview_cursor;
