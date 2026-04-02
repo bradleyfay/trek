@@ -1,6 +1,6 @@
 # Keybinding Reference
 
-Trek v0.62.1
+Trek v0.65.0
 
 This page lists every keybinding available in Trek, organized by category.
 If you can't find what you need here, press `:` to open the command palette and
@@ -36,7 +36,9 @@ Bookmarks section below.
 
 ## cmux Integration
 
-Pressing `l`, `→`, or `Enter` on a **file** opens it in a new cmux surface. Trek routes the file based on its type:
+Pressing `l` or `→` on a **file** enters **preview focus mode** — the cursor moves into the preview pane so you can read and select lines without opening an editor. Press `Enter` to open the file in `$EDITOR`, or `←` / `Esc` to return to the file tree. See [Preview Focus](#preview-focus) below.
+
+Pressing `Enter` on a file opens it directly in a new cmux surface. Trek routes the file based on its type:
 
 | File type | Opens with |
 |-----------|-----------|
@@ -55,6 +57,32 @@ Pressing `l`, `→`, or `Enter` on a **file** opens it in a new cmux surface. Tr
 When Trek is not running inside cmux, pressing `l`, `→`, or `Enter` on a file, right-clicking a file, or double-clicking a file all fall back gracefully and show a hint in the status bar. Use `o` to open in `$EDITOR` directly, or `O` to open with the system default, without requiring cmux.
 
 To copy a file path without opening the file, use `y` (relative path) or `Y` (absolute path). The `l/→/Enter` keys no longer yank to the clipboard.
+
+---
+
+## Preview Focus
+
+Pressing `→` or `l` on a file enters preview focus mode. The preview pane border turns cyan and the cursor moves inside the file content.
+
+| Key | Action |
+|-----|--------|
+| `j` / `↓` | Move cursor down one line |
+| `k` / `↑` | Move cursor up one line |
+| `J` | Extend selection down (sets anchor on first press) |
+| `K` | Extend selection up (sets anchor on first press) |
+| `g` | Jump to first line |
+| `G` | Jump to last line |
+| `[` / `]` | Scroll preview up / down 5 lines |
+| `Tab` | Open cmux surface picker — send selected lines to a surface |
+| `Enter` | Open file in `$EDITOR` and exit focus |
+| `←` / `h` / `Esc` | Return focus to file tree |
+| `\`, `w`, `#`, `U`, `?`, `q` | Layout toggles and quit work as normal |
+
+### Sending lines to a cmux surface
+
+With one or more lines selected, press `Tab` to open the surface picker. The picker lists all surfaces in the current cmux workspace — terminals, browsers, and markdown viewers. Type to filter by title or type, use `↑`/`↓` to navigate, and press `Enter` to send.
+
+After sending, cmux shifts keyboard focus to the target pane so your next keystrokes land there immediately — no manual window switching required.
 
 ---
 

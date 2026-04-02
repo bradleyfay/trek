@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.65.0] - 2026-04-01
+
+### Added
+
+- **Preview focus mode** — pressing `→` or `l` on a **file** now moves the cursor into the preview pane instead of opening the file in an editor. The preview border turns cyan to signal focus. While focused:
+  - `j` / `↓` and `k` / `↑` move a highlighted cursor line-by-line through the file
+  - `J` / `K` extend a selection range (anchor set on first press; selected lines highlighted in dark gray)
+  - `g` / `G` jump to the first / last line
+  - `[` / `]` still scroll the pane
+  - `Enter` opens the file in `$EDITOR` and exits focus
+  - `←`, `h`, or `Esc` return focus to the file tree
+  - Layout toggles (`\`, `w`, `#`, `U`, `?`, `q`) continue to work while the preview is focused
+
+- **Send lines to cmux surface** (`Tab` in preview focus) — with one or more preview lines highlighted, pressing `Tab` opens a surface picker overlay showing all terminal, browser, and markdown surfaces in the current cmux workspace. Type to filter, `↑`/`↓` to navigate, `Enter` to send. The selected text is pasted into the target surface and cmux immediately shifts keyboard focus to that pane — your next keystroke lands there, not back in Trek. Designed for AI-assisted development: select relevant code in Trek, Tab, pick your Claude session, and start typing your follow-up question without any manual copy-paste or window switching.
+
 ## [0.64.0] - 2026-04-01
 
 ### Added

@@ -404,6 +404,13 @@ pub fn run(
                         }
                         KeyCode::Char('[') => app.scroll_preview_up(5),
                         KeyCode::Char(']') => app.scroll_preview_down(5),
+                        // Global keys work regardless of preview focus
+                        KeyCode::Char('?') => app.show_help = true,
+                        KeyCode::Char('\\') => app.toggle_left_pane(),
+                        KeyCode::Char('w') => app.toggle_preview_pane(),
+                        KeyCode::Char('#') => app.toggle_line_numbers(),
+                        KeyCode::Char('U') => app.toggle_preview_wrap(),
+                        KeyCode::Char('Q') | KeyCode::Char('q') => break,
                         _ => {}
                     }
                 } else {

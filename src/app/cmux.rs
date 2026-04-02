@@ -292,112 +292,129 @@ pub struct CmuxSurface {
     pub id: String,
     pub kind: String,
     pub title: String,
+    pub pane_id: String,
 }
 
 /// Discover all cmux surfaces in the current workspace, excluding Trek itself.
 ///
-/// Tries `cmux list-pane-surfaces --workspace <id> --json` first; falls back
-/// to `cmux list-surfaces --json` when `CMUX_WORKSPACE_ID` is absent or the
-/// workspace-scoped command fails.  The current surface (`CMUX_SURFACE_ID`) is
-/// filtered out so Trek cannot send text to itself.
+/// Discovers surfaces in the current workspace using `cmux tree --json`.
+/// Uses the `caller.workspace_ref` field to scope to the right workspace, and
+/// excludes Trek's own surface via `caller.surface_ref`.
 pub fn discover_workspace_surfaces() -> Vec<CmuxSurface> {
-    let current_id = std::env::var("CMUX_SURFACE_ID").unwrap_or_default();
-    let workspace_id = std::env::var("CMUX_WORKSPACE_ID").unwrap_or_default();
-
-    // Try the workspace-scoped command first when we have a workspace ID.
-    let json: Option<String> = if !workspace_id.is_empty() {
-        std::process::Command::new("cmux")
-            .args(["list-pane-surfaces", "--workspace", &workspace_id, "--json"])
-            .output()
-            .ok()
-            .and_then(|o| {
-                if o.status.success() && !o.stdout.is_empty() {
-                    String::from_utf8(o.stdout).ok()
-                } else {
-                    None
-                }
-            })
-    } else {
-        None
-    };
-
-    // Fall back to the global list.
-    let json = match json {
+    // tree --json gives us caller context (short refs) + full workspace/surface tree.
+    let json = match std::process::Command::new("cmux")
+        .args(["tree", "--json"])
+        .output()
+        .ok()
+        .and_then(|o| {
+            if o.status.success() {
+                String::from_utf8(o.stdout).ok()
+            } else {
+                None
+            }
+        }) {
         Some(j) => j,
-        None => match std::process::Command::new("cmux")
-            .args(["list-surfaces", "--json"])
-            .output()
-            .ok()
-            .and_then(|o| {
-                if o.status.success() {
-                    String::from_utf8(o.stdout).ok()
-                } else {
-                    None
-                }
-            }) {
-            Some(j) => j,
-            None => return Vec::new(),
-        },
+        None => return Vec::new(),
     };
 
-    parse_all_surfaces(&json)
+    // Extract caller refs from the "caller" block at the top of the JSON.
+    use regex::Regex;
+    let caller_block_re = Regex::new(r#""caller"\s*:\s*\{([^}]+)\}"#).unwrap();
+    let ref_re = Regex::new(r#""workspace_ref"\s*:\s*"([^"]+)""#).unwrap();
+    let surf_re = Regex::new(r#""surface_ref"\s*:\s*"([^"]+)""#).unwrap();
+
+    let caller_block = caller_block_re
+        .captures(&json)
+        .and_then(|c| c.get(1))
+        .map(|m| m.as_str())
+        .unwrap_or("");
+
+    let workspace_ref = ref_re
+        .captures(caller_block)
+        .and_then(|c| c.get(1))
+        .map(|m| m.as_str())
+        .unwrap_or("");
+    let surface_ref = surf_re
+        .captures(caller_block)
+        .and_then(|c| c.get(1))
+        .map(|m| m.as_str())
+        .unwrap_or("");
+
+    // Parse surfaces from the plain-text tree (workspace_ref is a short ref like "workspace:3").
+    let tree = match std::process::Command::new("cmux")
+        .arg("tree")
+        .output()
+        .ok()
+        .and_then(|o| {
+            if o.status.success() {
+                String::from_utf8(o.stdout).ok()
+            } else {
+                None
+            }
+        }) {
+        Some(t) => t,
+        None => return Vec::new(),
+    };
+
+    parse_tree_surfaces(&tree, workspace_ref)
         .into_iter()
-        .filter(|s| s.id != current_id)
+        .filter(|s| s.id != surface_ref)
         .collect()
 }
 
-/// Parse the JSON output of a `cmux list-*-surfaces --json` command into a
-/// `Vec<CmuxSurface>`.  Uses simple regex scanning — no external JSON crate.
-fn parse_all_surfaces(json: &str) -> Vec<CmuxSurface> {
+/// Parse `cmux tree` plain-text output into a `Vec<CmuxSurface>`.
+///
+/// Tree lines look like:
+///   `│   └── surface surface:14 [terminal] "title text" [selected] ◀ here`
+///
+/// When `workspace_id` is non-empty, only surfaces nested under the matching
+/// workspace line are returned.  When empty, all surfaces are returned.
+fn parse_tree_surfaces(tree: &str, workspace_id: &str) -> Vec<CmuxSurface> {
     use regex::Regex;
+    let surface_re = Regex::new(r#"surface (surface:\S+) \[(\w+)\] "([^"]*)""#).unwrap();
+    let workspace_re = Regex::new(r"workspace (workspace:\S+)").unwrap();
+    let pane_re = Regex::new(r"pane (pane:\S+)").unwrap();
 
-    let id_re = Regex::new(r#""id"\s*:\s*"([^"]+)""#).unwrap();
-    let type_re = Regex::new(r#""type"\s*:\s*"([^"]+)""#).unwrap();
-    let title_re = Regex::new(r#""title"\s*:\s*"([^"]+)""#).unwrap();
-
-    // Split on object boundaries so we process each surface independently.
+    let mut in_workspace = workspace_id.is_empty();
+    let mut current_pane = String::new();
     let mut surfaces = Vec::new();
-    let mut depth: i32 = 0;
-    let mut obj_start: Option<usize> = None;
 
-    for (i, ch) in json.char_indices() {
-        match ch {
-            '{' => {
-                if depth == 0 {
-                    obj_start = Some(i);
-                }
-                depth += 1;
+    for line in tree.lines() {
+        if let Some(cap) = workspace_re.captures(line) {
+            let wid = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+            in_workspace = workspace_id.is_empty() || wid == workspace_id;
+        }
+
+        if in_workspace {
+            if let Some(cap) = pane_re.captures(line) {
+                current_pane = cap
+                    .get(1)
+                    .map(|m| m.as_str().to_string())
+                    .unwrap_or_default();
             }
-            '}' => {
-                depth -= 1;
-                if depth == 0 {
-                    if let Some(start) = obj_start.take() {
-                        let obj = &json[start..=i];
-                        let id = id_re
-                            .captures(obj)
-                            .and_then(|c| c.get(1))
-                            .map(|m| m.as_str().to_string())
-                            .unwrap_or_default();
-                        if id.is_empty() {
-                            continue;
-                        }
-                        let kind = type_re
-                            .captures(obj)
-                            .and_then(|c| c.get(1))
-                            .map(|m| m.as_str().to_string())
-                            .unwrap_or_else(|| "unknown".to_string());
-                        let title = title_re
-                            .captures(obj)
-                            .and_then(|c| c.get(1))
-                            .map(|m| m.as_str().to_string())
-                            .unwrap_or_else(|| id.clone());
-                        surfaces.push(CmuxSurface { id, kind, title });
-                    }
-                }
+            if let Some(cap) = surface_re.captures(line) {
+                let id = cap
+                    .get(1)
+                    .map(|m| m.as_str().to_string())
+                    .unwrap_or_default();
+                let kind = cap
+                    .get(2)
+                    .map(|m| m.as_str().to_string())
+                    .unwrap_or_else(|| "unknown".to_string());
+                let title = cap
+                    .get(3)
+                    .map(|m| m.as_str().to_string())
+                    .unwrap_or_else(|| id.clone());
+                surfaces.push(CmuxSurface {
+                    id,
+                    kind,
+                    title,
+                    pane_id: current_pane.clone(),
+                });
             }
-            _ => {}
         }
     }
+
     surfaces
 }
 
@@ -481,6 +498,13 @@ impl App {
         let line_count = hi - lo + 1;
         match result {
             Ok(_) => {
+                // Bring the target pane into focus so the user's next keystrokes
+                // land in that surface, not back in Trek.
+                if !surface.pane_id.is_empty() {
+                    let _ = std::process::Command::new("cmux")
+                        .args(["focus-pane", "--pane", &surface.pane_id])
+                        .status();
+                }
                 self.status_message = Some(format!(
                     "[cmux] Sent {} line{} to {}",
                     line_count,

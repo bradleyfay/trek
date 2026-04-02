@@ -40,6 +40,55 @@ These toggles apply on top of whichever preview mode is active:
 
 ---
 
+## Preview Focus and Line Selection
+
+Pressing `→` or `l` on any **file** in the file tree enters preview focus mode instead of opening an editor. The preview pane border turns cyan to indicate that keyboard input is now captured by the pane.
+
+### Navigation
+
+| Key | Action |
+|-----|--------|
+| `j` / `↓` | Move cursor down one line |
+| `k` / `↑` | Move cursor up one line |
+| `g` | Jump to first line |
+| `G` | Jump to last line |
+| `[` / `]` | Scroll up / down 5 lines |
+
+The cursor line is highlighted in blue. Use `←`, `h`, or `Esc` to return focus to the file tree. Press `Enter` to open the file in `$EDITOR`.
+
+### Selecting lines
+
+Press `J` to extend the selection downward or `K` to extend it upward. The first press sets an anchor at the current cursor position; subsequent presses grow the range. Selected lines are highlighted in dark gray.
+
+### Sending lines to a cmux surface
+
+With a cursor position or selection active, press `Tab` to open the **cmux surface picker**. The picker shows all surfaces in your current cmux workspace:
+
+```
+╭─ Send to surface ──────────────────────────────────╮
+│ Filter: █                                           │
+│                                                     │
+│ ▶  >_  surface:3  ✳ Claude Code                    │
+│    >_  surface:7  zsh                               │
+│    [B]  surface:1  localhost:3000                   │
+│                                                     │
+│ → "fn handle_event(..." (3 lines)                  │
+│ ↑↓ navigate · Enter send · Esc cancel               │
+╰─────────────────────────────────────────────────────╯
+```
+
+Type to filter by surface title or type (`terminal`, `browser`, `markdown`). Press `Enter` to send. After sending, cmux shifts keyboard focus to the target pane so your next keystroke lands there — no manual window switching required.
+
+**Typical AI workflow:**
+
+1. Browse to a file in Trek and press `→` to enter preview focus
+2. Navigate to the relevant section with `j`/`k`
+3. Press `J` or `K` to select the lines you want to share as context
+4. Press `Tab`, pick your Claude Code session, press `Enter`
+5. Start typing your question immediately — focus is already in the Claude session
+
+---
+
 ## Scrolling the Preview
 
 | Key | Action |
