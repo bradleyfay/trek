@@ -1,8 +1,34 @@
 use super::{App, SortMode, SortOrder};
 use crate::icons::icon_for_entry;
 use std::path::{Path, PathBuf};
-use std::process::Command;
-use std::sync::mpsc;
+use std::process::{Command, Stdio};
+use std::sync::{mpsc, LazyLock};
+
+/// The hex dump tool available on this system, probed exactly once per session.
+///
+/// Tries `xxd` first, then `hexdump`. Returns `None` if neither is available.
+/// Probes by attempting to spawn the binary directly (no `which`), so it works
+/// even when `which` is absent. Exit code is intentionally ignored — only spawn
+/// success matters. All stdio is suppressed to prevent terminal pollution.
+static HEX_TOOL: LazyLock<Option<(&'static str, &'static [&'static str])>> = LazyLock::new(|| {
+    let probe = |bin: &str, probe_arg: &str| -> bool {
+        // Exit code is ignored; we only care whether the binary can be spawned.
+        Command::new(bin)
+            .arg(probe_arg)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .is_ok()
+    };
+    if probe("xxd", "--version") {
+        Some(("xxd", &[] as &[&str]))
+    } else if probe("hexdump", "--version") {
+        Some(("hexdump", &["-C"] as &[&str]))
+    } else {
+        None
+    }
+});
 
 /// The result of an async preview computation.
 pub struct PreviewResult {
@@ -502,26 +528,17 @@ impl App {
             _ => {}
         }
 
-        let tool_available = |bin: &str| -> bool {
-            Command::new("which")
-                .arg(bin)
-                .output()
-                .map(|o| o.status.success())
-                .unwrap_or(false)
-        };
-
-        let (cmd, args): (&str, &[&str]) = if tool_available("xxd") {
-            ("xxd", &[])
-        } else if tool_available("hexdump") {
-            ("hexdump", &["-C"])
-        } else {
-            return vec![
-                String::new(),
-                "  Hex view requires xxd or hexdump".to_string(),
-                String::new(),
-                "  Install: brew install vim   (macOS, provides xxd)".to_string(),
-                "           apt install xxd    (Debian/Ubuntu)".to_string(),
-            ];
+        let (cmd, args): (&str, &[&str]) = match *HEX_TOOL {
+            Some((cmd, args)) => (cmd, args),
+            None => {
+                return vec![
+                    String::new(),
+                    "  Hex view requires xxd or hexdump".to_string(),
+                    String::new(),
+                    "  Install: brew install vim   (macOS, provides xxd)".to_string(),
+                    "           apt install xxd    (Debian/Ubuntu)".to_string(),
+                ];
+            }
         };
 
         match Command::new(cmd).args(args).arg(path).output() {
