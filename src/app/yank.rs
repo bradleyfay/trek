@@ -61,6 +61,12 @@ impl App {
 
     /// Write an OSC 52 sequence to set the system clipboard.
     pub(super) fn osc52_copy(&self, text: &str) {
+        use std::io::IsTerminal;
+        // Only write to a real TTY — skip during `cargo test` (stdout is a pipe)
+        // to avoid macOS clipboard-access permission popups.
+        if !std::io::stdout().is_terminal() {
+            return;
+        }
         use base64::Engine;
         let encoded = base64::engine::general_purpose::STANDARD.encode(text.as_bytes());
         // OSC 52 ; c ; <base64> ST
