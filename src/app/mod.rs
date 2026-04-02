@@ -503,22 +503,11 @@ impl App {
             None => std::env::current_dir()?,
         };
 
-        // Determine the recursive-watch root: git repo root, or cwd as fallback.
-        let feed_root = std::process::Command::new("git")
-            .args(["rev-parse", "--show-toplevel"])
-            .current_dir(&cwd)
-            .output()
-            .ok()
-            .and_then(|o| {
-                if o.status.success() {
-                    let s = String::from_utf8(o.stdout).ok()?;
-                    Some(PathBuf::from(s.trim()))
-                } else {
-                    None
-                }
-            })
-            .unwrap_or_else(|| cwd.clone());
-
+        // Start the recursive watcher on cwd immediately so the first frame
+        // renders without blocking. The true git repo root (which may be an
+        // ancestor of cwd) is resolved asynchronously by load_git_status_async
+        // and the watcher is repointed in check_git_status_rx once it arrives.
+        let feed_root = cwd.clone();
         let recursive_watcher = crate::watcher::RecursiveWatcher::new(&feed_root);
 
         let mut app = Self {
@@ -783,6 +772,17 @@ impl App {
         };
         self.git_status_rx = None;
         self.git_status = result.status;
+
+        // If the async load discovered the true git repo root and it differs
+        // from the current recursive-watch root, repoint the watcher so the
+        // live change feed covers the whole repository tree.
+        if let Some(ref status) = self.git_status {
+            if status.repo_root != self.change_feed_root {
+                self.change_feed_root = status.repo_root.clone();
+                self.recursive_watcher =
+                    crate::watcher::RecursiveWatcher::new(&self.change_feed_root);
+            }
+        }
 
         if let Some(ignored) = result.ignored_names {
             let changed = ignored != self.gitignored_names;
