@@ -160,6 +160,59 @@ pub fn load_ignored(dir: &Path) -> HashSet<String> {
         .collect()
 }
 
+/// Return the raw `git diff HEAD` output for `path` (unified=3).
+///
+/// Used by the context-bundle exporter. Returns `None` when there is no diff
+/// (file is untracked, unchanged vs HEAD, or git is unavailable).
+pub fn diff_vs_head(path: &Path) -> Option<String> {
+    let parent = path.parent()?;
+    let out = run_git(
+        parent,
+        &[
+            "diff",
+            "--unified=3",
+            "HEAD",
+            "--",
+            path.to_string_lossy().as_ref(),
+        ],
+    )?;
+    if out.is_empty() {
+        None
+    } else {
+        Some(out)
+    }
+}
+
+/// Return the working-tree diff lines for `path`, falling back to the staged
+/// diff when there are no unstaged changes.
+///
+/// Used by the preview pane. Returns an empty `Vec` when there is nothing to
+/// show (untracked, unchanged, or git unavailable).
+pub fn diff_for_preview(path: &Path) -> Vec<String> {
+    let parent = match path.parent() {
+        Some(p) => p,
+        None => return Vec::new(),
+    };
+    let path_str = path.to_string_lossy();
+    let path_arg = path_str.as_ref();
+
+    // Try unstaged diff first.
+    if let Some(out) = run_git(parent, &["diff", "--no-color", "--", path_arg]) {
+        if !out.is_empty() {
+            return out.lines().take(2000).map(|l| l.to_string()).collect();
+        }
+    }
+
+    // Fall back to staged diff.
+    if let Some(out) = run_git(parent, &["diff", "--cached", "--no-color", "--", path_arg]) {
+        if !out.is_empty() {
+            return out.lines().take(2000).map(|l| l.to_string()).collect();
+        }
+    }
+
+    Vec::new()
+}
+
 /// Result type returned by the async git-status background thread.
 pub struct GitStatusAsyncResult {
     /// Current repository status, or `None` outside a git repo.

@@ -262,10 +262,10 @@ pub fn run(
                             app.export_context_bundle(ContextBundleFormat::PathsOnly)
                         }
                         KeyCode::Char('c') => {
-                            app.export_context_bundle(ContextBundleFormat::PathsAndContents)
+                            app.export_context_bundle(ContextBundleFormat::WithContents)
                         }
                         KeyCode::Char('d') => {
-                            app.export_context_bundle(ContextBundleFormat::PathsAndDiff)
+                            app.export_context_bundle(ContextBundleFormat::WithDiff)
                         }
                         _ => {}
                     }

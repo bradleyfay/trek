@@ -1,13 +1,11 @@
 use super::App;
 use std::path::Path;
-use std::process::Command;
 
 /// The format the user has chosen for the context bundle.
-#[allow(dead_code, clippy::enum_variant_names)]
 pub enum ContextBundleFormat {
     PathsOnly,
-    PathsAndContents,
-    PathsAndDiff,
+    WithContents,
+    WithDiff,
 }
 
 /// Map a file extension to the Markdown fenced-code-block language tag.
@@ -29,28 +27,6 @@ fn lang_tag(ext: &str) -> &'static str {
         "css" => "css",
         _ => "",
     }
-}
-
-/// Return the git diff for `path` against HEAD (unified=3).
-///
-/// Returns `None` when there is no diff (untracked, no changes, or git error).
-fn git_diff_for_path(path: &Path) -> Option<String> {
-    let parent = path.parent()?;
-    let path_str = path.to_string_lossy();
-
-    // Try unstaged diff first.
-    if let Ok(out) = Command::new("git")
-        .arg("-C")
-        .arg(parent)
-        .args(["diff", "--unified=3", "HEAD", "--", path_str.as_ref()])
-        .output()
-    {
-        if out.status.success() && !out.stdout.is_empty() {
-            return Some(String::from_utf8_lossy(&out.stdout).into_owned());
-        }
-    }
-
-    None
 }
 
 impl App {
@@ -120,7 +96,7 @@ impl App {
                 }
             }
 
-            ContextBundleFormat::PathsAndContents => {
+            ContextBundleFormat::WithContents => {
                 bundle.push_str(&format!("## Context Bundle · {} files\n\n", paths.len()));
                 for path in &paths {
                     let rel = self.relative_path(path);
@@ -154,7 +130,7 @@ impl App {
                 }
             }
 
-            ContextBundleFormat::PathsAndDiff => {
+            ContextBundleFormat::WithDiff => {
                 bundle.push_str(&format!(
                     "## Context Bundle · {} changed files\n\n",
                     paths.len()
@@ -162,7 +138,7 @@ impl App {
                 for path in &paths {
                     let rel = self.relative_path(path);
 
-                    if let Some(diff) = git_diff_for_path(path) {
+                    if let Some(diff) = crate::git::diff_vs_head(path) {
                         bundle.push_str(&format!("### {}\n", rel));
                         bundle.push_str("```diff\n");
                         bundle.push_str(&diff);

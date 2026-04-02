@@ -308,45 +308,7 @@ impl App {
 
     /// Load `git diff` (unstaged, then staged) for `path` as a list of lines.
     pub(super) fn load_git_diff_static(path: &Path) -> Vec<String> {
-        let parent = match path.parent() {
-            Some(p) => p,
-            None => return Vec::new(),
-        };
-        let path_str = path.to_string_lossy();
-
-        // Try unstaged diff first.
-        if let Ok(out) = Command::new("git")
-            .arg("-C")
-            .arg(parent)
-            .args(["diff", "--no-color", "--", path_str.as_ref()])
-            .output()
-        {
-            if out.status.success() && !out.stdout.is_empty() {
-                return String::from_utf8_lossy(&out.stdout)
-                    .lines()
-                    .take(2000)
-                    .map(|l| l.to_string())
-                    .collect();
-            }
-        }
-
-        // Fall back to staged diff.
-        if let Ok(out) = Command::new("git")
-            .arg("-C")
-            .arg(parent)
-            .args(["diff", "--cached", "--no-color", "--", path_str.as_ref()])
-            .output()
-        {
-            if out.status.success() && !out.stdout.is_empty() {
-                return String::from_utf8_lossy(&out.stdout)
-                    .lines()
-                    .take(2000)
-                    .map(|l| l.to_string())
-                    .collect();
-            }
-        }
-
-        Vec::new()
+        crate::git::diff_for_preview(path)
     }
 
     /// Scroll the preview pane up by `lines` lines.
