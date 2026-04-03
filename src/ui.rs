@@ -105,7 +105,7 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     if !app.pending_delete.is_empty() {
         draw_delete_confirm_bar(f, app, bottom_area);
     } else if let Some(ref path) = app.pending_extract {
-        draw_extract_bar(f, bottom_area, path);
+        draw_extract_bar(f, app, bottom_area, path);
     } else if app.overlay.quick_rename_mode {
         draw_quick_rename_bar(f, app, bottom_area);
     } else if app.overlay.path_mode {
@@ -133,12 +133,12 @@ pub fn draw(f: &mut Frame, app: &mut App) {
             Span::styled(
                 " [session summary] ",
                 Style::default()
-                    .fg(Color::Cyan)
+                    .fg(app.theme.info)
                     .add_modifier(Modifier::BOLD),
             ),
             Span::styled(
                 "j/k: navigate  l/Enter: go to file  C: reset checkpoint  R: refresh  Esc: exit",
-                Style::default().fg(Color::DarkGray),
+                Style::default().fg(app.theme.fg_dim),
             ),
         ]));
         f.render_widget(para, bottom_area);
@@ -146,7 +146,7 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         let para = Paragraph::new(Line::from(Span::styled(
             msg.as_str(),
             Style::default()
-                .fg(Color::Green)
+                .fg(app.theme.ok)
                 .add_modifier(Modifier::BOLD),
         )));
         f.render_widget(para, bottom_area);
@@ -169,20 +169,20 @@ pub fn draw(f: &mut Frame, app: &mut App) {
             Span::styled(
                 format!(" {} selected{}", count, size_label),
                 Style::default()
-                    .fg(Color::Magenta)
+                    .fg(app.theme.multi_sel_fg)
                     .add_modifier(Modifier::BOLD),
             ),
             Span::styled(
                 "  — v: all   Esc: clear",
-                Style::default().fg(Color::DarkGray),
+                Style::default().fg(app.theme.fg_dim),
             ),
         ]));
         f.render_widget(para, bottom_area);
     } else if let Some(ref clip) = app.clipboard {
         // Show clipboard indicator.
         let (label, color) = match clip.op {
-            ClipboardOp::Copy => ("[copy]", Color::Green),
-            ClipboardOp::Cut => ("[cut]", Color::Yellow),
+            ClipboardOp::Copy => ("[copy]", app.theme.ok),
+            ClipboardOp::Cut => ("[cut]", app.theme.warn),
         };
         let count = clip.paths.len();
         let para = Paragraph::new(Line::from(vec![
@@ -196,7 +196,7 @@ pub fn draw(f: &mut Frame, app: &mut App) {
                     count,
                     if count == 1 { "" } else { "s" }
                 ),
-                Style::default().fg(Color::DarkGray),
+                Style::default().fg(app.theme.fg_dim),
             ),
         ]));
         f.render_widget(para, bottom_area);
@@ -204,14 +204,14 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         // Show hint.
         let hint = Paragraph::new(Line::from(Span::styled(
             " Press ? for help",
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(app.theme.fg_dim),
         )));
         f.render_widget(hint, bottom_area);
     }
 
     // Help overlay.
     if app.overlay.show_help {
-        draw_help_overlay(f, size);
+        draw_help_overlay(f, app, size);
     }
 
     // Bookmark picker overlay.
@@ -231,7 +231,7 @@ pub fn draw(f: &mut Frame, app: &mut App) {
 
     // Context bundle picker overlay.
     if app.overlay.context_bundle_picker_mode {
-        draw_context_bundle_picker(f, size);
+        draw_context_bundle_picker(f, app, size);
     }
 
     // cmux surface picker overlay (send selected lines to a surface).
@@ -258,18 +258,18 @@ fn draw_path_bar(f: &mut Frame, app: &App, area: Rect) {
             Span::styled(
                 " \u{1f4e6} ",
                 Style::default()
-                    .fg(Color::Yellow)
+                    .fg(app.theme.warn)
                     .add_modifier(Modifier::BOLD),
             ),
             Span::styled(
                 crumb,
                 Style::default()
-                    .fg(Color::White)
+                    .fg(app.theme.fg)
                     .add_modifier(Modifier::BOLD),
             ),
             Span::styled(
                 "  [archive]  Esc: exit  h: up  l: enter",
-                Style::default().fg(Color::DarkGray),
+                Style::default().fg(app.theme.fg_dim),
             ),
         ];
         f.render_widget(Paragraph::new(Line::from(spans)), area);
@@ -292,13 +292,13 @@ fn draw_path_bar(f: &mut Frame, app: &App, area: Rect) {
     let mut spans = vec![Span::styled(
         format!(" {}", display_path),
         Style::default()
-            .fg(Color::White)
+            .fg(app.theme.fg)
             .add_modifier(Modifier::BOLD),
     )];
 
     // Hidden files indicator as a separate, dimmed span.
     if app.nav.show_hidden {
-        spans.push(Span::styled("  [H]", Style::default().fg(Color::DarkGray)));
+        spans.push(Span::styled("  [H]", Style::default().fg(app.theme.fg_dim)));
     }
 
     // Gitignore filter badge — shown next to the git branch indicator.
@@ -306,7 +306,7 @@ fn draw_path_bar(f: &mut Frame, app: &App, area: Rect) {
         spans.push(Span::styled(
             "  [ignore]",
             Style::default()
-                .fg(Color::Yellow)
+                .fg(app.theme.warn)
                 .add_modifier(Modifier::BOLD),
         ));
     }
@@ -315,7 +315,7 @@ fn draw_path_bar(f: &mut Frame, app: &App, area: Rect) {
         spans.push(Span::styled(
             format!("  ({})", branch),
             Style::default()
-                .fg(Color::Green)
+                .fg(app.theme.ok)
                 .add_modifier(Modifier::BOLD),
         ));
     }
@@ -329,7 +329,7 @@ fn draw_path_bar(f: &mut Frame, app: &App, area: Rect) {
         };
         spans.push(Span::styled(
             format!("  {} {}", arrow, app.nav.sort_mode.label()),
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(app.theme.fg_dim),
         ));
     }
 
@@ -338,7 +338,7 @@ fn draw_path_bar(f: &mut Frame, app: &App, area: Rect) {
         spans.push(Span::styled(
             "  [watch]",
             Style::default()
-                .fg(Color::Cyan)
+                .fg(app.theme.info)
                 .add_modifier(Modifier::BOLD),
         ));
     }
@@ -353,22 +353,22 @@ fn draw_search_bar(f: &mut Frame, app: &App, area: Rect) {
         Span::styled(
             "/",
             Style::default()
-                .fg(Color::Yellow)
+                .fg(app.theme.prompt)
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
             &app.nav.search_query,
             Style::default()
-                .fg(Color::White)
+                .fg(app.theme.input)
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
             "\u{2588}", // block cursor
-            Style::default().fg(Color::White),
+            Style::default().fg(app.theme.cursor),
         ),
         Span::styled(
             format!(" [{}/{}]", match_count, total),
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(app.theme.fg_dim),
         ),
     ]));
     f.render_widget(para, area);
@@ -379,23 +379,23 @@ fn draw_filter_bar(f: &mut Frame, app: &App, area: Rect) {
         Span::styled(
             " Filter: ",
             Style::default()
-                .fg(Color::Yellow)
+                .fg(app.theme.prompt)
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
             format!("{}_", app.nav.filter_input),
-            Style::default().fg(Color::White),
+            Style::default().fg(app.theme.input),
         ),
         Span::styled(
             "  Esc=clear  Enter=freeze",
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(app.theme.fg_dim),
         ),
     ]))
     .block(Block::default().borders(Borders::TOP));
     f.render_widget(para, area);
 }
 
-fn draw_extract_bar(f: &mut Frame, area: Rect, path: &std::path::Path) {
+fn draw_extract_bar(f: &mut Frame, app: &App, area: Rect, path: &std::path::Path) {
     let name = path
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
@@ -404,15 +404,15 @@ fn draw_extract_bar(f: &mut Frame, area: Rect, path: &std::path::Path) {
         Span::styled(
             " Extract ",
             Style::default()
-                .fg(Color::Black)
-                .bg(Color::LightGreen)
+                .fg(app.theme.confirm_fg)
+                .bg(app.theme.confirm_bg)
                 .add_modifier(Modifier::BOLD),
         ),
         Span::raw(format!("  \"{}\" → ./   ", name)),
-        Span::styled("[y/Enter]", Style::default().fg(Color::Green)),
+        Span::styled("[y/Enter]", Style::default().fg(app.theme.ok)),
         Span::raw("confirm  "),
-        Span::styled("[Esc]", Style::default().fg(Color::DarkGray)),
-        Span::styled("cancel", Style::default().fg(Color::DarkGray)),
+        Span::styled("[Esc]", Style::default().fg(app.theme.fg_dim)),
+        Span::styled("cancel", Style::default().fg(app.theme.fg_dim)),
     ]));
     f.render_widget(para, area);
 }
@@ -432,15 +432,18 @@ fn draw_delete_confirm_bar(f: &mut Frame, app: &App, area: Rect) {
         Span::styled(
             format!(" Trash {}? ", subject),
             Style::default()
-                .fg(Color::Yellow)
+                .fg(app.theme.prompt)
                 .add_modifier(Modifier::BOLD),
         ),
-        Span::styled("[t/y]", Style::default().fg(Color::Green)),
-        Span::styled("trash  ", Style::default().fg(Color::DarkGray)),
-        Span::styled("[D]", Style::default().fg(Color::Red)),
-        Span::styled("delete permanently  ", Style::default().fg(Color::DarkGray)),
-        Span::styled("[Esc]", Style::default().fg(Color::DarkGray)),
-        Span::styled("cancel", Style::default().fg(Color::DarkGray)),
+        Span::styled("[t/y]", Style::default().fg(app.theme.ok)),
+        Span::styled("trash  ", Style::default().fg(app.theme.fg_dim)),
+        Span::styled("[D]", Style::default().fg(app.theme.error)),
+        Span::styled(
+            "delete permanently  ",
+            Style::default().fg(app.theme.fg_dim),
+        ),
+        Span::styled("[Esc]", Style::default().fg(app.theme.fg_dim)),
+        Span::styled("cancel", Style::default().fg(app.theme.fg_dim)),
     ]));
     f.render_widget(para, area);
 }
@@ -476,17 +479,17 @@ fn draw_chmod_bar(f: &mut Frame, app: &App, area: Rect) {
         Span::styled(
             format!(" chmod {} [current: {}]: ", name, current),
             Style::default()
-                .fg(Color::Yellow)
+                .fg(app.theme.prompt)
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
             app.overlay.chmod_input.as_str(),
-            Style::default().fg(Color::White),
+            Style::default().fg(app.theme.input),
         ),
-        Span::styled("\u{2588}", Style::default().fg(Color::Yellow)),
+        Span::styled("\u{2588}", Style::default().fg(app.theme.cursor)),
         Span::styled(
             "  Enter=apply  Esc=cancel",
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(app.theme.fg_dim),
         ),
     ]));
     f.render_widget(para, area);
@@ -497,19 +500,19 @@ fn draw_quick_rename_bar(f: &mut Frame, app: &App, area: Rect) {
         Span::styled(
             " Rename: ",
             Style::default()
-                .fg(Color::Yellow)
+                .fg(app.theme.prompt)
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
             app.overlay.quick_rename_input.as_str(),
             Style::default()
-                .fg(Color::White)
+                .fg(app.theme.input)
                 .add_modifier(Modifier::BOLD),
         ),
-        Span::styled("\u{2588}", Style::default().fg(Color::White)),
+        Span::styled("\u{2588}", Style::default().fg(app.theme.cursor)),
         Span::styled(
             "  Enter=confirm  Esc=cancel",
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(app.theme.fg_dim),
         ),
     ]));
     f.render_widget(para, area);
@@ -520,19 +523,19 @@ fn draw_path_jump_bar(f: &mut Frame, app: &App, area: Rect) {
         Span::styled(
             " Jump to: ",
             Style::default()
-                .fg(Color::Cyan)
+                .fg(app.theme.prompt_alt)
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
             app.overlay.path_input.as_str(),
             Style::default()
-                .fg(Color::White)
+                .fg(app.theme.input)
                 .add_modifier(Modifier::BOLD),
         ),
-        Span::styled("\u{2588}", Style::default().fg(Color::White)),
+        Span::styled("\u{2588}", Style::default().fg(app.theme.cursor)),
         Span::styled(
             "  Tab=complete  Enter=go  Esc=cancel",
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(app.theme.fg_dim),
         ),
     ]));
     f.render_widget(para, area);
@@ -543,19 +546,19 @@ fn draw_mkdir_bar(f: &mut Frame, app: &App, area: Rect) {
         Span::styled(
             "New directory: ",
             Style::default()
-                .fg(Color::Yellow)
+                .fg(app.theme.prompt)
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
             &app.overlay.mkdir_input,
             Style::default()
-                .fg(Color::White)
+                .fg(app.theme.input)
                 .add_modifier(Modifier::BOLD),
         ),
-        Span::styled("\u{2588}", Style::default().fg(Color::White)),
+        Span::styled("\u{2588}", Style::default().fg(app.theme.cursor)),
         Span::styled(
             "  Enter: create   Esc: cancel",
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(app.theme.fg_dim),
         ),
     ]));
     f.render_widget(para, area);
@@ -566,19 +569,19 @@ fn draw_touch_bar(f: &mut Frame, app: &App, area: Rect) {
         Span::styled(
             "New file: ",
             Style::default()
-                .fg(Color::Cyan)
+                .fg(app.theme.prompt_alt)
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
             &app.overlay.touch_input,
             Style::default()
-                .fg(Color::White)
+                .fg(app.theme.input)
                 .add_modifier(Modifier::BOLD),
         ),
-        Span::styled("\u{2588}", Style::default().fg(Color::White)),
+        Span::styled("\u{2588}", Style::default().fg(app.theme.cursor)),
         Span::styled(
             "  Enter: create   Esc: cancel",
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(app.theme.fg_dim),
         ),
     ]));
     f.render_widget(para, area);
@@ -589,19 +592,19 @@ fn draw_dup_bar(f: &mut Frame, app: &App, area: Rect) {
         Span::styled(
             "Duplicate: ",
             Style::default()
-                .fg(Color::Cyan)
+                .fg(app.theme.prompt_alt)
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
             &app.overlay.dup_input,
             Style::default()
-                .fg(Color::White)
+                .fg(app.theme.input)
                 .add_modifier(Modifier::BOLD),
         ),
-        Span::styled("\u{2588}", Style::default().fg(Color::White)),
+        Span::styled("\u{2588}", Style::default().fg(app.theme.cursor)),
         Span::styled(
             "  Enter: copy   Esc: cancel",
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(app.theme.fg_dim),
         ),
     ]));
     f.render_widget(para, area);
@@ -619,19 +622,19 @@ fn draw_symlink_bar(f: &mut Frame, app: &App, area: Rect) {
         Span::styled(
             format!("Symlink \u{2192} {} : ", target_name),
             Style::default()
-                .fg(Color::LightBlue)
+                .fg(app.theme.prompt_alt)
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
             &app.overlay.symlink_input,
             Style::default()
-                .fg(Color::White)
+                .fg(app.theme.input)
                 .add_modifier(Modifier::BOLD),
         ),
-        Span::styled("\u{2588}", Style::default().fg(Color::White)),
+        Span::styled("\u{2588}", Style::default().fg(app.theme.cursor)),
         Span::styled(
             "  Enter: create   Esc: cancel",
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(app.theme.fg_dim),
         ),
     ]));
     f.render_widget(para, area);
@@ -658,12 +661,12 @@ fn draw_parent_pane(f: &mut Frame, app: &App, area: Rect) {
         .map(|(i, entry)| {
             let style = if i == app.nav.parent_selected {
                 Style::default()
-                    .fg(Color::White)
-                    .bg(Color::Blue)
+                    .fg(app.theme.sel_fg)
+                    .bg(app.theme.sel_bg)
                     .add_modifier(Modifier::BOLD)
             } else if entry.is_dir {
                 Style::default()
-                    .fg(Color::Cyan)
+                    .fg(app.theme.dir_fg)
                     .add_modifier(Modifier::BOLD)
             } else {
                 Style::default()
@@ -678,8 +681,8 @@ fn draw_parent_pane(f: &mut Frame, app: &App, area: Rect) {
     let list = List::new(items).block(
         Block::default()
             .borders(Borders::TOP | Borders::RIGHT)
-            .border_style(Style::default().fg(Color::DarkGray))
-            .title(Span::styled(title, Style::default().fg(Color::DarkGray))),
+            .border_style(Style::default().fg(app.theme.border))
+            .title(Span::styled(title, Style::default().fg(app.theme.border))),
     );
     f.render_widget(list, area);
 }
@@ -719,18 +722,18 @@ fn draw_current_pane(f: &mut Frame, app: &App, area: Rect) {
             let is_match = !is_searching || app.nav.filtered_set.contains(&i);
             let style = if is_cursor {
                 Style::default()
-                    .fg(Color::White)
-                    .bg(Color::Blue)
+                    .fg(app.theme.sel_fg)
+                    .bg(app.theme.sel_bg)
                     .add_modifier(Modifier::BOLD)
             } else if is_marked {
                 Style::default()
-                    .fg(Color::Magenta)
+                    .fg(app.theme.multi_sel_fg)
                     .add_modifier(Modifier::BOLD)
             } else if !is_match {
-                Style::default().fg(Color::DarkGray)
+                Style::default().fg(app.theme.fg_dim)
             } else if entry.is_dir {
                 Style::default()
-                    .fg(Color::Cyan)
+                    .fg(app.theme.dir_fg)
                     .add_modifier(Modifier::BOLD)
             } else {
                 Style::default()
@@ -740,12 +743,13 @@ fn draw_current_pane(f: &mut Frame, app: &App, area: Rect) {
             let git_indicator: Option<(char, Color)> = app.git_status.as_ref().and_then(|git| {
                 if entry.is_dir {
                     if git.subtree_dirty(&entry.path) {
-                        Some(('\u{25cf}', Color::Yellow)) // ● dimmed for dirty dir
+                        Some(('\u{25cf}', app.theme.git_modified)) // ● dimmed for dirty dir
                     } else {
                         None
                     }
                 } else {
-                    git.for_path(&entry.path).map(file_status_indicator)
+                    git.for_path(&entry.path)
+                        .map(|s| file_status_indicator(s, &app.theme))
                 }
             });
 
@@ -788,7 +792,7 @@ fn draw_current_pane(f: &mut Frame, app: &App, area: Rect) {
                 (
                     "✓ ",
                     Style::default()
-                        .fg(Color::Green)
+                        .fg(app.theme.multi_sel_mark)
                         .add_modifier(Modifier::BOLD),
                 )
             } else {
@@ -808,7 +812,7 @@ fn draw_current_pane(f: &mut Frame, app: &App, area: Rect) {
                 let ind_style = if is_cursor {
                     Style::default()
                         .fg(color)
-                        .bg(Color::Blue)
+                        .bg(app.theme.sel_bg)
                         .add_modifier(Modifier::BOLD)
                 } else {
                     Style::default().fg(color).add_modifier(Modifier::BOLD)
@@ -820,9 +824,9 @@ fn draw_current_pane(f: &mut Frame, app: &App, area: Rect) {
             // Right column rendered in dimmer style to visually separate it from the name.
             if !right_col_str.is_empty() {
                 let col_style = if is_cursor {
-                    Style::default().fg(Color::Gray).bg(Color::Blue)
+                    Style::default().fg(app.theme.fg_dim).bg(app.theme.sel_bg)
                 } else {
-                    Style::default().fg(Color::DarkGray)
+                    Style::default().fg(app.theme.fg_dim)
                 };
                 spans.push(Span::styled(right_col_str, col_style));
             }
@@ -843,15 +847,15 @@ fn draw_current_pane(f: &mut Frame, app: &App, area: Rect) {
     let list = List::new(items).block(
         Block::default()
             .borders(Borders::TOP | Borders::RIGHT)
-            .border_style(Style::default().fg(Color::Cyan))
+            .border_style(Style::default().fg(app.theme.border_focus))
             .title(Span::styled(
                 title,
                 Style::default()
-                    .fg(Color::White)
+                    .fg(app.theme.fg)
                     .add_modifier(Modifier::BOLD),
             ))
             .title_bottom(
-                Line::from(Span::styled(info, Style::default().fg(Color::DarkGray)))
+                Line::from(Span::styled(info, Style::default().fg(app.theme.fg_dim)))
                     .right_aligned(),
             ),
     );
@@ -918,6 +922,7 @@ fn draw_preview_pane(f: &mut Frame, app: &App, area: Rect) {
                     &app.preview.preview_lines[..max_process],
                     ext,
                     max_process,
+                    app.theme.syntax_theme,
                 )
             }
         })
@@ -962,18 +967,18 @@ fn draw_preview_pane(f: &mut Frame, app: &App, area: Rect) {
                     selection_range.is_some_and(|(lo, hi)| abs_line >= lo && abs_line <= hi);
                 let row_style = if is_cursor {
                     Style::default()
-                        .bg(Color::Blue)
-                        .fg(Color::White)
+                        .bg(app.theme.sel_bg)
+                        .fg(app.theme.sel_fg)
                         .add_modifier(Modifier::BOLD)
                 } else if in_selection {
-                    Style::default().bg(Color::DarkGray)
+                    Style::default().bg(app.theme.subtle_sel_bg)
                 } else {
                     Style::default()
                 };
                 let rendered = if app.preview.show_line_numbers {
                     let gutter =
                         format!("{:>width$} \u{2502} ", abs_line + 1, width = gutter_width);
-                    let gutter_span = Span::styled(gutter, Style::default().fg(Color::DarkGray));
+                    let gutter_span = Span::styled(gutter, Style::default().fg(app.theme.fg_dim));
                     let mut spans = vec![gutter_span];
                     spans.extend(line.spans);
                     Line::from(spans)
@@ -998,22 +1003,22 @@ fn draw_preview_pane(f: &mut Frame, app: &App, area: Rect) {
                     selection_range.is_some_and(|(lo, hi)| abs_line >= lo && abs_line <= hi);
                 let row_style = if is_cursor {
                     Style::default()
-                        .bg(Color::Blue)
-                        .fg(Color::White)
+                        .bg(app.theme.sel_bg)
+                        .fg(app.theme.sel_fg)
                         .add_modifier(Modifier::BOLD)
                 } else if in_selection {
-                    Style::default().bg(Color::DarkGray)
+                    Style::default().bg(app.theme.subtle_sel_bg)
                 } else {
                     Style::default()
                 };
                 let content_line = if app.preview.preview_is_diff {
-                    colorize_diff_line(l)
+                    colorize_diff_line(l, &app.theme)
                 } else {
                     Line::from(l.as_str())
                 };
                 let rendered = if app.preview.show_line_numbers {
                     let gutter = format!("{:>width$} \u{2502} ", i + 1, width = gutter_width);
-                    let gutter_span = Span::styled(gutter, Style::default().fg(Color::DarkGray));
+                    let gutter_span = Span::styled(gutter, Style::default().fg(app.theme.fg_dim));
                     let mut spans = vec![gutter_span];
                     spans.extend(content_line.spans);
                     Line::from(spans)
@@ -1027,9 +1032,9 @@ fn draw_preview_pane(f: &mut Frame, app: &App, area: Rect) {
 
     // Border/title color changes to Cyan when preview pane has focus.
     let border_color = if app.preview.preview_focused {
-        Color::Cyan
+        app.theme.border_focus
     } else {
-        Color::DarkGray
+        app.theme.border
     };
 
     // Draw main content (leave 1 col for scrollbar).
@@ -1046,7 +1051,7 @@ fn draw_preview_pane(f: &mut Frame, app: &App, area: Rect) {
     if app.preview.preview_loading && app.preview.preview_lines.is_empty() {
         let placeholder = Paragraph::new(Line::from(Span::styled(
             " Loading\u{2026}",
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(app.theme.fg_dim),
         )))
         .block(block);
         f.render_widget(placeholder, content_area);
@@ -1090,9 +1095,9 @@ fn draw_preview_pane(f: &mut Frame, app: &App, area: Rect) {
                 };
                 let r = Rect::new(scrollbar_col, bar_top + row_offset as u16, 1, 1);
                 let style = if row_offset >= thumb_pos && row_offset < thumb_pos + thumb_size {
-                    Style::default().fg(Color::Gray)
+                    Style::default().fg(app.theme.scrollbar_thumb)
                 } else {
-                    Style::default().fg(Color::Rgb(60, 60, 60))
+                    Style::default().fg(app.theme.scrollbar_track)
                 };
                 f.render_widget(Paragraph::new(Line::from(Span::styled(ch, style))), r);
             }
@@ -1114,7 +1119,7 @@ fn draw_change_feed_pane(f: &mut Frame, app: &App, area: Rect) {
     let block = Block::default()
         .title(title)
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::Cyan));
+        .border_style(Style::default().fg(app.theme.border_focus));
 
     let inner = block.inner(area);
     f.render_widget(block, area);
@@ -1122,7 +1127,7 @@ fn draw_change_feed_pane(f: &mut Frame, app: &App, area: Rect) {
     if app.change_feed.events.is_empty() {
         let msg = Paragraph::new(Line::from(Span::styled(
             "No changes recorded yet",
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(app.theme.fg_dim),
         )))
         .alignment(ratatui::layout::Alignment::Center);
         f.render_widget(msg, inner);
@@ -1173,9 +1178,9 @@ fn draw_change_feed_pane(f: &mut Frame, app: &App, area: Rect) {
 
             let sym = ev.kind.symbol();
             let sym_color = match ev.kind {
-                FeedEventKind::Created => Color::Green,
-                FeedEventKind::Modified => Color::Yellow,
-                FeedEventKind::Deleted => Color::Red,
+                FeedEventKind::Created => app.theme.event_new,
+                FeedEventKind::Modified => app.theme.event_modified,
+                FeedEventKind::Deleted => app.theme.event_deleted,
             };
 
             let is_selected = idx == selected;
@@ -1186,7 +1191,7 @@ fn draw_change_feed_pane(f: &mut Frame, app: &App, area: Rect) {
             };
 
             let line = Line::from(vec![
-                Span::styled(format!(" {:>5}  ", age), base_style.fg(Color::DarkGray)),
+                Span::styled(format!(" {:>5}  ", age), base_style.fg(app.theme.fg_dim)),
                 Span::styled(
                     format!("{} ", sym),
                     if is_selected {
@@ -1219,7 +1224,7 @@ fn draw_change_feed_pane(f: &mut Frame, app: &App, area: Rect) {
             f.render_widget(
                 Paragraph::new(Span::styled(
                     indicator,
-                    Style::default().fg(Color::DarkGray),
+                    Style::default().fg(app.theme.fg_dim),
                 )),
                 ind_area,
             );
@@ -1302,7 +1307,7 @@ fn draw_content_search_pane(f: &mut Frame, app: &App, area: Rect) {
             RowKind::Header(text) => ListItem::new(Line::from(Span::styled(
                 text.clone(),
                 Style::default()
-                    .fg(Color::Cyan)
+                    .fg(app.theme.info)
                     .add_modifier(Modifier::BOLD),
             ))),
             RowKind::Match {
@@ -1313,8 +1318,8 @@ fn draw_content_search_pane(f: &mut Frame, app: &App, area: Rect) {
                 let is_selected = *fi == app.overlay.content_search_selected;
                 let style = if is_selected {
                     Style::default()
-                        .fg(Color::White)
-                        .bg(Color::Blue)
+                        .fg(app.theme.sel_fg)
+                        .bg(app.theme.sel_bg)
                         .add_modifier(Modifier::BOLD)
                 } else {
                     Style::default()
@@ -1322,7 +1327,7 @@ fn draw_content_search_pane(f: &mut Frame, app: &App, area: Rect) {
                 let num_style = if is_selected {
                     style
                 } else {
-                    Style::default().fg(Color::DarkGray)
+                    Style::default().fg(app.theme.fg_dim)
                 };
                 ListItem::new(Line::from(vec![
                     Span::styled(format!("   {:>4}  ", line_number), num_style),
@@ -1335,7 +1340,7 @@ fn draw_content_search_pane(f: &mut Frame, app: &App, area: Rect) {
     let list = List::new(items).block(
         Block::default()
             .borders(Borders::TOP | Borders::BOTTOM | Borders::RIGHT)
-            .border_style(Style::default().fg(Color::DarkGray))
+            .border_style(Style::default().fg(app.theme.border))
             .title(title),
     );
     f.render_widget(list, area);
@@ -1346,7 +1351,7 @@ fn draw_content_search_bar(f: &mut Frame, app: &App, area: Rect) {
     if let Some(ref err) = app.overlay.content_search_error {
         let para = Paragraph::new(Line::from(Span::styled(
             format!(" \u{26a0} {}", err),
-            Style::default().fg(Color::Red),
+            Style::default().fg(app.theme.error),
         )));
         f.render_widget(para, area);
         return;
@@ -1355,32 +1360,32 @@ fn draw_content_search_bar(f: &mut Frame, app: &App, area: Rect) {
         Span::styled(
             "Search contents: ",
             Style::default()
-                .fg(Color::Yellow)
+                .fg(app.theme.prompt)
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
             &app.overlay.content_search_query,
             Style::default()
-                .fg(Color::White)
+                .fg(app.theme.input)
                 .add_modifier(Modifier::BOLD),
         ),
-        Span::styled("\u{2588}", Style::default().fg(Color::White)),
+        Span::styled("\u{2588}", Style::default().fg(app.theme.cursor)),
         Span::styled(
             "  Enter: run   Esc: cancel",
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(app.theme.fg_dim),
         ),
     ]));
     f.render_widget(para, area);
 }
 
 /// Map a `FileStatus` to a display character and colour.
-fn file_status_indicator(status: FileStatus) -> (char, Color) {
+fn file_status_indicator(status: FileStatus, theme: &crate::theme::Theme) -> (char, Color) {
     match status {
-        FileStatus::Conflict => ('\u{2716}', Color::Red), // ✖
-        FileStatus::Deleted => ('\u{2716}', Color::Red),  // ✖
-        FileStatus::Staged | FileStatus::StagedModified => ('\u{271a}', Color::Green), // ✚
-        FileStatus::Modified => ('\u{25cf}', Color::Yellow), // ●
-        FileStatus::Untracked => ('+', Color::Cyan),
+        FileStatus::Conflict => ('\u{2716}', theme.git_deleted), // ✖
+        FileStatus::Deleted => ('\u{2716}', theme.git_deleted),  // ✖
+        FileStatus::Staged | FileStatus::StagedModified => ('\u{271a}', theme.git_staged), // ✚
+        FileStatus::Modified => ('\u{25cf}', theme.git_modified), // ●
+        FileStatus::Untracked => ('+', theme.git_untracked),
     }
 }
 
@@ -1395,37 +1400,37 @@ fn truncate_with_ellipsis(s: &str, max_chars: usize) -> String {
 }
 
 /// Apply diff-aware colouring to a single diff output line.
-fn colorize_diff_line(line: &str) -> Line<'_> {
+fn colorize_diff_line<'a>(line: &'a str, theme: &crate::theme::Theme) -> Line<'a> {
     let style = if line.starts_with('+') && !line.starts_with("+++") {
-        Style::default().fg(Color::Green)
+        Style::default().fg(theme.diff_add)
     } else if line.starts_with('-') && !line.starts_with("---") {
-        Style::default().fg(Color::Red)
+        Style::default().fg(theme.diff_del)
     } else if line.starts_with("@@") {
-        Style::default().fg(Color::Cyan)
+        Style::default().fg(theme.diff_hunk)
     } else if line.starts_with("diff ")
         || line.starts_with("index ")
         || line.starts_with("--- ")
         || line.starts_with("+++ ")
     {
-        Style::default().fg(Color::DarkGray)
+        Style::default().fg(theme.diff_meta)
     } else {
         Style::default()
     };
     Line::from(Span::styled(line, style))
 }
 
-fn section_header(label: &'static str) -> Line<'static> {
+fn section_header(label: &'static str, theme: &crate::theme::Theme) -> Line<'static> {
     Line::from(Span::styled(
         format!("  {}", label),
         Style::default()
-            .fg(Color::Yellow)
+            .fg(theme.prompt)
             .add_modifier(Modifier::BOLD),
     ))
 }
 
-fn key_line(key: &'static str, desc: &'static str) -> Line<'static> {
+fn key_line(key: &'static str, desc: &'static str, theme: &crate::theme::Theme) -> Line<'static> {
     Line::from(vec![
-        Span::styled(format!("  {:<10}", key), Style::default().fg(Color::Cyan)),
+        Span::styled(format!("  {:<10}", key), Style::default().fg(theme.info)),
         Span::raw(desc),
     ])
 }
@@ -1469,8 +1474,8 @@ fn draw_find_pane(f: &mut Frame, app: &App, area: Rect) {
             let is_selected = i == app.overlay.find_selected;
             let style = if is_selected {
                 Style::default()
-                    .fg(Color::White)
-                    .bg(Color::Blue)
+                    .fg(app.theme.sel_fg)
+                    .bg(app.theme.sel_bg)
                     .add_modifier(Modifier::BOLD)
             } else {
                 Style::default()
@@ -1485,7 +1490,7 @@ fn draw_find_pane(f: &mut Frame, app: &App, area: Rect) {
     let list = List::new(items).block(
         Block::default()
             .borders(Borders::TOP | Borders::BOTTOM | Borders::RIGHT)
-            .border_style(Style::default().fg(Color::DarkGray))
+            .border_style(Style::default().fg(app.theme.border))
             .title(title),
     );
     f.render_widget(list, area);
@@ -1513,11 +1518,11 @@ fn draw_bookmark_overlay(f: &mut Frame, app: &App, size: Rect) {
     // Hint in title right section — put it in the title for simplicity.
     let block = Block::default()
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::Cyan))
+        .border_style(Style::default().fg(app.theme.border_focus))
         .title(Span::styled(
             title,
             Style::default()
-                .fg(Color::White)
+                .fg(app.theme.fg)
                 .add_modifier(Modifier::BOLD),
         ));
 
@@ -1535,7 +1540,7 @@ fn draw_bookmark_overlay(f: &mut Frame, app: &App, size: Rect) {
         };
         let para = Paragraph::new(Line::from(Span::styled(
             msg,
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(app.theme.fg_dim),
         )));
         f.render_widget(para, inner);
         return;
@@ -1582,15 +1587,15 @@ fn draw_bookmark_overlay(f: &mut Frame, app: &App, size: Rect) {
 
             if is_selected {
                 let style = Style::default()
-                    .fg(Color::White)
-                    .bg(Color::Blue)
+                    .fg(app.theme.sel_fg)
+                    .bg(app.theme.sel_bg)
                     .add_modifier(Modifier::BOLD);
                 ListItem::new(Line::from(vec![
                     Span::styled(format!(" {:<width$}", short_col, width = name_col), style),
                     Span::styled(format!("{}{}", path_col, gone_suffix), style),
                 ]))
             } else if !exists {
-                let style = Style::default().fg(Color::DarkGray);
+                let style = Style::default().fg(app.theme.fg_dim);
                 ListItem::new(Line::from(vec![
                     Span::styled(format!(" {:<width$}", short_col, width = name_col), style),
                     Span::styled(format!("{}{}", path_col, gone_suffix), style),
@@ -1599,7 +1604,7 @@ fn draw_bookmark_overlay(f: &mut Frame, app: &App, size: Rect) {
                 ListItem::new(Line::from(vec![
                     Span::styled(
                         format!(" {:<width$}", short_col, width = name_col),
-                        Style::default().fg(Color::Cyan),
+                        Style::default().fg(app.theme.info),
                     ),
                     Span::raw(path_col),
                 ]))
@@ -1611,24 +1616,24 @@ fn draw_bookmark_overlay(f: &mut Frame, app: &App, size: Rect) {
         Span::styled(
             "  Enter",
             Style::default()
-                .fg(Color::Yellow)
+                .fg(app.theme.warn)
                 .add_modifier(Modifier::BOLD),
         ),
-        Span::styled(": jump  ", Style::default().fg(Color::DarkGray)),
+        Span::styled(": jump  ", Style::default().fg(app.theme.fg_dim)),
         Span::styled(
             "d",
             Style::default()
-                .fg(Color::Yellow)
+                .fg(app.theme.warn)
                 .add_modifier(Modifier::BOLD),
         ),
-        Span::styled(": remove  ", Style::default().fg(Color::DarkGray)),
+        Span::styled(": remove  ", Style::default().fg(app.theme.fg_dim)),
         Span::styled(
             "Esc",
             Style::default()
-                .fg(Color::Yellow)
+                .fg(app.theme.warn)
                 .add_modifier(Modifier::BOLD),
         ),
-        Span::styled(": close", Style::default().fg(Color::DarkGray)),
+        Span::styled(": close", Style::default().fg(app.theme.fg_dim)),
     ]));
 
     // Split inner area: list rows above, hint row at bottom.
@@ -1664,11 +1669,11 @@ fn draw_frecency_overlay(f: &mut Frame, app: &App, size: Rect) {
 
     let block = Block::default()
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::Yellow))
+        .border_style(Style::default().fg(app.theme.border_warn))
         .title(Span::styled(
             title,
             Style::default()
-                .fg(Color::White)
+                .fg(app.theme.fg)
                 .add_modifier(Modifier::BOLD),
         ));
 
@@ -1686,7 +1691,7 @@ fn draw_frecency_overlay(f: &mut Frame, app: &App, size: Rect) {
         };
         let para = Paragraph::new(Line::from(Span::styled(
             msg,
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(app.theme.fg_dim),
         )));
         f.render_widget(para, inner);
         return;
@@ -1729,8 +1734,8 @@ fn draw_frecency_overlay(f: &mut Frame, app: &App, size: Rect) {
 
             if is_selected {
                 let style = Style::default()
-                    .fg(Color::White)
-                    .bg(Color::Blue)
+                    .fg(app.theme.sel_fg)
+                    .bg(app.theme.sel_bg)
                     .add_modifier(Modifier::BOLD);
                 ListItem::new(Line::from(vec![
                     Span::styled(format!(" {:<width$}", short_col, width = name_col), style),
@@ -1740,7 +1745,7 @@ fn draw_frecency_overlay(f: &mut Frame, app: &App, size: Rect) {
                 ListItem::new(Line::from(vec![
                     Span::styled(
                         format!(" {:<width$}", short_col, width = name_col),
-                        Style::default().fg(Color::Yellow),
+                        Style::default().fg(app.theme.warn),
                     ),
                     Span::raw(path_col),
                 ]))
@@ -1752,19 +1757,19 @@ fn draw_frecency_overlay(f: &mut Frame, app: &App, size: Rect) {
         Span::styled(
             "  Enter",
             Style::default()
-                .fg(Color::Yellow)
+                .fg(app.theme.warn)
                 .add_modifier(Modifier::BOLD),
         ),
-        Span::styled(": jump  ", Style::default().fg(Color::DarkGray)),
+        Span::styled(": jump  ", Style::default().fg(app.theme.fg_dim)),
         Span::styled(
             "Esc",
             Style::default()
-                .fg(Color::Yellow)
+                .fg(app.theme.warn)
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
             ": close  type to filter",
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(app.theme.fg_dim),
         ),
     ]));
 
@@ -1783,7 +1788,7 @@ fn draw_find_bar(f: &mut Frame, app: &App, area: Rect) {
     if let Some(ref err) = app.overlay.find_error {
         let para = Paragraph::new(Line::from(Span::styled(
             format!(" \u{26a0} {}", err),
-            Style::default().fg(Color::Red),
+            Style::default().fg(app.theme.error),
         )));
         f.render_widget(para, area);
         return;
@@ -1792,14 +1797,14 @@ fn draw_find_bar(f: &mut Frame, app: &App, area: Rect) {
         Span::styled(
             "Find: ",
             Style::default()
-                .fg(Color::Yellow)
+                .fg(app.theme.prompt)
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
             app.overlay.find_query.as_str(),
-            Style::default().fg(Color::White),
+            Style::default().fg(app.theme.input),
         ),
-        Span::styled("█", Style::default().fg(Color::Yellow)),
+        Span::styled("█", Style::default().fg(app.theme.cursor)),
     ]));
     f.render_widget(para, area);
 }
@@ -1828,11 +1833,11 @@ fn draw_palette_overlay(f: &mut Frame, app: &App, size: Rect) {
 
     let block = Block::default()
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::Cyan))
+        .border_style(Style::default().fg(app.theme.border_focus))
         .title(Span::styled(
             title,
             Style::default()
-                .fg(Color::White)
+                .fg(app.theme.fg)
                 .add_modifier(Modifier::BOLD),
         ));
 
@@ -1862,16 +1867,16 @@ fn draw_palette_overlay(f: &mut Frame, app: &App, size: Rect) {
         Span::styled(
             " > ",
             Style::default()
-                .fg(Color::Yellow)
+                .fg(app.theme.prompt)
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
             app.overlay.palette_query.as_str(),
             Style::default()
-                .fg(Color::White)
+                .fg(app.theme.input)
                 .add_modifier(Modifier::BOLD),
         ),
-        Span::styled("\u{2588}", Style::default().fg(Color::White)),
+        Span::styled("\u{2588}", Style::default().fg(app.theme.cursor)),
     ]);
     f.render_widget(Paragraph::new(search_line), search_area);
 
@@ -1879,7 +1884,7 @@ fn draw_palette_overlay(f: &mut Frame, app: &App, size: Rect) {
     if app.overlay.palette_filtered.is_empty() {
         let empty = Paragraph::new(Line::from(Span::styled(
             "  No matching actions",
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(app.theme.fg_dim),
         )));
         f.render_widget(empty, results_area);
     } else {
@@ -1909,8 +1914,8 @@ fn draw_palette_overlay(f: &mut Frame, app: &App, size: Rect) {
 
                 if is_selected {
                     let style = Style::default()
-                        .fg(Color::White)
-                        .bg(Color::Blue)
+                        .fg(app.theme.sel_fg)
+                        .bg(app.theme.sel_bg)
                         .add_modifier(Modifier::BOLD);
                     ListItem::new(Line::from(vec![
                         Span::styled(
@@ -1923,9 +1928,9 @@ fn draw_palette_overlay(f: &mut Frame, app: &App, size: Rect) {
                     ListItem::new(Line::from(vec![
                         Span::styled(
                             format!("   {:<width$} ", name, width = name_width),
-                            Style::default().fg(Color::White),
+                            Style::default().fg(app.theme.fg),
                         ),
-                        Span::styled(keys, Style::default().fg(Color::DarkGray)),
+                        Span::styled(keys, Style::default().fg(app.theme.fg_dim)),
                     ]))
                 }
             })
@@ -1938,16 +1943,16 @@ fn draw_palette_overlay(f: &mut Frame, app: &App, size: Rect) {
     // Footer hint
     let hint = Paragraph::new(Line::from(Span::styled(
         "  Enter=run  Esc=cancel  j/k=navigate",
-        Style::default().fg(Color::DarkGray),
+        Style::default().fg(app.theme.fg_dim),
     )));
     f.render_widget(hint, hint_area);
 }
 
 fn draw_clipboard_inspect_overlay(f: &mut Frame, app: &App, size: Rect) {
     let (op_label, border_color) = match app.clipboard.as_ref().map(|c| c.op) {
-        Some(ClipboardOp::Copy) => (" Clipboard — copy ", Color::Green),
-        Some(ClipboardOp::Cut) => (" Clipboard — cut ", Color::Yellow),
-        None => (" Clipboard — empty ", Color::DarkGray),
+        Some(ClipboardOp::Copy) => (" Clipboard — copy ", app.theme.ok),
+        Some(ClipboardOp::Cut) => (" Clipboard — cut ", app.theme.warn),
+        None => (" Clipboard — empty ", app.theme.border),
     };
 
     let truncate = |s: String| -> String {
@@ -1973,7 +1978,7 @@ fn draw_clipboard_inspect_overlay(f: &mut Frame, app: &App, size: Rect) {
     } else {
         vec![Line::from(Span::styled(
             " (nothing in clipboard)",
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(app.theme.fg_dim),
         ))]
     };
 
@@ -1981,14 +1986,14 @@ fn draw_clipboard_inspect_overlay(f: &mut Frame, app: &App, size: Rect) {
         Span::styled(
             " p",
             Style::default()
-                .fg(Color::Yellow)
+                .fg(app.theme.warn)
                 .add_modifier(Modifier::BOLD),
         ),
         Span::raw(" paste  "),
         Span::styled(
             "Esc",
             Style::default()
-                .fg(Color::Yellow)
+                .fg(app.theme.warn)
                 .add_modifier(Modifier::BOLD),
         ),
         Span::raw(" close"),
@@ -2054,7 +2059,7 @@ fn draw_yank_picker(f: &mut Frame, app: &App, size: Rect) {
     };
 
     let key_style = Style::default()
-        .fg(Color::Yellow)
+        .fg(app.theme.warn)
         .add_modifier(Modifier::BOLD);
     let rows = vec![
         Line::from(vec![
@@ -2090,15 +2095,15 @@ fn draw_yank_picker(f: &mut Frame, app: &App, size: Rect) {
     let block = Block::default()
         .title(" Yank path ")
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::Yellow));
+        .border_style(Style::default().fg(app.theme.border_warn));
     let inner = block.inner(area);
     f.render_widget(block, area);
     f.render_widget(Paragraph::new(rows), inner);
 }
 
-fn draw_context_bundle_picker(f: &mut Frame, size: Rect) {
+fn draw_context_bundle_picker(f: &mut Frame, app: &App, size: Rect) {
     let key_style = Style::default()
-        .fg(Color::Yellow)
+        .fg(app.theme.warn)
         .add_modifier(Modifier::BOLD);
     let rows = vec![
         Line::from(vec![
@@ -2131,13 +2136,13 @@ fn draw_context_bundle_picker(f: &mut Frame, size: Rect) {
     let block = Block::default()
         .title(" Export context bundle ")
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::Cyan));
+        .border_style(Style::default().fg(app.theme.border_focus));
     let inner = block.inner(area);
     f.render_widget(block, area);
     f.render_widget(Paragraph::new(rows), inner);
 }
 
-fn draw_help_overlay(f: &mut Frame, size: Rect) {
+fn draw_help_overlay(f: &mut Frame, app: &App, size: Rect) {
     let width = 60u16.min(size.width.saturating_sub(4));
     let height = 100u16.min(size.height.saturating_sub(4));
     let x = (size.width.saturating_sub(width)) / 2;
@@ -2148,159 +2153,210 @@ fn draw_help_overlay(f: &mut Frame, size: Rect) {
 
     let help_lines = vec![
         // ── Navigation ──────────────────────────────────────────────────────
-        section_header("Navigation"),
-        key_line("j/Down", "Move down"),
-        key_line("k/Up", "Move up"),
-        key_line("l/Right", "Enter dir / open file in new cmux tab"),
-        key_line("h/Left", "Go to parent"),
-        key_line("Enter", "Enter dir / open file in new cmux tab"),
-        key_line("g / G", "Go to top / bottom"),
-        key_line("~", "Go to home directory"),
-        key_line(".", "Toggle hidden files"),
-        key_line("e", "Jump to path (Tab to complete, Enter to go)"),
-        key_line("[ / ]", "Scroll preview pane up / down (5 lines)"),
+        section_header("Navigation", &app.theme),
+        key_line("j/Down", "Move down", &app.theme),
+        key_line("k/Up", "Move up", &app.theme),
+        key_line(
+            "l/Right",
+            "Enter dir / open file in new cmux tab",
+            &app.theme,
+        ),
+        key_line("h/Left", "Go to parent", &app.theme),
+        key_line("Enter", "Enter dir / open file in new cmux tab", &app.theme),
+        key_line("g / G", "Go to top / bottom", &app.theme),
+        key_line("~", "Go to home directory", &app.theme),
+        key_line(".", "Toggle hidden files", &app.theme),
+        key_line(
+            "e",
+            "Jump to path (Tab to complete, Enter to go)",
+            &app.theme,
+        ),
+        key_line(
+            "[ / ]",
+            "Scroll preview pane up / down (5 lines)",
+            &app.theme,
+        ),
         key_line(
             "l/Right (on file)",
             "Enter preview focus mode (cursor into preview)",
+            &app.theme,
         ),
         key_line(
             "Esc/h/Left (in preview)",
             "Exit preview focus, return to file tree",
+            &app.theme,
         ),
         key_line(
             "j/k (in preview)",
             "Move cursor line down / up in preview focus",
+            &app.theme,
         ),
         key_line(
             "J/K (in preview)",
             "Extend selection down / up in preview focus",
+            &app.theme,
         ),
         key_line(
             "Enter (in preview)",
             "Open file in editor from preview focus",
+            &app.theme,
         ),
         key_line(
             "Tab (in preview)",
             "Send selected line(s) to a cmux surface",
+            &app.theme,
         ),
-        key_line("g/G (in preview)", "Jump to top / bottom in preview focus"),
-        key_line("Ctrl+O", "Go back in directory history"),
-        key_line("Ctrl+I", "Go forward in directory history"),
+        key_line(
+            "g/G (in preview)",
+            "Jump to top / bottom in preview focus",
+            &app.theme,
+        ),
+        key_line("Ctrl+O", "Go back in directory history", &app.theme),
+        key_line("Ctrl+I", "Go forward in directory history", &app.theme),
         key_line(
             "`<c>",
             "Set mark 'c' — record current dir to slot c (a-z A-Z)",
+            &app.theme,
         ),
         key_line(
             "'<c>",
             "Jump to mark 'c' — navigate to the marked directory",
+            &app.theme,
         ),
         Line::from(""),
         // ── Search ──────────────────────────────────────────────────────────
-        section_header("Search"),
-        key_line("/", "Fuzzy search"),
-        key_line("|", "Filter/narrow listing (case-insensitive)"),
-        key_line("Ctrl+F", "Content search (ripgrep)"),
-        key_line("Ctrl+P", "Recursive filename find"),
-        key_line("b", "Bookmark current directory"),
-        key_line("B", "Open bookmark picker"),
-        key_line("z", "Open frecency jump list (auto-ranked recent dirs)"),
+        section_header("Search", &app.theme),
+        key_line("/", "Fuzzy search", &app.theme),
+        key_line("|", "Filter/narrow listing (case-insensitive)", &app.theme),
+        key_line("Ctrl+F", "Content search (ripgrep)", &app.theme),
+        key_line("Ctrl+P", "Recursive filename find", &app.theme),
+        key_line("b", "Bookmark current directory", &app.theme),
+        key_line("B", "Open bookmark picker", &app.theme),
+        key_line(
+            "z",
+            "Open frecency jump list (auto-ranked recent dirs)",
+            &app.theme,
+        ),
         Line::from(""),
         // ── View ────────────────────────────────────────────────────────────
-        section_header("View"),
-        key_line("#", "Toggle line numbers in preview pane"),
-        key_line("i", "Toggle gitignore filter (hide ignored files)"),
-        key_line("d", "Toggle git diff preview"),
-        key_line("V", "Toggle git log preview (commit history)"),
-        key_line("D", "Toggle disk usage breakdown for directory"),
+        section_header("View", &app.theme),
+        key_line("#", "Toggle line numbers in preview pane", &app.theme),
+        key_line(
+            "i",
+            "Toggle gitignore filter (hide ignored files)",
+            &app.theme,
+        ),
+        key_line("d", "Toggle git diff preview", &app.theme),
+        key_line("V", "Toggle git log preview (commit history)", &app.theme),
+        key_line("D", "Toggle disk usage breakdown for directory", &app.theme),
         key_line(
             "I",
             "Watch mode (auto-refresh listing on filesystem changes)",
+            &app.theme,
         ),
-        key_line("f", "Compare two selected files (unified diff)"),
-        key_line("m", "Toggle file metadata view"),
-        key_line("H", "Toggle hash preview (SHA-256 checksum)"),
-        key_line("a", "Toggle hex dump view (binary inspection)"),
-        key_line("w", "Toggle preview pane (hide/show)"),
-        key_line("\\", "Toggle parent pane (hide/show)"),
-        key_line("T", "Toggle timestamps / sizes in listing"),
-        key_line("U", "Toggle preview word wrap"),
-        key_line("N", "Toggle directory item counts"),
-        key_line("P", "Edit file permissions (chmod)"),
-        key_line("F", "Toggle change feed (live filesystem events)"),
-        key_line("R", "Refresh git status"),
-        key_line("S", "Cycle sort: Name/Size/Modified/Ext"),
-        key_line("s", "Toggle sort order ↑↓"),
+        key_line("f", "Compare two selected files (unified diff)", &app.theme),
+        key_line("m", "Toggle file metadata view", &app.theme),
+        key_line("H", "Toggle hash preview (SHA-256 checksum)", &app.theme),
+        key_line("a", "Toggle hex dump view (binary inspection)", &app.theme),
+        key_line("w", "Toggle preview pane (hide/show)", &app.theme),
+        key_line("\\", "Toggle parent pane (hide/show)", &app.theme),
+        key_line("T", "Toggle timestamps / sizes in listing", &app.theme),
+        key_line("U", "Toggle preview word wrap", &app.theme),
+        key_line("N", "Toggle directory item counts", &app.theme),
+        key_line("P", "Edit file permissions (chmod)", &app.theme),
+        key_line(
+            "F",
+            "Toggle change feed (live filesystem events)",
+            &app.theme,
+        ),
+        key_line("R", "Refresh git status", &app.theme),
+        key_line("S", "Cycle sort: Name/Size/Modified/Ext", &app.theme),
+        key_line("s", "Toggle sort order ↑↓", &app.theme),
         Line::from(""),
         // ── Selection & Rename ──────────────────────────────────────────────
-        section_header("Selection & Rename"),
-        key_line("J / K", "Extend selection down / up (range select)"),
-        key_line("Space", "Toggle file selection"),
-        key_line("v", "Select all files"),
-        key_line("*", "Select files by glob pattern (e.g. *.rs)"),
-        key_line("n / F2", "Quick rename (inline bar pre-filled)"),
-        key_line("r", "Bulk rename selected files with regex"),
-        key_line("Esc", "Clear filter (if active) or selections"),
+        section_header("Selection & Rename", &app.theme),
+        key_line(
+            "J / K",
+            "Extend selection down / up (range select)",
+            &app.theme,
+        ),
+        key_line("Space", "Toggle file selection", &app.theme),
+        key_line("v", "Select all files", &app.theme),
+        key_line("*", "Select files by glob pattern (e.g. *.rs)", &app.theme),
+        key_line("n / F2", "Quick rename (inline bar pre-filled)", &app.theme),
+        key_line("r", "Bulk rename selected files with regex", &app.theme),
+        key_line("Esc", "Clear filter (if active) or selections", &app.theme),
         Line::from(""),
         // ── File Operations ─────────────────────────────────────────────────
-        section_header("File Operations"),
-        key_line("o", "Open in $EDITOR (suspends TUI)"),
-        key_line("O", "Open with system default (background)"),
-        key_line("c / C", "Copy current / selected"),
-        key_line("x", "Cut current to clipboard"),
-        key_line("F9", "Inspect clipboard contents"),
-        key_line("p", "Paste clipboard into current dir"),
-        key_line("Delete / X", "Trash current / selected (recoverable)"),
-        key_line("u", "Undo last trash operation"),
-        key_line("t", "New file (touch — create empty file)"),
-        key_line("W", "Duplicate selected entry in place"),
-        key_line("L", "Create symlink to selected entry"),
-        key_line("Z", "Extract archive to current directory"),
-        key_line("E", "Create archive from selected files (tar.gz, zip, …)"),
-        key_line("M", "Make new directory"),
+        section_header("File Operations", &app.theme),
+        key_line("o", "Open in $EDITOR (suspends TUI)", &app.theme),
+        key_line("O", "Open with system default (background)", &app.theme),
+        key_line("c / C", "Copy current / selected", &app.theme),
+        key_line("x", "Cut current to clipboard", &app.theme),
+        key_line("F9", "Inspect clipboard contents", &app.theme),
+        key_line("p", "Paste clipboard into current dir", &app.theme),
+        key_line(
+            "Delete / X",
+            "Trash current / selected (recoverable)",
+            &app.theme,
+        ),
+        key_line("u", "Undo last trash operation", &app.theme),
+        key_line("t", "New file (touch — create empty file)", &app.theme),
+        key_line("W", "Duplicate selected entry in place", &app.theme),
+        key_line("L", "Create symlink to selected entry", &app.theme),
+        key_line("Z", "Extract archive to current directory", &app.theme),
+        key_line(
+            "E",
+            "Create archive from selected files (tar.gz, zip, …)",
+            &app.theme,
+        ),
+        key_line("M", "Make new directory", &app.theme),
         Line::from(""),
         // ── Yank & Misc ─────────────────────────────────────────────────────
-        section_header("Yank & Misc"),
-        key_line("y / Y", "Yank relative / absolute path"),
+        section_header("Yank & Misc", &app.theme),
+        key_line("y / Y", "Yank relative / absolute path", &app.theme),
         key_line(
             "A",
             "Yank path (pick format: r=relative a=absolute f=filename p=parent)",
+            &app.theme,
         ),
-        key_line(":", "Open command palette"),
-        key_line("Q", "Quit"),
-        key_line("?", "Toggle this help"),
+        key_line(":", "Open command palette", &app.theme),
+        key_line("Q", "Quit", &app.theme),
+        key_line("?", "Toggle this help", &app.theme),
         Line::from(""),
         // ── AI workflow ─────────────────────────────────────────────────────
-        section_header("AI workflow"),
+        section_header("AI workflow", &app.theme),
         key_line(
             "Ctrl+B",
             "Export context bundle (selected files → clipboard for AI chat)",
+            &app.theme,
         ),
         Line::from(""),
         Line::from(Span::styled(
             "  Right-click: open file in new cmux tab",
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(app.theme.fg_dim),
         )),
         Line::from(Span::styled(
             "  Double-click: open file in new cmux pane to the right",
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(app.theme.fg_dim),
         )),
         Line::from(Span::styled(
             "  Drag dividers to resize · scroll wheel on all panes",
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(app.theme.fg_dim),
         )),
         Line::from(Span::styled(
             "  Any key to close",
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(app.theme.fg_dim),
         )),
     ];
 
     let block = Block::default()
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::Cyan))
+        .border_style(Style::default().fg(app.theme.border_focus))
         .title(Span::styled(
             " Help ",
             Style::default()
-                .fg(Color::White)
+                .fg(app.theme.fg)
                 .add_modifier(Modifier::BOLD),
         ));
     let para = Paragraph::new(help_lines).block(block);
@@ -2379,7 +2435,7 @@ fn draw_task_manager_pane(f: &mut Frame, app: &App, area: Rect) {
     let block = Block::default()
         .title(title)
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::Yellow));
+        .border_style(Style::default().fg(app.theme.border_warn));
 
     let inner = block.inner(area);
     f.render_widget(block, area);
@@ -2387,7 +2443,7 @@ fn draw_task_manager_pane(f: &mut Frame, app: &App, area: Rect) {
     if app.task_manager.tasks.is_empty() {
         let msg = Paragraph::new(Line::from(Span::styled(
             "No background tasks",
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(app.theme.fg_dim),
         )))
         .alignment(ratatui::layout::Alignment::Center);
         f.render_widget(msg, inner);
@@ -2395,7 +2451,7 @@ fn draw_task_manager_pane(f: &mut Frame, app: &App, area: Rect) {
         // Footer hint
         let hint = Paragraph::new(Line::from(Span::styled(
             "  Ctrl+T or q to close",
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(app.theme.fg_dim),
         )));
         if inner.height >= 3 {
             let hint_area = Rect {
@@ -2430,9 +2486,9 @@ fn draw_task_manager_pane(f: &mut Frame, app: &App, area: Rect) {
         let is_selected = i == selected;
 
         let (status_sym, status_style) = match &task.status {
-            TaskStatus::Running => ("⟳", Style::default().fg(Color::Cyan)),
-            TaskStatus::Done { .. } => ("✓", Style::default().fg(Color::Green)),
-            TaskStatus::Failed { .. } => ("✗", Style::default().fg(Color::Red)),
+            TaskStatus::Running => ("⟳", Style::default().fg(app.theme.info)),
+            TaskStatus::Done { .. } => ("✓", Style::default().fg(app.theme.ok)),
+            TaskStatus::Failed { .. } => ("✗", Style::default().fg(app.theme.error)),
         };
 
         let kind_label = task.kind.label();
@@ -2453,7 +2509,7 @@ fn draw_task_manager_pane(f: &mut Frame, app: &App, area: Rect) {
         };
 
         let row_style = if is_selected {
-            Style::default().bg(Color::DarkGray)
+            Style::default().bg(app.theme.subtle_sel_bg)
         } else {
             Style::default()
         };
@@ -2471,7 +2527,7 @@ fn draw_task_manager_pane(f: &mut Frame, app: &App, area: Rect) {
             Span::styled(detail_trunc, row_style),
             Span::styled(
                 format!("  {}", elapsed),
-                Style::default().fg(Color::DarkGray).patch(row_style),
+                Style::default().fg(app.theme.fg_dim).patch(row_style),
             ),
         ]);
         rows.push(line);
@@ -2489,7 +2545,7 @@ fn draw_task_manager_pane(f: &mut Frame, app: &App, area: Rect) {
     };
     let footer = Line::from(Span::styled(
         footer_text,
-        Style::default().fg(Color::DarkGray),
+        Style::default().fg(app.theme.fg_dim),
     ));
 
     let content_height = inner.height.saturating_sub(1) as usize;
@@ -2545,7 +2601,7 @@ fn draw_session_summary_pane(f: &mut Frame, app: &App, area: Rect) {
     let block = Block::default()
         .title(title.as_str())
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::Cyan));
+        .border_style(Style::default().fg(app.theme.border_focus));
 
     let inner = block.inner(area);
     f.render_widget(block, area);
@@ -2560,7 +2616,7 @@ fn draw_session_summary_pane(f: &mut Frame, app: &App, area: Rect) {
     if file_count == 0 {
         let para = Paragraph::new(Line::from(Span::styled(
             "  No changes since checkpoint",
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(app.theme.fg_dim),
         )));
         f.render_widget(para, inner);
         return;
@@ -2578,7 +2634,7 @@ fn draw_session_summary_pane(f: &mut Frame, app: &App, area: Rect) {
         items.push(ListItem::new(Line::from(Span::styled(
             format!("  NEW ({})", new_count),
             Style::default()
-                .fg(Color::Green)
+                .fg(app.theme.event_new)
                 .add_modifier(Modifier::BOLD),
         ))));
         for (idx, entry) in cache.iter().enumerate() {
@@ -2587,11 +2643,11 @@ fn draw_session_summary_pane(f: &mut Frame, app: &App, area: Rect) {
                 let size_label = format_size(entry.size);
                 let style = if sel == idx {
                     Style::default()
-                        .fg(Color::Black)
-                        .bg(Color::Green)
+                        .fg(app.theme.confirm_fg)
+                        .bg(app.theme.event_new)
                         .add_modifier(Modifier::BOLD)
                 } else {
-                    Style::default().fg(Color::Green)
+                    Style::default().fg(app.theme.event_new)
                 };
                 let text = format!(
                     "  ├── {:48}  {}",
@@ -2607,7 +2663,7 @@ fn draw_session_summary_pane(f: &mut Frame, app: &App, area: Rect) {
         items.push(ListItem::new(Line::from(Span::styled(
             format!("  MODIFIED ({})", mod_count),
             Style::default()
-                .fg(Color::Yellow)
+                .fg(app.theme.event_modified)
                 .add_modifier(Modifier::BOLD),
         ))));
         for (idx, entry) in cache.iter().enumerate() {
@@ -2621,11 +2677,11 @@ fn draw_session_summary_pane(f: &mut Frame, app: &App, area: Rect) {
                 };
                 let style = if sel == idx {
                     Style::default()
-                        .fg(Color::Black)
-                        .bg(Color::Yellow)
+                        .fg(app.theme.confirm_fg)
+                        .bg(app.theme.event_modified)
                         .add_modifier(Modifier::BOLD)
                 } else {
-                    Style::default().fg(Color::Yellow)
+                    Style::default().fg(app.theme.event_modified)
                 };
                 let text = format!(
                     "  ├── {:48}  {}",
@@ -2640,7 +2696,9 @@ fn draw_session_summary_pane(f: &mut Frame, app: &App, area: Rect) {
     if del_count > 0 {
         items.push(ListItem::new(Line::from(Span::styled(
             format!("  DELETED ({})", del_count),
-            Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(app.theme.event_deleted)
+                .add_modifier(Modifier::BOLD),
         ))));
         for (idx, entry) in cache.iter().enumerate() {
             if entry.kind == ChangeKind::Deleted {
@@ -2648,11 +2706,11 @@ fn draw_session_summary_pane(f: &mut Frame, app: &App, area: Rect) {
                 let size_label = format!("was {}", format_size(entry.old_size));
                 let style = if sel == idx {
                     Style::default()
-                        .fg(Color::Black)
-                        .bg(Color::Red)
+                        .fg(app.theme.confirm_fg)
+                        .bg(app.theme.event_deleted)
                         .add_modifier(Modifier::BOLD)
                 } else {
-                    Style::default().fg(Color::Red)
+                    Style::default().fg(app.theme.event_deleted)
                 };
                 let text = format!(
                     "  ├── {:48}  {}",
@@ -2670,7 +2728,7 @@ fn draw_session_summary_pane(f: &mut Frame, app: &App, area: Rect) {
                 "  … and {} more",
                 app.session_summary_total - crate::app::session_snapshot::MAX_DIFF_ENTRIES
             ),
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(app.theme.fg_dim),
         ))));
     }
 
@@ -2703,11 +2761,11 @@ fn draw_cmux_surface_picker(f: &mut Frame, app: &App, size: Rect) {
 
     let block = Block::default()
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::Cyan))
+        .border_style(Style::default().fg(app.theme.border_focus))
         .title(Span::styled(
             " Send to surface ",
             Style::default()
-                .fg(Color::White)
+                .fg(app.theme.fg)
                 .add_modifier(Modifier::BOLD),
         ));
 
@@ -2727,12 +2785,12 @@ fn draw_cmux_surface_picker(f: &mut Frame, app: &App, size: Rect) {
 
     // ── Query row ─────────────────────────────────────────────────────────────
     let query_para = Paragraph::new(Line::from(vec![
-        Span::styled(" Filter: ", Style::default().fg(Color::DarkGray)),
+        Span::styled(" Filter: ", Style::default().fg(app.theme.fg_dim)),
         Span::styled(
             app.overlay.cmux_surface_query.as_str(),
-            Style::default().fg(Color::White),
+            Style::default().fg(app.theme.input),
         ),
-        Span::styled("█", Style::default().fg(Color::Cyan)),
+        Span::styled("█", Style::default().fg(app.theme.cursor)),
     ]));
     f.render_widget(query_para, inner_chunks[0]);
 
@@ -2749,7 +2807,7 @@ fn draw_cmux_surface_picker(f: &mut Frame, app: &App, size: Rect) {
     if app.overlay.cmux_surface_filtered.is_empty() {
         let para = Paragraph::new(Line::from(Span::styled(
             "  (no surfaces match)",
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(app.theme.fg_dim),
         )));
         f.render_widget(para, list_area);
     } else {
@@ -2776,8 +2834,8 @@ fn draw_cmux_surface_picker(f: &mut Frame, app: &App, size: Rect) {
 
                 if is_selected {
                     let style = Style::default()
-                        .fg(Color::White)
-                        .bg(Color::Blue)
+                        .fg(app.theme.sel_fg)
+                        .bg(app.theme.sel_bg)
                         .add_modifier(Modifier::BOLD);
                     ListItem::new(Line::from(vec![Span::styled(
                         format!(" {:<3}  {:<12}  {}", icon, s.id, title_col),
@@ -2785,10 +2843,13 @@ fn draw_cmux_surface_picker(f: &mut Frame, app: &App, size: Rect) {
                     )]))
                 } else {
                     ListItem::new(Line::from(vec![
-                        Span::styled(format!(" {:<3} ", icon), Style::default().fg(Color::Cyan)),
+                        Span::styled(
+                            format!(" {:<3} ", icon),
+                            Style::default().fg(app.theme.info),
+                        ),
                         Span::styled(
                             format!(" {:<12}  ", s.id),
-                            Style::default().fg(Color::DarkGray),
+                            Style::default().fg(app.theme.fg_dim),
                         ),
                         Span::raw(title_col),
                     ]))
@@ -2826,12 +2887,12 @@ fn draw_cmux_surface_picker(f: &mut Frame, app: &App, size: Rect) {
                 line_count,
                 if line_count == 1 { "" } else { "s" }
             ),
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(app.theme.fg_dim),
         ),
         Span::styled(
             format!("\"{}\"", preview_text),
             Style::default()
-                .fg(Color::DarkGray)
+                .fg(app.theme.fg_dim)
                 .add_modifier(Modifier::ITALIC),
         ),
     ]));
@@ -2843,26 +2904,26 @@ fn draw_cmux_surface_picker(f: &mut Frame, app: &App, size: Rect) {
         Span::styled(
             "Enter",
             Style::default()
-                .fg(Color::Yellow)
+                .fg(app.theme.warn)
                 .add_modifier(Modifier::BOLD),
         ),
-        Span::styled(" send  ", Style::default().fg(Color::DarkGray)),
+        Span::styled(" send  ", Style::default().fg(app.theme.fg_dim)),
         Span::styled(
             "Esc",
             Style::default()
-                .fg(Color::Yellow)
+                .fg(app.theme.warn)
                 .add_modifier(Modifier::BOLD),
         ),
-        Span::styled(" cancel  ", Style::default().fg(Color::DarkGray)),
+        Span::styled(" cancel  ", Style::default().fg(app.theme.fg_dim)),
         Span::styled(
             "↑↓",
             Style::default()
-                .fg(Color::Yellow)
+                .fg(app.theme.warn)
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
             " navigate  type to filter",
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(app.theme.fg_dim),
         ),
     ]));
     f.render_widget(hint, inner_chunks[3]);

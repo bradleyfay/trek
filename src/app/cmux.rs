@@ -533,47 +533,65 @@ impl App {
 
 // ── Surface discovery ─────────────────────────────────────────────────────────
 
-/// Query `cmux list-surfaces --json` and return the ID of the first surface
-/// whose type matches `surface_type` (e.g. `"markdown"`, `"browser"`).
+/// Find the ID of the first surface of `surface_type` in the current cmux
+/// workspace by parsing `cmux tree` output (workspace-scoped, consistent with
+/// `discover_workspace_surfaces`).
 ///
 /// Returns `None` when cmux is unavailable, the command fails, or no surface
-/// of the requested type exists.
+/// of the requested type exists in the current workspace.
 fn find_cmux_surface_of_type(surface_type: &str) -> Option<String> {
-    let out = std::process::Command::new("cmux")
-        .args(["list-surfaces", "--json"])
+    // Get workspace ref from the JSON variant of tree.
+    let json = std::process::Command::new("cmux")
+        .args(["tree", "--json"])
         .output()
-        .ok()?;
-    if !out.status.success() {
-        return None;
-    }
-    parse_surface_of_type(&String::from_utf8_lossy(&out.stdout), surface_type)
-}
+        .ok()
+        .and_then(|o| {
+            if o.status.success() {
+                String::from_utf8(o.stdout).ok()
+            } else {
+                None
+            }
+        })?;
 
-/// Parse the JSON output of `cmux list-surfaces --json` and return the `id`
-/// field of the first object whose `type` field equals `surface_type`.
-///
-/// Handles both compact and pretty-printed JSON. Uses simple string scanning
-/// rather than a full JSON parser — sufficient for the well-structured output
-/// produced by the cmux CLI.
-fn parse_surface_of_type(json: &str, surface_type: &str) -> Option<String> {
     use regex::Regex;
+    let caller_block_re = Regex::new(r#""caller"\s*:\s*\{([^}]+)\}"#).ok()?;
+    let ref_re = Regex::new(r#""workspace_ref"\s*:\s*"([^"]+)""#).ok()?;
+    let surf_re = Regex::new(r#""surface_ref"\s*:\s*"([^"]+)""#).ok()?;
 
-    let type_pat = format!(r#""type"\s*:\s*"{}""#, regex::escape(surface_type));
-    let type_re = Regex::new(&type_pat).ok()?;
-    let id_re = Regex::new(r#""id"\s*:\s*"([^"]+)""#).ok()?;
+    let caller_block = caller_block_re
+        .captures(&json)
+        .and_then(|c| c.get(1))
+        .map(|m| m.as_str())
+        .unwrap_or("");
 
-    let m = type_re.find(json)?;
+    let workspace_ref = ref_re
+        .captures(caller_block)
+        .and_then(|c| c.get(1))
+        .map(|m| m.as_str())
+        .unwrap_or("");
+    let my_surface_ref = surf_re
+        .captures(caller_block)
+        .and_then(|c| c.get(1))
+        .map(|m| m.as_str())
+        .unwrap_or("");
 
-    // Scan back to the opening brace of this object.
-    let obj_start = json[..m.start()].rfind('{').unwrap_or(0);
-    // Scan forward to the closing brace.
-    let obj_end = json[m.start()..]
-        .find('}')
-        .map(|i| m.start() + i + 1)
-        .unwrap_or(json.len());
+    let tree = std::process::Command::new("cmux")
+        .arg("tree")
+        .output()
+        .ok()
+        .and_then(|o| {
+            if o.status.success() {
+                String::from_utf8(o.stdout).ok()
+            } else {
+                None
+            }
+        })?;
 
-    let obj = &json[obj_start..obj_end];
-    id_re.captures(obj)?.get(1).map(|c| c.as_str().to_string())
+    parse_tree_surfaces(&tree, workspace_ref)
+        .into_iter()
+        .filter(|s| s.id != my_surface_ref && s.kind == surface_type)
+        .map(|s| s.id)
+        .next()
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -593,71 +611,93 @@ fn shell_escape(s: &str) -> String {
 mod tests {
     use super::*;
 
-    // ── parse_surface_of_type ─────────────────────────────────────────────────
+    // ── parse_tree_surfaces / find_cmux_surface_of_type ──────────────────────
 
-    /// Given: compact JSON containing a browser surface
-    /// When: parse_surface_of_type("browser") is called
-    /// Then: returns the surface ID
-    #[test]
-    fn parse_surface_finds_browser_in_compact_json() {
-        let json = r#"[{"id":"surface:1","type":"terminal"},{"id":"surface:2","type":"browser"}]"#;
-        assert_eq!(
-            parse_surface_of_type(json, "browser"),
-            Some("surface:2".to_string())
-        );
+    fn sample_tree() -> &'static str {
+        "\
+workspace workspace:1\n\
+  pane pane:1\n\
+    surface surface:1 [terminal] \"Trek\"\n\
+    surface surface:2 [markdown] \"README.md\"\n\
+  pane pane:2\n\
+    surface surface:3 [browser] \"index.html\"\n\
+    surface surface:4 [browser] \"other.html\"\n\
+"
     }
 
-    /// Given: compact JSON containing a markdown surface
-    /// When: parse_surface_of_type("markdown") is called
-    /// Then: returns the surface ID
+    /// Given: a tree with a markdown surface
+    /// When: parse_tree_surfaces is called scoped to the workspace
+    /// Then: finds the markdown surface with correct pane
     #[test]
-    fn parse_surface_finds_markdown_in_compact_json() {
-        let json = r#"[{"id":"surface:1","type":"terminal"},{"id":"surface:3","type":"markdown"}]"#;
-        assert_eq!(
-            parse_surface_of_type(json, "markdown"),
-            Some("surface:3".to_string())
-        );
+    fn parse_tree_surfaces_finds_markdown_surface() {
+        let surfaces = parse_tree_surfaces(sample_tree(), "workspace:1");
+        let md: Vec<_> = surfaces.iter().filter(|s| s.kind == "markdown").collect();
+        assert_eq!(md.len(), 1);
+        assert_eq!(md[0].id, "surface:2");
+        assert_eq!(md[0].pane_id, "pane:1");
     }
 
-    /// Given: JSON with no surface of the requested type
-    /// When: parse_surface_of_type("browser") is called
-    /// Then: returns None
+    /// Given: a tree with browser surfaces
+    /// When: parse_tree_surfaces is called
+    /// Then: finds both browser surfaces in order
     #[test]
-    fn parse_surface_returns_none_when_type_absent() {
-        let json = r#"[{"id":"surface:1","type":"terminal"},{"id":"surface:2","type":"markdown"}]"#;
-        assert_eq!(parse_surface_of_type(json, "browser"), None);
+    fn parse_tree_surfaces_finds_browser_surfaces() {
+        let surfaces = parse_tree_surfaces(sample_tree(), "workspace:1");
+        let br: Vec<_> = surfaces.iter().filter(|s| s.kind == "browser").collect();
+        assert_eq!(br.len(), 2);
+        assert_eq!(br[0].id, "surface:3");
+        assert_eq!(br[1].id, "surface:4");
     }
 
-    /// Given: an empty JSON array
-    /// When: parse_surface_of_type is called
-    /// Then: returns None
+    /// Given: a tree with no surface of the requested type
+    /// When: filtering by kind
+    /// Then: returns nothing
     #[test]
-    fn parse_surface_returns_none_for_empty_array() {
-        assert_eq!(parse_surface_of_type("[]", "browser"), None);
+    fn parse_tree_surfaces_returns_empty_when_type_absent() {
+        let surfaces = parse_tree_surfaces(sample_tree(), "workspace:1");
+        let img: Vec<_> = surfaces.iter().filter(|s| s.kind == "image").collect();
+        assert!(img.is_empty());
     }
 
-    /// Given: JSON with multiple surfaces of the same type
-    /// When: parse_surface_of_type("browser") is called
-    /// Then: returns the first match
+    /// Given: an empty tree string
+    /// When: parse_tree_surfaces is called
+    /// Then: returns an empty vec
     #[test]
-    fn parse_surface_returns_first_match() {
-        let json = r#"[{"id":"surface:2","type":"browser"},{"id":"surface:5","type":"browser"}]"#;
-        assert_eq!(
-            parse_surface_of_type(json, "browser"),
-            Some("surface:2".to_string())
-        );
+    fn parse_tree_surfaces_returns_empty_for_empty_tree() {
+        let surfaces = parse_tree_surfaces("", "workspace:1");
+        assert!(surfaces.is_empty());
     }
 
-    /// Given: pretty-printed JSON
-    /// When: parse_surface_of_type("markdown") is called
-    /// Then: still finds the surface ID
+    /// Given: a tree with surfaces from multiple workspaces
+    /// When: parse_tree_surfaces is called scoped to workspace:2
+    /// Then: only surfaces from workspace:2 are returned
     #[test]
-    fn parse_surface_handles_pretty_printed_json() {
-        let json = "[\n  {\n    \"id\": \"surface:4\",\n    \"type\": \"markdown\"\n  }\n]";
-        assert_eq!(
-            parse_surface_of_type(json, "markdown"),
-            Some("surface:4".to_string())
-        );
+    fn parse_tree_surfaces_scopes_to_workspace() {
+        let tree = "\
+workspace workspace:1\n\
+  pane pane:1\n\
+    surface surface:1 [markdown] \"a.md\"\n\
+workspace workspace:2\n\
+  pane pane:2\n\
+    surface surface:2 [markdown] \"b.md\"\n\
+";
+        let surfaces = parse_tree_surfaces(tree, "workspace:2");
+        assert_eq!(surfaces.len(), 1);
+        assert_eq!(surfaces[0].id, "surface:2");
+    }
+
+    /// Given: multiple surfaces of the same type in a workspace
+    /// When: finding first of type after exclusion
+    /// Then: excludes Trek's own surface and returns the next match
+    #[test]
+    fn parse_tree_surfaces_first_match_skips_excluded() {
+        let surfaces = parse_tree_surfaces(sample_tree(), "workspace:1");
+        let first_browser = surfaces
+            .iter()
+            .filter(|s| s.kind == "browser" && s.id != "surface:3")
+            .map(|s| s.id.as_str())
+            .next();
+        assert_eq!(first_browser, Some("surface:4"));
     }
 
     // ── CmuxViewer commands ───────────────────────────────────────────────────

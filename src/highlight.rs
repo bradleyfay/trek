@@ -4,8 +4,6 @@ use syntect::easy::HighlightLines;
 use syntect::highlighting::ThemeSet;
 use syntect::parsing::SyntaxSet;
 
-const PREVIEW_THEME: &str = "base16-ocean.dark";
-
 /// Owns the syntax/theme data loaded once at startup.
 pub struct Highlighter {
     syntax_set: SyntaxSet,
@@ -34,9 +32,14 @@ impl Highlighter {
         lines: &[String],
         extension: &str,
         max_lines: usize,
+        syntax_theme: &str,
     ) -> Option<Vec<Line<'static>>> {
         let syntax = self.syntax_set.find_syntax_by_extension(extension)?;
-        let theme = self.theme_set.themes.get(PREVIEW_THEME)?;
+        let theme = self
+            .theme_set
+            .themes
+            .get(syntax_theme)
+            .or_else(|| self.theme_set.themes.get("base16-ocean.dark"))?;
         let mut h = HighlightLines::new(syntax, theme);
 
         let mut result = Vec::with_capacity(lines.len().min(max_lines));
@@ -86,7 +89,7 @@ mod tests {
             "    println!(\"hello\");".to_string(),
             "}".to_string(),
         ];
-        let result = h.highlight(&lines, "rs", 100);
+        let result = h.highlight(&lines, "rs", 100, "base16-ocean.dark");
         assert!(result.is_some(), "expected Some for .rs extension");
         assert_eq!(result.unwrap().len(), 3);
     }
@@ -99,7 +102,8 @@ mod tests {
         let h = hl();
         let lines = vec!["some text".to_string()];
         assert!(
-            h.highlight(&lines, "xyz", 100).is_none(),
+            h.highlight(&lines, "xyz", 100, "base16-ocean.dark")
+                .is_none(),
             "expected None for unrecognized extension"
         );
     }
@@ -111,7 +115,7 @@ mod tests {
     fn highlight_caps_at_max_lines() {
         let h = hl();
         let lines: Vec<String> = (0..10).map(|i| format!("// line {}", i)).collect();
-        let result = h.highlight(&lines, "rs", 2).unwrap();
+        let result = h.highlight(&lines, "rs", 2, "base16-ocean.dark").unwrap();
         assert_eq!(result.len(), 2);
     }
 
@@ -121,7 +125,7 @@ mod tests {
     #[test]
     fn highlight_empty_returns_some_empty() {
         let h = hl();
-        let result = h.highlight(&[], "rs", 100).unwrap();
+        let result = h.highlight(&[], "rs", 100, "base16-ocean.dark").unwrap();
         assert!(result.is_empty());
     }
 
@@ -132,7 +136,9 @@ mod tests {
     fn highlight_python_returns_some() {
         let h = hl();
         let lines = vec!["def hello():".to_string(), "    pass".to_string()];
-        assert!(h.highlight(&lines, "py", 100).is_some());
+        assert!(h
+            .highlight(&lines, "py", 100, "base16-ocean.dark")
+            .is_some());
     }
 
     /// Given: a .yaml extension
@@ -142,7 +148,9 @@ mod tests {
     fn highlight_yaml_returns_some() {
         let h = hl();
         let lines = vec!["key: value".to_string(), "list:".to_string()];
-        assert!(h.highlight(&lines, "yaml", 100).is_some());
+        assert!(h
+            .highlight(&lines, "yaml", 100, "base16-ocean.dark")
+            .is_some());
     }
 
     /// Given: a .toml extension
@@ -153,7 +161,8 @@ mod tests {
         let h = hl();
         let lines = vec![r#"[package]"#.to_string(), r#"name = "trek""#.to_string()];
         assert!(
-            h.highlight(&lines, "toml", 100).is_some(),
+            h.highlight(&lines, "toml", 100, "base16-ocean.dark")
+                .is_some(),
             "expected Some for .toml — TOML grammar must be available"
         );
     }
@@ -166,7 +175,8 @@ mod tests {
         let h = hl();
         let lines = vec![r#"{"key": "value"}"#.to_string()];
         assert!(
-            h.highlight(&lines, "json", 100).is_some(),
+            h.highlight(&lines, "json", 100, "base16-ocean.dark")
+                .is_some(),
             "expected Some for .json — JSON grammar must be available"
         );
     }

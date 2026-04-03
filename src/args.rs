@@ -10,6 +10,8 @@ pub struct ParsedArgs {
     pub choosedir: Option<String>,
     /// Optional starting directory (first non-flag positional argument).
     pub start_dir: Option<PathBuf>,
+    /// Optional colour theme name (`--theme <name>`).
+    pub theme: Option<String>,
 }
 
 /// Parse `args` (argv[1..]) into a `ParsedArgs`.
@@ -22,6 +24,7 @@ pub fn parse_args(args: &[String]) -> Result<ParsedArgs, String> {
         install_shell: false,
         choosedir: None,
         start_dir: None,
+        theme: None,
     };
 
     let mut i = 0;
@@ -37,6 +40,13 @@ pub fn parse_args(args: &[String]) -> Result<ParsedArgs, String> {
                     .get(i)
                     .ok_or_else(|| "--choosedir requires a path argument".to_string())?;
                 parsed.choosedir = Some(val.clone());
+            }
+            "--theme" => {
+                i += 1;
+                let val = args
+                    .get(i)
+                    .ok_or_else(|| "--theme requires a name argument".to_string())?;
+                parsed.theme = Some(val.clone());
             }
             a if a.starts_with('-') => {
                 return Err(format!("trek: unrecognized option '{a}'"));
@@ -67,6 +77,7 @@ pub fn print_help() {
     println!("    -h, --help             Print this help message");
     println!("    -V, --version          Print version information");
     println!("        --install-shell    Install the `m` shell function (enables cd-on-exit)");
+    println!("        --theme <name>     Set the colour theme (see below)");
     println!();
     println!("KEYBINDINGS (inside the TUI):");
     println!("    j / Down    Move down          k / Up      Move up");
@@ -113,6 +124,16 @@ pub fn print_help() {
     println!("    X           Delete all selected");
     println!("    :           Open command palette");
     println!("    ?           Show help overlay  q           Quit");
+    println!();
+    println!("THEMES:");
+    println!("    default              Dark — ANSI named colours (default)");
+    println!("    catppuccin-mocha     Dark — Catppuccin Mocha");
+    println!("    catppuccin-latte     Light — Catppuccin Latte");
+    println!("    tokyo-night          Dark — Tokyo Night");
+    println!("    tokyo-night-light    Light — Tokyo Night Light");
+    println!();
+    println!("    RGB themes (all except 'default') look best in a truecolor terminal.");
+    println!("    Set COLORTERM=truecolor if colours appear incorrect.");
 }
 
 // ── Tests for parse_args ───────────────────────────────────────────────────────
@@ -211,5 +232,55 @@ mod cli_tests {
     fn install_shell_flag() {
         let p = parse_args(&s(&["--install-shell"])).unwrap();
         assert!(p.install_shell);
+    }
+
+    /// Given: --theme with a valid name
+    /// When: parse_args is called
+    /// Then: theme is Some with the given name
+    #[test]
+    fn theme_flag_sets_name() {
+        let p = parse_args(&s(&["--theme", "catppuccin-mocha"])).unwrap();
+        assert_eq!(p.theme.as_deref(), Some("catppuccin-mocha"));
+    }
+
+    /// Given: --theme with no following value
+    /// When: parse_args is called
+    /// Then: an Err is returned
+    #[test]
+    fn theme_flag_missing_value_returns_error() {
+        let result = parse_args(&s(&["--theme"]));
+        assert!(result.is_err());
+        let msg = result.unwrap_err();
+        assert!(msg.contains("--theme"), "error should name the flag: {msg}");
+    }
+
+    /// Given: no --theme flag
+    /// When: parse_args is called
+    /// Then: theme is None
+    #[test]
+    fn theme_absent_is_none() {
+        let p = parse_args(&s(&[])).unwrap();
+        assert!(p.theme.is_none());
+    }
+
+    /// Given: all five known theme names
+    /// When: Theme::from_name is called for each
+    /// Then: all return Some (none silently fall back to default)
+    #[test]
+    fn all_theme_names_resolve() {
+        for name in crate::theme::Theme::names() {
+            assert!(
+                crate::theme::Theme::from_name(name).is_some(),
+                "Theme::from_name returned None for registered name '{name}'"
+            );
+        }
+    }
+
+    /// Given: an unrecognised theme name
+    /// When: Theme::from_name is called
+    /// Then: returns None
+    #[test]
+    fn unknown_theme_name_returns_none() {
+        assert!(crate::theme::Theme::from_name("nonsense-theme").is_none());
     }
 }

@@ -247,13 +247,15 @@ mod tests {
     /// Then: the result contains the file's absolute path
     #[test]
     fn walker_finds_file_in_temp_dir() {
-        let tmp = std::env::temp_dir();
+        let root = std::env::temp_dir().join(format!("trek_walker_root_{}", std::process::id()));
+        let _ = fs::create_dir_all(&root);
         let fname = format!("trek_walker_test_{}.txt", std::process::id());
-        let fpath = tmp.join(&fname);
+        let fpath = root.join(&fname);
         fs::write(&fpath, b"hello").unwrap();
 
-        let results = run_walker("trek_walker_test", &tmp);
+        let results = run_walker("trek_walker_test", &root);
         let _ = fs::remove_file(&fpath);
+        let _ = fs::remove_dir(&root);
 
         assert!(
             results.iter().any(|r| r.absolute == fpath),
@@ -266,17 +268,19 @@ mod tests {
     /// Then: the hidden directory's contents are not returned
     #[test]
     fn walker_skips_hidden_directories() {
-        let tmp = std::env::temp_dir();
-        let hidden_dir = tmp.join(format!(".trek_hidden_{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!("trek_walker_root_{}", std::process::id()));
+        let _ = fs::create_dir_all(&root);
+        let hidden_dir = root.join(format!(".trek_hidden_{}", std::process::id()));
         let _ = fs::create_dir_all(&hidden_dir);
         let fname = format!("trek_hidden_file_{}.txt", std::process::id());
         let hidden_file = hidden_dir.join(&fname);
         let _ = fs::write(&hidden_file, b"hidden");
 
-        let results = run_walker(&fname, &tmp);
+        let results = run_walker(&fname, &root);
 
         let _ = fs::remove_file(&hidden_file);
         let _ = fs::remove_dir(&hidden_dir);
+        let _ = fs::remove_dir(&root);
 
         assert!(
             !results.iter().any(|r| r.absolute == hidden_file),
