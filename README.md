@@ -22,6 +22,14 @@ trek --install-shell
 
 Adds an `m` function to your shell that launches trek and `cd`s into whatever directory you were in when you quit.
 
+### Themes
+
+```sh
+trek --theme <name>
+```
+
+Five built-in themes: `default`, `catppuccin-mocha`, `catppuccin-latte`, `tokyo-night`, `tokyo-night-light`. The Catppuccin and Tokyo Night themes require a truecolor terminal. Unknown names are rejected before startup.
+
 ## What it does
 
 - Three-pane layout: parent directory, current directory, file preview

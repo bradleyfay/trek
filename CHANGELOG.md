@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.66.0] - 2026-04-02
+
+### Added
+
+- **Colour theming via `--theme <name>`** — Trek now ships with five built-in themes selectable at startup: `default` (original ANSI dark scheme), `catppuccin-mocha` (dark), `catppuccin-latte` (light), `tokyo-night` (dark), and `tokyo-night-light` (light). All colours are expressed through a `Theme` struct of named semantic roles (`sel_bg`, `dir_fg`, `git_modified`, `diff_add`, `syntax_theme`, …) rather than inline literals, making it straightforward to add new themes in the future. Unknown theme names are rejected before terminal raw mode is entered so the error path is always clean. RGB-based themes (`catppuccin-*`, `tokyo-night*`) require a truecolor terminal.
+
 ## [0.65.1] - 2026-04-02
 
 ### Performance

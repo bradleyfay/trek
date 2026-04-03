@@ -137,7 +137,8 @@ fn dirs_always_before_files_regardless_of_sort_mode() {
 // ── History tests ────────────────────────────────────────────────────────
 
 fn make_app_at(dir: &std::path::Path) -> App {
-    let mut app = App::new(Some(dir.to_path_buf())).expect("App::new");
+    let mut app =
+        App::new(Some(dir.to_path_buf()), crate::theme::Theme::default()).expect("App::new");
     // Clear the initial status message so tests can check specific messages.
     app.status_message = None;
     app

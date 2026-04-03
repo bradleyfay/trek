@@ -1,6 +1,7 @@
 use crate::git::GitStatus;
 use crate::highlight::Highlighter;
 use crate::ops::Clipboard;
+use crate::theme::Theme;
 use anyhow::Result;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -176,6 +177,9 @@ pub struct App {
     pub session_summary_cache: Option<Vec<session_snapshot::ChangedFile>>,
     pub session_summary_total: usize,
     pub session_summary_selected: usize,
+
+    // --- Colour theme ---
+    pub theme: Theme,
 }
 
 #[derive(Clone)]
@@ -191,7 +195,7 @@ pub struct DirEntry {
 }
 
 impl App {
-    pub fn new(start_dir: Option<PathBuf>) -> Result<Self> {
+    pub fn new(start_dir: Option<PathBuf>, theme: Theme) -> Result<Self> {
         let cwd = match start_dir {
             Some(dir) => dir,
             None => std::env::current_dir()?,
@@ -241,6 +245,7 @@ impl App {
             session_summary_cache: None,
             session_summary_total: 0,
             session_summary_selected: 0,
+            theme,
         };
         app.load_dir();
         Ok(app)

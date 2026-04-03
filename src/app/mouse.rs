@@ -214,7 +214,7 @@ mod tests {
     fn right_click_selects_entry_at_clicked_row() {
         // Use the project directory — it always has multiple entries.
         let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let mut app = App::new(Some(dir)).expect("app init");
+        let mut app = App::new(Some(dir), crate::theme::Theme::default()).expect("app init");
 
         // Simulate a pane that starts at column 20, row 1 (border at y=1,
         // so inner content starts at y=2).
@@ -259,7 +259,7 @@ mod tests {
         }
 
         let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let mut app = App::new(Some(dir)).expect("app init");
+        let mut app = App::new(Some(dir), crate::theme::Theme::default()).expect("app init");
 
         // Locate the first non-directory entry so open_to_the_right doesn't
         // short-circuit on a directory.

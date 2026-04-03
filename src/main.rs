@@ -12,6 +12,7 @@ mod ops;
 mod search;
 mod session;
 mod shell;
+mod theme;
 mod trash;
 mod ui;
 mod watcher;
@@ -63,6 +64,24 @@ fn main() -> Result<()> {
         None
     };
 
+    // Resolve the theme before entering raw mode so that a bad --theme value
+    // can be reported cleanly without leaving the terminal in raw/alt-screen state.
+    let theme = match parsed.theme.as_deref() {
+        None => crate::theme::Theme::default(),
+        Some(name) => match crate::theme::Theme::from_name(name) {
+            Some(t) => t,
+            None => {
+                eprintln!("trek: unknown theme '{}'.", name);
+                eprintln!("Available themes:");
+                for t in crate::theme::Theme::names() {
+                    eprintln!("  {}", t);
+                }
+                eprintln!("Try 'trek --help' for more information.");
+                std::process::exit(1);
+            }
+        },
+    };
+
     // Install a panic hook that restores terminal state before printing the
     // panic message.  Without this, a panic leaves the terminal in raw mode
     // with the alternate screen active, requiring a blind `reset` to recover.
@@ -74,7 +93,7 @@ fn main() -> Result<()> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let result = events::run(&mut terminal, start_dir);
+    let result = events::run(&mut terminal, start_dir, theme);
 
     disable_raw_mode()?;
     execute!(

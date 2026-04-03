@@ -29,13 +29,14 @@ pub fn setup_panic_hook() {
 pub fn run(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     start_dir: Option<PathBuf>,
+    theme: crate::theme::Theme,
 ) -> Result<PathBuf> {
     // Resolve the start directory: explicit arg > invocation cwd > saved session.
     let session = crate::session::load();
     let invocation_cwd = std::env::current_dir().ok();
     let effective_start = resolve_effective_start(start_dir, invocation_cwd, session.cwd);
 
-    let mut app = App::new(effective_start)?;
+    let mut app = App::new(effective_start, theme)?;
 
     // Repopulate marks and view settings from the saved session.
     app.overlay.marks = session.marks;
