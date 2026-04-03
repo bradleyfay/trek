@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.67.0] - 2026-04-03
+
 ### Added
 
 - **Norton Commander theme** — Trek now ships with a sixth built-in theme, `norton-commander`, which recreates the classic DOS dual-panel palette with a blue full-screen background, cyan borders, bright-cyan directories, and the signature black-on-yellow cursor row.
