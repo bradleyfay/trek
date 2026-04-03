@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Norton Commander theme** — Trek now ships with a sixth built-in theme, `norton-commander`, which recreates the classic DOS dual-panel palette with a blue full-screen background, cyan borders, bright-cyan directories, and the signature black-on-yellow cursor row.
+- **Theme-owned surface background** — themes can now optionally define a terminal-wide background colour (`Theme::bg`). This lets palettes such as Norton Commander paint the full surface consistently, including gaps outside widget bounds that would otherwise show the terminal's default background.
+
 ## [0.66.0] - 2026-04-02
 
 ### Added

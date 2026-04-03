@@ -28,7 +28,7 @@ Adds an `m` function to your shell that launches trek and `cd`s into whatever di
 trek --theme <name>
 ```
 
-Five built-in themes: `default`, `catppuccin-mocha`, `catppuccin-latte`, `tokyo-night`, `tokyo-night-light`. The Catppuccin and Tokyo Night themes require a truecolor terminal. Unknown names are rejected before startup.
+Six built-in themes: `default`, `catppuccin-mocha`, `catppuccin-latte`, `tokyo-night`, `tokyo-night-light`, `norton-commander`. The RGB-based themes require a truecolor terminal for exact colours. Unknown names are rejected before startup.
 
 ## What it does
 
