@@ -12,9 +12,26 @@ use ratatui::{
     Frame,
 };
 
+/// Fill the entire frame with the theme's background colour.
+///
+/// This is a no-op when `theme.bg` is `Color::Reset` (all built-in themes
+/// except those that own their surface colour, like `norton-commander`).
+/// For themes that set an explicit `bg`, this call ensures that any area
+/// ratatui hasn't painted with a widget still shows the correct colour
+/// instead of the terminal's default background.
+fn paint_background(f: &mut Frame, theme: &crate::theme::Theme) {
+    if theme.bg == Color::Reset {
+        return;
+    }
+    let style = Style::default().bg(theme.bg);
+    f.render_widget(Block::default().style(style), f.size());
+}
+
 /// Main draw function. Computes pane layout from app's divider fractions,
 /// then renders parent pane, current-dir pane, and preview pane.
 pub fn draw(f: &mut Frame, app: &mut App) {
+    paint_background(f, &app.theme);
+
     let size = f.size();
     let chunks = Layout::default()
         .direction(Direction::Vertical)

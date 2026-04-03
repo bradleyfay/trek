@@ -131,6 +131,7 @@ pub fn print_help() {
     println!("    catppuccin-latte     Light — Catppuccin Latte");
     println!("    tokyo-night          Dark — Tokyo Night");
     println!("    tokyo-night-light    Light — Tokyo Night Light");
+    println!("    norton-commander     Dark — Norton Commander");
     println!();
     println!("    RGB themes (all except 'default') look best in a truecolor terminal.");
     println!("    Set COLORTERM=truecolor if colours appear incorrect.");
@@ -263,7 +264,7 @@ mod cli_tests {
         assert!(p.theme.is_none());
     }
 
-    /// Given: all five known theme names
+    /// Given: all known theme names
     /// When: Theme::from_name is called for each
     /// Then: all return Some (none silently fall back to default)
     #[test]

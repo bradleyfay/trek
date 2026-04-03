@@ -6,18 +6,35 @@
 ///
 /// # Available themes
 ///
-/// | Name                 | Style |
-/// |----------------------|-------|
-/// | `default`            | dark  |
-/// | `catppuccin-mocha`   | dark  |
-/// | `catppuccin-latte`   | light |
-/// | `tokyo-night`        | dark  |
-/// | `tokyo-night-light`  | light |
+/// | Name                  | Style |
+/// |-----------------------|-------|
+/// | `default`             | dark  |
+/// | `catppuccin-mocha`    | dark  |
+/// | `catppuccin-latte`    | light |
+/// | `tokyo-night`         | dark  |
+/// | `tokyo-night-light`   | light |
+/// | `norton-commander`    | dark  |
+///
+/// # Adding a theme
+///
+/// 1. Write a `Theme::my_theme() -> Self` constructor.
+/// 2. Add one entry to `REGISTRY`: `("my-theme", Theme::my_theme)`.
+/// 3. Set `bg` to the panel background colour, or `Color::Reset` to inherit
+///    the terminal's own background (the default for all built-in themes).
 use ratatui::style::Color;
 
 /// A complete set of semantic colours for the Trek TUI.
 #[derive(Clone, Debug)]
 pub struct Theme {
+    // ── Surface background ────────────────────────────────────────────────────
+    /// Background colour painted across the entire terminal surface before any
+    /// widgets are drawn.  `Color::Reset` (the default for all built-in themes)
+    /// leaves the terminal's own background colour untouched.  Set this to an
+    /// explicit colour when the theme owns its background (e.g. Norton Commander
+    /// blue) so the surface matches the palette even in areas ratatui hasn't
+    /// filled with a widget.
+    pub bg: Color,
+
     // ── Core text ─────────────────────────────────────────────────────────────
     /// Primary text — filenames, titles, input content.
     pub fg: Color,
@@ -117,6 +134,7 @@ const REGISTRY: &[ThemeEntry] = &[
     ("catppuccin-latte", Theme::catppuccin_latte),
     ("tokyo-night", Theme::tokyo_night),
     ("tokyo-night-light", Theme::tokyo_night_light),
+    ("norton-commander", Theme::norton_commander),
 ];
 
 impl Theme {
@@ -141,6 +159,7 @@ impl Theme {
     /// that work in virtually every terminal.
     pub fn default() -> Self {
         Self {
+            bg: Color::Reset,
             fg: Color::White,
             fg_dim: Color::DarkGray,
             sel_fg: Color::White,
@@ -199,6 +218,7 @@ impl Theme {
         const FLAMINGO: Color = Color::Rgb(242, 205, 205); // #f2cdcd
 
         Self {
+            bg: Color::Reset,
             fg: TEXT,
             fg_dim: OVERLAY0,
             sel_fg: BASE,
@@ -255,6 +275,7 @@ impl Theme {
         const FLAMINGO: Color = Color::Rgb(221, 120, 120); // #dd7878
 
         Self {
+            bg: Color::Reset,
             fg: TEXT,
             fg_dim: OVERLAY0,
             sel_fg: BASE,
@@ -309,6 +330,7 @@ impl Theme {
         const MAGENTA: Color = Color::Rgb(187, 154, 247); // #bb9af7
 
         Self {
+            bg: Color::Reset,
             fg: FG,
             fg_dim: COMMENT,
             sel_fg: BG,
@@ -363,6 +385,7 @@ impl Theme {
         const MAGENTA: Color = Color::Rgb(152, 84, 241); // #9854f1
 
         Self {
+            bg: Color::Reset,
             fg: FG,
             fg_dim: COMMENT,
             sel_fg: BG,
@@ -399,5 +422,100 @@ impl Theme {
             scrollbar_track: BG_HIGHLIGHT,
             syntax_theme: "InspiredGitHub",
         }
+    }
+
+    /// Norton Commander — the classic DOS dual-panel file manager aesthetic.
+    ///
+    /// Reproduces the exact CGA hardware palette NC 5.0 used.  Colours are
+    /// pinned as explicit RGB values rather than ANSI named colours so they
+    /// render identically regardless of the terminal's colour scheme.
+    ///
+    /// Reference: <https://ilyabirman.net/meanwhile/all/ui-museum-norton-commander-5-0/>
+    ///
+    /// Key palette roles:
+    /// - Panels:     white text on CGA blue (#0000AA)
+    /// - Borders:    CGA cyan (#00AAAA) box-drawing characters
+    /// - Cursor row: black text on CGA bright yellow (#FFFF55)
+    /// - Menus/bars: black text on CGA cyan (#00AAAA)
+    /// - Dirs:       CGA bright cyan (#55FFFF)
+    pub fn norton_commander() -> Self {
+        // Exact CGA hardware RGB values — do not substitute ANSI named colours
+        // here, as terminals map them inconsistently.
+        const BLUE: Color = Color::Rgb(0, 0, 170); // CGA 1  — panel background
+        const CYAN: Color = Color::Rgb(0, 170, 170); // CGA 3  — borders, menu bg
+        const LIGHT_GRAY: Color = Color::Rgb(170, 170, 170); // CGA 7  — dialog bg
+        const DARK_GRAY: Color = Color::Rgb(85, 85, 85); // CGA 8  — dim text
+        const LIGHT_CYAN: Color = Color::Rgb(85, 255, 255); // CGA 11 — directories
+        const LIGHT_RED: Color = Color::Rgb(255, 85, 85); // CGA 12 — deleted/error
+        const LIGHT_GREEN: Color = Color::Rgb(85, 255, 85); // CGA 10 — staged/ok
+        const YELLOW: Color = Color::Rgb(255, 255, 85); // CGA 14 — cursor row bg
+        const WHITE: Color = Color::Rgb(255, 255, 255); // CGA 15 — filenames
+        const BLACK: Color = Color::Rgb(0, 0, 0); // CGA 0  — cursor row fg
+
+        Self {
+            bg: BLUE,
+            fg: WHITE,
+            fg_dim: CYAN,
+            // Cursor row: black on bright yellow — the NC signature highlight.
+            sel_fg: BLACK,
+            sel_bg: YELLOW,
+            subtle_sel_bg: BLUE,
+            dir_fg: LIGHT_CYAN,
+            git_modified: YELLOW,
+            git_staged: LIGHT_GREEN,
+            git_untracked: LIGHT_CYAN,
+            git_deleted: LIGHT_RED,
+            multi_sel_fg: YELLOW,
+            multi_sel_mark: LIGHT_GREEN,
+            // Borders use CGA cyan; focused border steps up to bright cyan.
+            border: CYAN,
+            border_focus: LIGHT_CYAN,
+            border_warn: YELLOW,
+            // Input bars / menus: black text on cyan (NC menu bar colour).
+            prompt: BLACK,
+            prompt_alt: BLACK,
+            input: WHITE,
+            cursor: YELLOW,
+            ok: LIGHT_GREEN,
+            error: LIGHT_RED,
+            warn: YELLOW,
+            info: LIGHT_CYAN,
+            // Confirm badge mirrors dialog boxes: black on light-gray.
+            confirm_fg: BLACK,
+            confirm_bg: LIGHT_GRAY,
+            diff_add: LIGHT_GREEN,
+            diff_del: LIGHT_RED,
+            diff_hunk: LIGHT_CYAN,
+            diff_meta: DARK_GRAY,
+            event_new: LIGHT_GREEN,
+            event_modified: YELLOW,
+            event_deleted: LIGHT_RED,
+            scrollbar_thumb: CYAN,
+            scrollbar_track: BLUE,
+            syntax_theme: "base16-ocean.dark",
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Given: the default theme
+    /// When: it is constructed
+    /// Then: it leaves the terminal background unchanged
+    #[test]
+    fn default_theme_uses_reset_background() {
+        assert_eq!(Theme::default().bg, Color::Reset);
+    }
+
+    /// Given: the norton-commander theme name
+    /// When: it is resolved from the registry
+    /// Then: it owns a blue surface background and a yellow cursor row
+    #[test]
+    fn norton_commander_resolves_with_classic_surface_colors() {
+        let theme = Theme::from_name("norton-commander").expect("known theme");
+        assert_eq!(theme.bg, Color::Rgb(0, 0, 170));
+        assert_eq!(theme.sel_bg, Color::Rgb(255, 255, 85));
     }
 }
