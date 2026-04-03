@@ -154,18 +154,36 @@ impl App {
     /// Open `path` in a cmux viewer surface, reusing an existing surface of
     /// the correct type when one is available.
     ///
-    /// - If a surface of the viewer type exists:
-    ///   - **Markdown**: opens `path` as a new tab in the same pane as the
-    ///     existing surface, then closes the old surface — cmux processes
-    ///     commands serially over its socket so `&&` chaining ensures the
-    ///     new tab exists before the old one is removed.
-    ///   - **Browser**: navigates the existing surface to `path` in-place.
-    /// - If no surface of that type exists: opens a fresh viewer surface.
+    /// - **No existing markdown surface**: opens a fresh viewer surface in
+    ///   whatever location cmux chooses.
+    /// - **Existing markdown surface**: opens the new file (creating a new
+    ///   pane), snapshots markdown surfaces before/after to identify the new
+    ///   one, then moves it into the pane that already contains markdown so
+    ///   it stacks as a tab alongside the existing file(s).
     fn open_in_viewer(&mut self, viewer: CmuxViewer, name: &str, path: &Path) {
         let escaped = shell_escape(&path.to_string_lossy());
-        let cmd = match find_cmux_surface_of_type(viewer.surface_type()) {
-            Some(existing_id) => viewer.reuse_command(&existing_id, &escaped),
-            None => viewer.new_command(&escaped),
+        let cmd = match viewer {
+            CmuxViewer::Markdown => {
+                match find_cmux_surface_pane("markdown") {
+                    Some(pane_id) => {
+                        // Snapshot existing markdown surfaces, open the new file,
+                        // diff to find the new surface, move it into the existing pane.
+                        format!(
+                            "BEFORE=$(cmux tree | grep '\\[markdown\\]' | grep -oE 'surface:[^ ]+'); \
+                             cmux markdown open {escaped}; \
+                             NEW=$(cmux tree | grep '\\[markdown\\]' | grep -oE 'surface:[^ ]+' | grep -vFx \"$BEFORE\" | head -1); \
+                             [ -n \"$NEW\" ] && cmux move-surface --surface \"$NEW\" --pane {pane_id}"
+                        )
+                    }
+                    None => format!("cmux markdown open {escaped}"),
+                }
+            }
+            CmuxViewer::Browser => {
+                match find_cmux_surface_of_type("browser") {
+                    Some(existing_id) => viewer.reuse_command(&existing_id, &escaped),
+                    None => viewer.new_command(&escaped),
+                }
+            }
         };
         self.spawn_opener_command(name, &cmd);
     }
@@ -542,16 +560,27 @@ impl App {
 ///
 /// Returns `None` when cmux is unavailable, the command fails, or no surface
 /// of the requested type exists.
-fn find_cmux_surface_of_type(surface_type: &str) -> Option<String> {
-    let out = std::process::Command::new("cmux")
+/// Like `find_cmux_surface_of_type` but returns the pane ID of the first
+/// surface of the given type rather than the surface ID itself.
+fn find_cmux_surface_pane(surface_type: &str) -> Option<String> {
+    let surfaces = find_cmux_surfaces_in_workspace()?;
+    surfaces
+        .into_iter()
+        .find(|s| s.kind == surface_type)
+        .map(|s| s.pane_id)
+        .filter(|p| !p.is_empty())
+}
+
+/// Return all surfaces in the caller's workspace.
+fn find_cmux_surfaces_in_workspace() -> Option<Vec<CmuxSurface>> {
+    let json_out = std::process::Command::new("cmux")
         .args(["tree", "--json"])
         .output()
         .ok()?;
-    if !out.status.success() {
+    if !json_out.status.success() {
         return None;
     }
-    let json = String::from_utf8_lossy(&out.stdout);
-    // Extract caller workspace so we only search the current workspace.
+    let json = String::from_utf8_lossy(&json_out.stdout);
     use regex::Regex;
     let caller_block_re = Regex::new(r#""caller"\s*:\s*\{([^}]+)\}"#).ok()?;
     let ref_re = Regex::new(r#""workspace_ref"\s*:\s*"([^"]+)""#).ok()?;
@@ -565,13 +594,16 @@ fn find_cmux_surface_of_type(surface_type: &str) -> Option<String> {
         .and_then(|c| c.get(1))
         .map(|m| m.as_str())
         .unwrap_or("");
-    // Use the plain-text tree for surface parsing (parse_tree_surfaces handles it).
     let tree_out = std::process::Command::new("cmux")
         .arg("tree")
         .output()
         .ok()?;
     let tree = String::from_utf8_lossy(&tree_out.stdout).to_string();
-    parse_tree_surfaces(&tree, workspace_ref)
+    Some(parse_tree_surfaces(&tree, workspace_ref))
+}
+
+fn find_cmux_surface_of_type(surface_type: &str) -> Option<String> {
+    find_cmux_surfaces_in_workspace()?
         .into_iter()
         .find(|s| s.kind == surface_type)
         .map(|s| s.id)
