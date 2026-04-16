@@ -361,17 +361,16 @@ pub fn run(
                     match key.code {
                         KeyCode::Esc => app.close_cmux_surface_picker(),
                         KeyCode::Enter => app.send_lines_to_cmux_surface(),
-                        KeyCode::Up | KeyCode::Char('k') => {
-                            if app.overlay.cmux_surface_selected > 0 {
-                                app.overlay.cmux_surface_selected -= 1;
-                            }
+                        KeyCode::Up | KeyCode::Char('k')
+                            if app.overlay.cmux_surface_selected > 0 =>
+                        {
+                            app.overlay.cmux_surface_selected -= 1;
                         }
-                        KeyCode::Down | KeyCode::Char('j') => {
+                        KeyCode::Down | KeyCode::Char('j')
                             if app.overlay.cmux_surface_selected + 1
-                                < app.overlay.cmux_surface_filtered.len()
-                            {
-                                app.overlay.cmux_surface_selected += 1;
-                            }
+                                < app.overlay.cmux_surface_filtered.len() =>
+                        {
+                            app.overlay.cmux_surface_selected += 1;
                         }
                         KeyCode::Backspace => {
                             app.overlay.cmux_surface_query.pop();
