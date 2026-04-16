@@ -683,6 +683,18 @@ pub fn format_size(size: u64) -> String {
     }
 }
 
+/// Estimate token count from byte size using the bytes/4 heuristic and format for display.
+pub fn format_tokens(size: u64) -> String {
+    let tokens = size / 4;
+    if tokens < 1_000 {
+        format!("{} tok", tokens)
+    } else if tokens < 1_000_000 {
+        format!("{:.1}k tok", tokens as f64 / 1_000.0)
+    } else {
+        format!("{:.1}M tok", tokens as f64 / 1_000_000.0)
+    }
+}
+
 /// Simple fuzzy matching: all characters of `query` appear in `name` in order.
 pub(super) fn fuzzy_match(name: &str, query: &str) -> bool {
     let mut name_chars = name.chars();

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.68.0] - 2026-04-16
+
+### Changed
+
+- **Token count display** — file sizes in the file list, status bar, and diff overlays now show estimated token counts (`bytes/4` heuristic) instead of raw byte sizes, using `tok`/`k tok`/`M tok` suffixes (e.g. `1.2k tok`). This gives developers working alongside AI assistants a direct signal for context-window impact without requiring a tokenizer dependency. The original `format_size` function is preserved for internal use.
+
 ## [0.67.0] - 2026-04-03
 
 ### Added
