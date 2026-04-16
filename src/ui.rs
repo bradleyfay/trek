@@ -1,6 +1,6 @@
 use crate::app::session_snapshot::ChangeKind;
 use crate::app::session_summary::count_by_kind;
-use crate::app::{format_dir_count, format_listing_date, format_size, App, SortMode, SortOrder};
+use crate::app::{format_dir_count, format_listing_date, format_tokens, App, SortMode, SortOrder};
 use crate::git::FileStatus;
 use crate::icons::icon_for_entry;
 use crate::ops::ClipboardOp;
@@ -178,7 +178,7 @@ pub fn draw(f: &mut Frame, app: &mut App) {
             .map(|e| e.size)
             .sum();
         let size_label = if total_bytes > 0 {
-            format!("  ({})", format_size(total_bytes))
+            format!("  ({})", format_tokens(total_bytes))
         } else {
             String::new()
         };
@@ -783,7 +783,7 @@ fn draw_current_pane(f: &mut Frame, app: &App, area: Rect) {
             } else if entry.is_dir {
                 String::new()
             } else {
-                format_size(entry.size)
+                format_tokens(entry.size)
             };
 
             // Layout: "[✓ ]{icon} {name}{padding}[indicator ]{right_col_str}"
@@ -2657,7 +2657,7 @@ fn draw_session_summary_pane(f: &mut Frame, app: &App, area: Rect) {
         for (idx, entry) in cache.iter().enumerate() {
             if entry.kind == ChangeKind::New {
                 let name = entry.path.to_string_lossy();
-                let size_label = format_size(entry.size);
+                let size_label = format_tokens(entry.size);
                 let style = if sel == idx {
                     Style::default()
                         .fg(app.theme.confirm_fg)
@@ -2688,9 +2688,9 @@ fn draw_session_summary_pane(f: &mut Frame, app: &App, area: Rect) {
                 let name = entry.path.to_string_lossy();
                 let delta = entry.size as i64 - entry.old_size as i64;
                 let delta_label = if delta >= 0 {
-                    format!("+{}", format_size(delta as u64))
+                    format!("+{}", format_tokens(delta as u64))
                 } else {
-                    format!("-{}", format_size((-delta) as u64))
+                    format!("-{}", format_tokens((-delta) as u64))
                 };
                 let style = if sel == idx {
                     Style::default()
@@ -2720,7 +2720,7 @@ fn draw_session_summary_pane(f: &mut Frame, app: &App, area: Rect) {
         for (idx, entry) in cache.iter().enumerate() {
             if entry.kind == ChangeKind::Deleted {
                 let name = entry.path.to_string_lossy();
-                let size_label = format!("was {}", format_size(entry.old_size));
+                let size_label = format!("was {}", format_tokens(entry.old_size));
                 let style = if sel == idx {
                     Style::default()
                         .fg(app.theme.confirm_fg)

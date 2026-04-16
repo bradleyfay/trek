@@ -3973,3 +3973,48 @@ fn archive_go_up_at_root_exits_archive_mode() {
 
     let _ = std::fs::remove_dir_all(&tmp);
 }
+
+// ── format_tokens ─────────────────────────────────────────────────────────────
+
+/// Given: a file with zero bytes
+/// When: format_tokens is called
+/// Then: returns "0 tok"
+#[test]
+fn format_tokens_zero_bytes() {
+    assert_eq!(format_tokens(0), "0 tok");
+}
+
+/// Given: a file with fewer than 4000 bytes (under 1k tokens)
+/// When: format_tokens is called
+/// Then: returns a raw token count with "tok" suffix (no k/M suffix)
+#[test]
+fn format_tokens_under_1k() {
+    // 400 bytes → 100 tokens
+    assert_eq!(format_tokens(400), "100 tok");
+    // 3999 bytes → 999 tokens
+    assert_eq!(format_tokens(3999), "999 tok");
+}
+
+/// Given: a file between 4000 and 3_999_999 bytes (1k–999k tokens)
+/// When: format_tokens is called
+/// Then: returns a count in thousands with one decimal and "k tok" suffix
+#[test]
+fn format_tokens_1k_to_999k() {
+    // 4000 bytes → 1.0k tok
+    assert_eq!(format_tokens(4_000), "1.0k tok");
+    // 40_000 bytes → 10.0k tok
+    assert_eq!(format_tokens(40_000), "10.0k tok");
+    // 3_999_600 bytes → 999_900 tokens → 999.9k tok
+    assert_eq!(format_tokens(3_999_600), "999.9k tok");
+}
+
+/// Given: a file with 4_000_000 or more bytes (1M+ tokens)
+/// When: format_tokens is called
+/// Then: returns a count in millions with one decimal and "M tok" suffix
+#[test]
+fn format_tokens_1m_plus() {
+    // 4_000_000 bytes → 1.0M tok
+    assert_eq!(format_tokens(4_000_000), "1.0M tok");
+    // 40_000_000 bytes → 10.0M tok
+    assert_eq!(format_tokens(40_000_000), "10.0M tok");
+}
