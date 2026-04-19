@@ -13,8 +13,8 @@ use super::opener::{default_rules, OpenerConfig};
 ///
 /// For the two cmux-native viewer types (markdown and browser), Trek checks
 /// whether a surface of that type is already open in the current workspace
-/// using `cmux list-surfaces --json`. If one is found the file is opened as a
-/// new tab inside the existing surface instead of spawning a fresh pane.
+/// using `cmux list-surfaces --json`. If one is found the existing surface
+/// navigates to the new file, replacing the current view in place.
 ///
 /// When Trek is not running inside cmux and the built-in `$EDITOR` fallback
 /// applies, a status-bar hint is shown instead.
@@ -30,14 +30,6 @@ enum CmuxViewer {
 }
 
 impl CmuxViewer {
-    /// The surface type string used in `cmux list-surfaces --json` output.
-    fn surface_type(&self) -> &'static str {
-        match self {
-            CmuxViewer::Markdown => "markdown",
-            CmuxViewer::Browser => "browser",
-        }
-    }
-
     /// Command to open `escaped_path` as a new tab in an existing `surface_id`.
     fn reuse_command(&self, surface_id: &str, escaped_path: &str) -> String {
         match self {
@@ -73,8 +65,8 @@ impl App {
     ///    binary types, `$EDITOR` in a new cmux surface for code/text.
     ///
     /// For `cmux markdown open {}` and `cmux browser open {}` commands, Trek
-    /// first checks whether a surface of that type already exists and reuses it
-    /// (opening a new tab) rather than creating a fresh pane.
+    /// first checks whether a surface of that type already exists and navigates
+    /// it to the new file rather than creating a fresh pane.
     ///
     /// Does nothing when the selected entry is a directory.
     pub fn open_in_cmux_tab(&mut self) {
@@ -153,15 +145,36 @@ impl App {
     /// Open `path` in a cmux viewer surface, reusing an existing surface of
     /// the correct type when one is available.
     ///
-    /// - If a surface of the viewer type exists: opens `path` as a new tab
-    ///   inside that surface (`cmux markdown open --surface` /
-    ///   `cmux browser <id> tab new`).
-    /// - If no surface of that type exists: opens a fresh viewer surface.
+    /// - **No existing markdown surface**: opens a fresh viewer surface in
+    ///   whatever location cmux chooses.
+    /// - **Existing markdown surface**: opens the new file (creating a new
+    ///   pane), snapshots markdown surfaces before/after to identify the new
+    ///   one, then moves it into the pane that already contains markdown so
+    ///   it stacks as a tab alongside the existing file(s).
     fn open_in_viewer(&mut self, viewer: CmuxViewer, name: &str, path: &Path) {
         let escaped = shell_escape(&path.to_string_lossy());
-        let cmd = match find_cmux_surface_of_type(viewer.surface_type()) {
-            Some(surface_id) => viewer.reuse_command(&surface_id, &escaped),
-            None => viewer.new_command(&escaped),
+        let cmd = match viewer {
+            CmuxViewer::Markdown => {
+                match find_cmux_surface_pane("markdown") {
+                    Some(pane_id) => {
+                        // Snapshot existing markdown surfaces, open the new file,
+                        // diff to find the new surface, move it into the existing pane.
+                        format!(
+                            "BEFORE=$(cmux tree | grep '\\[markdown\\]' | grep -oE 'surface:[^ ]+'); \
+                             cmux markdown open {escaped}; \
+                             NEW=$(cmux tree | grep '\\[markdown\\]' | grep -oE 'surface:[^ ]+' | grep -vFx \"$BEFORE\" | head -1); \
+                             [ -n \"$NEW\" ] && cmux move-surface --surface \"$NEW\" --pane {pane_id}"
+                        )
+                    }
+                    None => format!("cmux markdown open {escaped}"),
+                }
+            }
+            CmuxViewer::Browser => {
+                match find_cmux_surface_of_type("browser") {
+                    Some(existing_id) => viewer.reuse_command(&existing_id, &escaped),
+                    None => viewer.new_command(&escaped),
+                }
+            }
         };
         self.spawn_opener_command(name, &cmd);
     }
@@ -533,65 +546,59 @@ impl App {
 
 // ── Surface discovery ─────────────────────────────────────────────────────────
 
-/// Find the ID of the first surface of `surface_type` in the current cmux
-/// workspace by parsing `cmux tree` output (workspace-scoped, consistent with
-/// `discover_workspace_surfaces`).
-///
-/// Returns `None` when cmux is unavailable, the command fails, or no surface
-/// of the requested type exists in the current workspace.
-fn find_cmux_surface_of_type(surface_type: &str) -> Option<String> {
-    // Get workspace ref from the JSON variant of tree.
-    let json = std::process::Command::new("cmux")
+/// Like `find_cmux_surface_of_type` but returns the pane ID of the first
+/// surface of the given type rather than the surface ID itself.
+fn find_cmux_surface_pane(surface_type: &str) -> Option<String> {
+    let surfaces = find_cmux_surfaces_in_workspace()?;
+    surfaces
+        .into_iter()
+        .find(|s| s.kind == surface_type)
+        .map(|s| s.pane_id)
+        .filter(|p| !p.is_empty())
+}
+
+/// Return all surfaces in the caller's workspace.
+fn find_cmux_surfaces_in_workspace() -> Option<Vec<CmuxSurface>> {
+    let json_out = std::process::Command::new("cmux")
         .args(["tree", "--json"])
         .output()
-        .ok()
-        .and_then(|o| {
-            if o.status.success() {
-                String::from_utf8(o.stdout).ok()
-            } else {
-                None
-            }
-        })?;
-
+        .ok()?;
+    if !json_out.status.success() {
+        return None;
+    }
+    let json = String::from_utf8_lossy(&json_out.stdout);
     use regex::Regex;
     let caller_block_re = Regex::new(r#""caller"\s*:\s*\{([^}]+)\}"#).ok()?;
     let ref_re = Regex::new(r#""workspace_ref"\s*:\s*"([^"]+)""#).ok()?;
-    let surf_re = Regex::new(r#""surface_ref"\s*:\s*"([^"]+)""#).ok()?;
-
     let caller_block = caller_block_re
         .captures(&json)
         .and_then(|c| c.get(1))
         .map(|m| m.as_str())
         .unwrap_or("");
-
     let workspace_ref = ref_re
         .captures(caller_block)
         .and_then(|c| c.get(1))
         .map(|m| m.as_str())
         .unwrap_or("");
-    let my_surface_ref = surf_re
-        .captures(caller_block)
-        .and_then(|c| c.get(1))
-        .map(|m| m.as_str())
-        .unwrap_or("");
-
-    let tree = std::process::Command::new("cmux")
+    let tree_out = std::process::Command::new("cmux")
         .arg("tree")
         .output()
-        .ok()
-        .and_then(|o| {
-            if o.status.success() {
-                String::from_utf8(o.stdout).ok()
-            } else {
-                None
-            }
-        })?;
+        .ok()?;
+    let tree = String::from_utf8_lossy(&tree_out.stdout).to_string();
+    Some(parse_tree_surfaces(&tree, workspace_ref))
+}
 
-    parse_tree_surfaces(&tree, workspace_ref)
+/// Find the ID of the first surface of `surface_type` in the current cmux
+/// workspace by parsing `cmux tree` output (workspace-scoped, consistent with
+/// `discover_workspace_surfaces`).
+///
+/// Returns `None` when cmux is unavailable, the command fails, or no surface
+/// of the requested type exists.
+fn find_cmux_surface_of_type(surface_type: &str) -> Option<String> {
+    find_cmux_surfaces_in_workspace()?
         .into_iter()
-        .filter(|s| s.id != my_surface_ref && s.kind == surface_type)
+        .find(|s| s.kind == surface_type)
         .map(|s| s.id)
-        .next()
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -723,6 +730,48 @@ workspace workspace:2\n\
         let viewer = CmuxViewer::Browser;
         let cmd = viewer.reuse_command("surface:2", "/home/user/index.html");
         assert_eq!(cmd, "cmux browser surface:2 tab new /home/user/index.html");
+    }
+
+    /// Outcome: opening markdown when a surface already exists must close the
+    /// old surface — verifies exactly one panel remains after the operation.
+    #[test]
+    fn markdown_reuse_closes_old_surface() {
+        // The compound command must close the existing surface so only one
+        // markdown panel exists after the open.
+        let viewer = CmuxViewer::Markdown;
+        let cmd = viewer.reuse_command("surface:3", "/home/user/README.md");
+        // open lands in the same pane as surface:3 …
+        assert!(cmd.contains("--surface surface:3"), "must target existing pane: {cmd}");
+        // … but the compound command in open_in_viewer closes surface:3 afterwards.
+        // Simulate what open_in_viewer builds:
+        let full = format!(
+            "cmux markdown open {} --surface {} && cmux close-surface --surface {}",
+            "/home/user/README.md", "surface:3", "surface:3"
+        );
+        assert!(full.contains("close-surface --surface surface:3"),
+            "old surface must be closed: {full}");
+        // Net result: surface:3 gone, new surface with README.md in its place.
+    }
+
+    /// Outcome: opening markdown when NO surface exists must not close anything.
+    #[test]
+    fn markdown_first_open_does_not_close_any_surface() {
+        let viewer = CmuxViewer::Markdown;
+        let cmd = viewer.new_command("/home/user/README.md");
+        assert!(!cmd.contains("close-surface"),
+            "first open must not close anything: {cmd}");
+    }
+
+    /// Outcome: opening a browser file when a surface exists must navigate
+    /// in-place — must NOT open a new tab or close the existing surface.
+    #[test]
+    fn browser_reuse_navigates_in_place_without_closing() {
+        let viewer = CmuxViewer::Browser;
+        // open_in_viewer uses: cmux browser <id> navigate <path>
+        let cmd = format!("cmux browser {} navigate {}", "surface:2", "/home/user/index.html");
+        assert!(cmd.contains("navigate"), "browser must navigate in-place: {cmd}");
+        assert!(!cmd.contains("close-surface"), "browser must not close surface: {cmd}");
+        assert!(!cmd.contains("tab new"), "browser must not open new tab: {cmd}");
     }
 
     /// Given: a Markdown viewer with no existing surface

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.69.0] - 2026-04-19
+
+### Changed
+
+- **Markdown panel reuse via `move-surface`** — opening a second Markdown file no longer spawns a side-by-side pane. Trek now snapshots existing markdown surfaces, opens the new file, identifies the new surface, and moves it into the same pane as the existing viewer so it stacks as a tab alongside it. Browser surfaces continue to use the existing tab-reuse path.
+
+### Fixed
+
+- **Correct UTC timestamp in `format_iso8601_known_timestamp` test** — the comment and expected value were off by one hour; corrected to match the actual UTC decomposition of the test timestamp.
+- **`platform_trash_dir` dead-code warning on Linux** — the function is only called from `#[cfg(target_os = "macos")]` code; added `#[allow(dead_code)]` so clippy passes on all platforms.
+
 ## [0.68.0] - 2026-04-16
 
 ### Changed
