@@ -96,6 +96,7 @@ pub fn restore_path(entry: &TrashedEntry) -> Result<()> {
 ///
 /// On Linux, prefer [`linux_trash_dir_for`] when the file path is known —
 /// it selects between home trash and per-device trash based on `st_dev`.
+#[allow(dead_code)]
 pub fn platform_trash_dir() -> Result<PathBuf> {
     #[cfg(target_os = "macos")]
     {
@@ -383,7 +384,7 @@ mod tests {
     #[cfg(target_os = "linux")]
     #[test]
     fn format_iso8601_known_timestamp() {
-        // 2024-01-15T12:30:45 UTC = 1705318245
-        assert_eq!(format_iso8601_utc(1_705_318_245), "2024-01-15T12:30:45");
+        // 2024-01-15T11:30:45 UTC = 1705318245
+        assert_eq!(format_iso8601_utc(1_705_318_245), "2024-01-15T11:30:45");
     }
 }
