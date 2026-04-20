@@ -169,12 +169,10 @@ impl App {
                     None => format!("cmux markdown open {escaped}"),
                 }
             }
-            CmuxViewer::Browser => {
-                match find_cmux_surface_of_type("browser") {
-                    Some(existing_id) => viewer.reuse_command(&existing_id, &escaped),
-                    None => viewer.new_command(&escaped),
-                }
-            }
+            CmuxViewer::Browser => match find_cmux_surface_of_type("browser") {
+                Some(existing_id) => viewer.reuse_command(&existing_id, &escaped),
+                None => viewer.new_command(&escaped),
+            },
         };
         self.spawn_opener_command(name, &cmd);
     }
@@ -741,15 +739,20 @@ workspace workspace:2\n\
         let viewer = CmuxViewer::Markdown;
         let cmd = viewer.reuse_command("surface:3", "/home/user/README.md");
         // open lands in the same pane as surface:3 …
-        assert!(cmd.contains("--surface surface:3"), "must target existing pane: {cmd}");
+        assert!(
+            cmd.contains("--surface surface:3"),
+            "must target existing pane: {cmd}"
+        );
         // … but the compound command in open_in_viewer closes surface:3 afterwards.
         // Simulate what open_in_viewer builds:
         let full = format!(
             "cmux markdown open {} --surface {} && cmux close-surface --surface {}",
             "/home/user/README.md", "surface:3", "surface:3"
         );
-        assert!(full.contains("close-surface --surface surface:3"),
-            "old surface must be closed: {full}");
+        assert!(
+            full.contains("close-surface --surface surface:3"),
+            "old surface must be closed: {full}"
+        );
         // Net result: surface:3 gone, new surface with README.md in its place.
     }
 
@@ -758,8 +761,10 @@ workspace workspace:2\n\
     fn markdown_first_open_does_not_close_any_surface() {
         let viewer = CmuxViewer::Markdown;
         let cmd = viewer.new_command("/home/user/README.md");
-        assert!(!cmd.contains("close-surface"),
-            "first open must not close anything: {cmd}");
+        assert!(
+            !cmd.contains("close-surface"),
+            "first open must not close anything: {cmd}"
+        );
     }
 
     /// Outcome: opening a browser file when a surface exists must navigate
@@ -768,10 +773,22 @@ workspace workspace:2\n\
     fn browser_reuse_navigates_in_place_without_closing() {
         let viewer = CmuxViewer::Browser;
         // open_in_viewer uses: cmux browser <id> navigate <path>
-        let cmd = format!("cmux browser {} navigate {}", "surface:2", "/home/user/index.html");
-        assert!(cmd.contains("navigate"), "browser must navigate in-place: {cmd}");
-        assert!(!cmd.contains("close-surface"), "browser must not close surface: {cmd}");
-        assert!(!cmd.contains("tab new"), "browser must not open new tab: {cmd}");
+        let cmd = format!(
+            "cmux browser {} navigate {}",
+            "surface:2", "/home/user/index.html"
+        );
+        assert!(
+            cmd.contains("navigate"),
+            "browser must navigate in-place: {cmd}"
+        );
+        assert!(
+            !cmd.contains("close-surface"),
+            "browser must not close surface: {cmd}"
+        );
+        assert!(
+            !cmd.contains("tab new"),
+            "browser must not open new tab: {cmd}"
+        );
     }
 
     /// Given: a Markdown viewer with no existing surface
