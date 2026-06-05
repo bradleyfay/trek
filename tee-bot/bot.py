@@ -21,9 +21,11 @@ _DEFAULT_URL = "https://www.bluehillcc.com/group/pages/teetime"
 
 
 class TeeTimeBot:
-    def __init__(self, cfg: dict, dry_run: bool = False):
+    def __init__(self, cfg: dict, username: str, password: str, dry_run: bool = False):
         self.cfg = cfg
         self.dry_run = dry_run
+        self._username = username
+        self._password = password
         self._url = cfg.get("club", {}).get("teetime_url", _DEFAULT_URL)
 
     def run(self) -> str | None:
@@ -47,12 +49,37 @@ class TeeTimeBot:
         r = client.get(self._url)
         if _is_login_page(r):
             logger.info("Redirected to login — submitting credentials")
-            r = _submit_login_form(client, r)
+            r = self._submit_login_form(client, r)
             if _is_login_page(r):
-                raise RuntimeError("Login failed — verify CLUB_USERNAME and CLUB_PASSWORD")
+                raise RuntimeError("Login failed — verify credentials for this member")
             logger.info("Authenticated")
         else:
             logger.info("Session already valid")
+
+    def _submit_login_form(self, client: httpx.Client, page: httpx.Response) -> httpx.Response:
+        soup = BeautifulSoup(page.text, "html.parser")
+        form = soup.find("form")
+        if not form:
+            raise RuntimeError("Login form not found on page")
+
+        action = form.get("action") or str(page.url)
+        if not action.startswith("http"):
+            action = urljoin(str(page.url), action)
+
+        payload = {
+            inp["name"]: inp.get("value", "")
+            for inp in form.find_all("input", type="hidden")
+            if inp.get("name")
+        }
+        for inp in form.find_all("input"):
+            name = inp.get("name", "")
+            itype = inp.get("type", "text").lower()
+            if itype in ("email", "text") and re.search(r"(login|email|user)", name, re.I):
+                payload[name] = self._username
+            elif itype == "password":
+                payload[name] = self._password
+
+        return client.post(action, data=payload)
 
     # ── Booking ─────────────────────────────────────────────────────────────────
 
@@ -191,34 +218,6 @@ class TeeTimeBot:
 
 def _is_login_page(r: httpx.Response) -> bool:
     return "/login" in str(r.url) or "LoginPortlet" in r.text
-
-
-def _submit_login_form(client: httpx.Client, page: httpx.Response) -> httpx.Response:
-    soup = BeautifulSoup(page.text, "html.parser")
-    form = soup.find("form")
-    if not form:
-        raise RuntimeError("Login form not found on page")
-
-    action = form.get("action") or str(page.url)
-    if not action.startswith("http"):
-        action = urljoin(str(page.url), action)
-
-    # Collect hidden CSRF / Liferay state fields
-    payload = {
-        inp["name"]: inp.get("value", "")
-        for inp in form.find_all("input", type="hidden")
-        if inp.get("name")
-    }
-    # Find username and password fields (Liferay portlet-namespaced names)
-    for inp in form.find_all("input"):
-        name = inp.get("name", "")
-        itype = inp.get("type", "text").lower()
-        if itype in ("email", "text") and re.search(r"(login|email|user)", name, re.I):
-            payload[name] = os.environ["CLUB_USERNAME"]
-        elif itype == "password":
-            payload[name] = os.environ["CLUB_PASSWORD"]
-
-    return client.post(action, data=payload)
 
 
 def _extract_p_auth(html: str) -> str:

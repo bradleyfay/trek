@@ -1,39 +1,42 @@
 # ─── Blue Hill CC tee time bot ────────────────────────────────────────────────
-# Portal: Northstar Technologies on Liferay (JSF/PrimeFaces)
-# ──────────────────────────────────────────────────────────────────────────────
 
 club:
-  # Tee time booking page (change only if the URL ever moves)
   teetime_url: "https://www.bluehillcc.com/group/pages/teetime"
+  # course: 1  # 1=Championship, 2=Challenger, 3=Sim 1, 4=Sim 2
 
-  # Course preference (uncomment/change if needed):
-  # 1 = Championship Course (default)
-  # 2 = Challenger Course
-  # 3 = Simulator 1
-  # 4 = Simulator 2
-  course: 1
 
+# ─── Members ─────────────────────────────────────────────────────────────────
+# Each member needs a matching pair of env vars:
+#   <ENV_PREFIX>_USERNAME and <ENV_PREFIX>_PASSWORD
+#
+# Add a member by copying one of the blocks below.
+# Per-member time overrides are optional — omit to use the defaults below.
+
+members:
+  - name: "Brad"
+    env_prefix: "BRAD"
+    # earliest_time: "08:00"   # override default window for this member
+    # latest_time: "10:30"
+
+  # - name: "Jane"
+  #   env_prefix: "JANE"
+  #   earliest_time: "07:30"
+  #   latest_time: "09:00"
+
+
+# ─── Default preferences (apply to all members unless overridden above) ───────
 
 preferences:
-  # How many days ahead the booking window opens at Blue Hill
   days_in_advance: 7
-
-  # Only book slots that start within this window (24-hour format)
   earliest_time: "08:00"
   latest_time: "10:30"
-
-  # Number of players — used when the reservation dialog has a players dropdown
   players: 4
 
 
+# ─── Schedule ────────────────────────────────────────────────────────────────
+
 schedule:
-  # What time the booking window opens (bot fires at this time)
   run_time: "07:00"
-
-  # Your local timezone — full list at:
-  # https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
   timezone: "America/New_York"
-
-  # Days of the week to run (0 = Monday … 6 = Sunday).
-  # [5, 6] fires on Saturday + Sunday to book 7 days out (next Sat/Sun).
+  # 0=Mon … 6=Sun; [5, 6] fires Sat+Sun to book 7 days out
   run_on_days: [5, 6]

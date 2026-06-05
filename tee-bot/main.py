@@ -42,34 +42,58 @@ def send_sms(message: str) -> None:
     logger.info("SMS sent: %s", message)
 
 
-def run_bot(cfg: dict, dry_run: bool = False) -> None:
-    bot = TeeTimeBot(cfg, dry_run=dry_run)
+def _member_prefs(cfg: dict, member: dict) -> dict:
+    """Merge global preferences with any per-member overrides."""
+    prefs = dict(cfg["preferences"])
+    for key in ("days_in_advance", "earliest_time", "latest_time", "players"):
+        if key in member:
+            prefs[key] = member[key]
+    return prefs
+
+
+def run_member(cfg: dict, member: dict, dry_run: bool = False) -> None:
+    name = member.get("name", member["env_prefix"])
+    prefix = member["env_prefix"]
+
+    username = os.environ[f"{prefix}_USERNAME"]
+    password = os.environ[f"{prefix}_PASSWORD"]
+
+    merged_cfg = {**cfg, "preferences": _member_prefs(cfg, member)}
+    bot = TeeTimeBot(merged_cfg, username, password, dry_run=dry_run)
+
     try:
         result = bot.run()
+        tag = " [DRY RUN]" if dry_run else ""
         if result:
-            tag = " [DRY RUN]" if dry_run else ""
-            send_sms(f"Tee time booked{tag}: {result} ⛳")
+            send_sms(f"{name} — Tee time booked{tag}: {result} ⛳")
         else:
-            send_sms("No tee times found in your preferred window. Book manually!")
+            send_sms(f"{name} — No tee times found in preferred window. Book manually!")
     except Exception as exc:
-        logger.exception("Bot run failed")
-        send_sms(f"Tee time bot error: {exc}")
+        logger.exception("Bot run failed for %s", name)
+        send_sms(f"{name} — Tee time bot error: {exc}")
+
+
+def run_all(cfg: dict, dry_run: bool = False) -> None:
+    members = cfg.get("members", [])
+    if not members:
+        logger.error("No members defined in config.yaml")
+        return
+    for member in members:
+        run_member(cfg, member, dry_run=dry_run)
 
 
 def main(cfg: dict) -> None:
     schedule = cfg["schedule"]
     hour, minute = schedule["run_time"].split(":")
     tz = schedule["timezone"]
-
-    # run_on_days uses 0=Monday … 6=Sunday (Python convention)
     days_str = ",".join(str(d) for d in schedule["run_on_days"])
 
     scheduler = BlockingScheduler(timezone=tz)
     scheduler.add_job(
-        run_bot,
+        run_all,
         CronTrigger(day_of_week=days_str, hour=int(hour), minute=int(minute), timezone=tz),
         args=[cfg],
-        name="book_tee_time",
+        name="book_tee_times",
     )
     logger.info(
         "Scheduler running. Will fire at %s %s on day(s): %s",
@@ -97,6 +121,6 @@ if __name__ == "__main__":
     cfg = load_config()
 
     if args.run_now or args.dry_run:
-        run_bot(cfg, dry_run=args.dry_run)
+        run_all(cfg, dry_run=args.dry_run)
     else:
         main(cfg)
