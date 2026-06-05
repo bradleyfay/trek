@@ -1,0 +1,7 @@
+[build]
+# Install Python deps and download the Chromium browser binary
+buildCommand = "pip install -r requirements.txt && playwright install chromium --with-deps"
+
+[deploy]
+startCommand = "python main.py"
+restartPolicyType = "always"
