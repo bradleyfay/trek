@@ -1,87 +1,39 @@
-# ─── HOW TO FILL THIS IN ──────────────────────────────────────────────────────
-# Open your club's booking page in Chrome.
-# Right-click any form element → Inspect → right-click the highlighted node
-# → Copy → Copy selector (or write a simpler CSS selector by hand).
+# ─── Blue Hill CC tee time bot ────────────────────────────────────────────────
+# Portal: Northstar Technologies on Liferay (JSF/PrimeFaces)
 # ──────────────────────────────────────────────────────────────────────────────
 
-login:
-  url: "https://YOUR_CLUB_PORTAL.com/login"
+club:
+  # Tee time booking page (change only if the URL ever moves)
+  teetime_url: "https://www.bluehillcc.com/group/pages/teetime"
 
-  # CSS selector for the email/username input
-  username_selector: "#username"
-
-  # CSS selector for the password input
-  password_selector: "#password"
-
-  # CSS selector for the submit/login button
-  submit_selector: "button[type='submit']"
-
-  # Any element that only appears after a successful login
-  # (used to confirm the login worked before the bot proceeds)
-  success_selector: ".member-nav"
-
-
-booking:
-  url: "https://YOUR_CLUB_PORTAL.com/teetime/book"
-
-  # Python strftime format that matches what the date input expects
-  date_format: "%Y-%m-%d"
-
-  # ── Date selection: use ONE of the two options below ──────────────────────
-
-  # Option A — text/date input you can type into:
-  date_input_selector: "input[name='date']"
-
-  # Option B — click a specific day cell in a calendar widget.
-  # Use {date} as a placeholder; it will be replaced at runtime.
-  # Comment out date_input_selector above and uncomment this instead:
-  # date_click_selector: "td[data-date='{date}']"
-
-  # ── Time slots ─────────────────────────────────────────────────────────────
-
-  # CSS selector that matches every available time-slot element
-  # Tip: find one slot in DevTools, note its class, then use .that-class
-  time_slot_selector: ".available-tee-time"
-
-  # strptime format for the text shown inside each time slot
-  # Common values: "%I:%M %p" → "8:30 AM"  |  "%H:%M" → "08:30"
-  time_display_format: "%I:%M %p"
-
-  # ── Players (optional) ────────────────────────────────────────────────────
-
-  # Selector for the players <select> — remove/comment out if not needed
-  players_selector: "select[name='players']"
-
-  # ── Confirm booking ───────────────────────────────────────────────────────
-
-  # The final "Book" or "Confirm" button
-  confirm_selector: "button#confirm-booking"
-
-  # An element that appears on the success/confirmation screen (optional but
-  # strongly recommended — lets the bot verify the booking actually went through)
-  confirmation_selector: ".booking-confirmation"
+  # Course preference (uncomment/change if needed):
+  # 1 = Championship Course (default)
+  # 2 = Challenger Course
+  # 3 = Simulator 1
+  # 4 = Simulator 2
+  course: 1
 
 
 preferences:
-  # How many days ahead the booking window opens at your club
+  # How many days ahead the booking window opens at Blue Hill
   days_in_advance: 7
 
-  # Only book slots that fall within this window (24-hour format)
+  # Only book slots that start within this window (24-hour format)
   earliest_time: "08:00"
   latest_time: "10:30"
 
-  # Number of players — set to null to skip the players dropdown entirely
+  # Number of players — used when the reservation dialog has a players dropdown
   players: 4
 
 
 schedule:
-  # What time the booking window opens (the bot runs at this time)
+  # What time the booking window opens (bot fires at this time)
   run_time: "07:00"
 
   # Your local timezone — full list at:
   # https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
   timezone: "America/New_York"
 
-  # Days of the week to run the bot (0 = Monday … 6 = Sunday).
-  # Example: [5, 6] runs on Saturday + Sunday to book for the following weekend.
+  # Days of the week to run (0 = Monday … 6 = Sunday).
+  # [5, 6] fires on Saturday + Sunday to book 7 days out (next Sat/Sun).
   run_on_days: [5, 6]
